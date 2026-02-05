@@ -111,6 +111,84 @@ Keep it friendly but professional.
     }
   }
 
+  Future<Map<String, dynamic>> generateTripPlan(Trip trip) async {
+    // ⚠️ Updated Model Name to the stable 2.5 Flash from your list
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = """
+You are a backend travel planning engine.
+You do NOT check availability. You do NOT browse the live web.
+Your ONLY job is to accept trip parameters and return a structured JSON itinerary.
+The plan must be realistic, grouping locations geographically to minimize travel time.
+Limit to 4-5 high-quality stops per day.
+
+Make the plan purely based on the **Best Experience** for the location and duration.
+Ignore any budget constraints. Create the best possible itinerary regardless of cost.
+Admins can adjust the plan later if needed.
+
+INPUT DATA:
+Destination: ${trip.location}
+Dates: ${trip.startDate?.toIso8601String() ?? 'Day 1'} to ${trip.endDate?.toIso8601String() ?? 'Day ${trip.metadata?['days'] ?? 3}'}
+Vibe: ${trip.metadata?['vibe'] ?? 'Balanced'}
+
+OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN, NO COMMENTS):
+{
+  "day_plans": [
+    {
+      "day_number": 1,
+      "date": "${trip.startDate?.toIso8601String().substring(0, 10) ?? 'YYYY-MM-DD'}",
+      "summary": "Historical tour of old city",
+      "activities": [
+        {
+          "name": "Shreemant Dagdusheth Halwai Ganpati Mandir",
+          "type": "Temple",
+          "query_name": "Shreemant Dagdusheth Halwai Ganpati Mandir ${trip.location}",
+          "start_time": "09:00",
+          "duration_hours": 1.5
+        }
+      ]
+    }
+  ]
+}
+""";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt}
+              ]
+            }
+          ],
+           "generationConfig": {
+            "response_mime_type": "application/json"
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['candidates'] == null || data['candidates'].isEmpty) {
+             throw Exception('Gemini returned no candidates.');
+        }
+        final contentText = data['candidates'][0]['content']['parts'][0]['text'];
+        
+        // Clean up markdown code blocks if present format
+        final cleanJson = contentText.replaceAll('```json', '').replaceAll('```', '').trim();
+        return jsonDecode(cleanJson);
+      } else {
+        throw Exception('Gemini API Error: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Failed to generate plan: $e');
+    }
+  }
+
   String _stripMarkdown(String input) {
     return input
         .replaceAll('**', '')
@@ -119,5 +197,87 @@ Keep it friendly but professional.
         .replaceAll('# ', '')
         .replaceAll('* ', '')
         .trim();
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Advanced Chat with Context
+  // ---------------------------------------------------------------------------
+  Future<String> getChatResponse({
+    required String userMessage,
+    required Trip trip,
+    required List<Map<String, String>> history, // [{'role': 'user', 'text': '...'}, ...]
+    String? planContext, // JSON string of the current itinerary
+  }) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    // 1. Build System Context
+    final systemInstruction = """
+You are a highly experienced, knowledgeable, and financially savvy Personal Travel Guide.
+Your goal is to help the user with their trip to **${trip.location}**.
+
+CONTEXT:
+- Trip Name: ${trip.name}
+- Dates: ${trip.startDate?.toIso8601String() ?? 'TBD'} to ${trip.endDate?.toIso8601String() ?? 'TBD'}
+- Member Count: ${trip.memberIds.length}
+- Currency: ${trip.budgetCurrency}
+- Current Itinerary: ${planContext ?? 'No plan generated yet.'}
+
+GUIDELINES:
+1. **Strict Budget Adherence**: If the user mentions a specific budget (e.g., "I have 4 euros"), you MUST suggest options strictly within that limit (supermarkets, street food, free entry). Do NOT suggest expensive places if budget is tight.
+2. **Be Specific**: Don't just say "there are restaurants". Say "Try 'Cafe X' for brunch or 'Place Y' for dinner."
+3. **Pricing Estimates**: Always give price ranges based on local averages. (e.g., "Taxi from Airport: \$20-25").
+4. **Directions**: When suggesting a place, provide a simple Google Maps search link in Markdown: `[Get Directions](https://www.google.com/maps/search/?api=1&query=PLACE_NAME_ENCODED)`.
+5. **Tone**: Professional, friendly, and practical.
+
+If the user asks about something not in the context, assume they mean near the city center or their current itinerary stops.
+""";
+
+    // 2. Format History for Gemini API
+    // API expects: contents: [{role: "user", parts: [{text: "..."}]}, {role: "model", ...}]
+    List<Map<String, dynamic>> contents = [];
+    
+    // Inject system instruction as the first turn (or system instruction if supported, but turn 1 is safer for simple API)
+    // Actually, gemini-1.5/2.5 supports 'systemInstruction' field, but let's put it in the first user prompt to be safe across versions
+    // keeping it simple.
+    
+    // Add History
+    for (var msg in history) {
+      contents.add({
+        "role": msg['role'] == 'user' ? "user" : "model",
+        "parts": [{"text": msg['text']}]
+      });
+    }
+
+    // Add Current Message with Context injected invisibly if it's the start
+    String finalUserText = userMessage;
+    if (history.isEmpty) {
+      finalUserText = "$systemInstruction\n\nUSER QUESTION: $userMessage";
+    }
+
+    contents.add({
+      "role": "user",
+      "parts": [{"text": finalUserText}]
+    });
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": contents,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        return text ?? "I'm having trouble thinking right now. Try again.";
+      } else {
+        return "Error connecting to Travel Guide: ${response.statusCode}";
+      }
+    } catch (e) {
+      return "Network error: $e";
+    }
   }
 }

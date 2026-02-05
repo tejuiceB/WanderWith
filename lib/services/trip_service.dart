@@ -208,36 +208,15 @@ class TripService {
           .single();
 
       final createdBy = _normalizeId(resp['created_by']);
-      final membersRaw = resp['member_ids'];
-      final members = membersRaw is List
-          ? membersRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
-          : <String>[];
-
       final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
       final pendingRaw = metadata['pending_members'];
       final pending = pendingRaw is List
           ? pendingRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
           : <String>[];
 
-      final isOwner = createdBy == uid;
-      final isAlreadyMember = members.contains(uid);
-      var pendingChanged = false;
-
-      if (pending.contains(uid)) {
-        pending.remove(uid);
-        pendingChanged = true;
-      }
-
-      if (isOwner || isAlreadyMember) {
-        if (pendingChanged) {
-          metadata['pending_members'] = pending;
-          await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-        }
-        final message = isOwner
-            ? "You are the owner of this trip. You cannot join it."
-            : "You have already joined this trip.";
-        throw Exception(message);
-      }
+      // Logic Update: We just joined via RPC, so we are definitely in 'member_ids'.
+      // We rely on the PRE-CHECK (above) to catch users who were ALREADY members before this function ran.
+      // Therefore, we simply proceed to mark as pending.
 
       if (!pending.contains(uid)) {
         pending.add(uid);

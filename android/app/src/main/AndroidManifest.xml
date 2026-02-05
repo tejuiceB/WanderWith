@@ -35,6 +35,9 @@
                 <data android:scheme="io.supabase.wanderwith" android:host="login-callback" />
             </intent-filter>
         </activity>
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyB1xQdpl-cfjWGSfdmCGa_f_BtTXwO10gg"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

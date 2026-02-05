@@ -11,6 +11,7 @@ import 'screens/onboarding_profile_screen.dart';
 import 'screens/splash_screen.dart'; 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/app_env.dart';
+import 'providers/plan_provider.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -49,8 +50,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthService(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => PlanProvider()),
+      ],
       child: MaterialApp(
         navigatorKey: navigatorKey, // Set global key
         title: 'WanderWith',

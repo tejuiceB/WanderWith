@@ -6,8 +6,10 @@ CREATE TABLE public.messages (
   trip_id uuid NOT NULL,
   sender_id uuid,
   sender_name text,
-  text text NOT NULL,
+  text text,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  message_type text DEFAULT 'text'::text,
+  image_url text,
   CONSTRAINT messages_pkey PRIMARY KEY (id),
   CONSTRAINT messages_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id),
   CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)

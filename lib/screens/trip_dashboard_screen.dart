@@ -23,6 +23,9 @@ import '../services/notification_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/gemini_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'trip_plan_tab.dart';
+import 'ai_guide_screen.dart'; // Add this
+import '../services/plan_service.dart'; // Add this
 
 class TripDashboardScreen extends StatefulWidget {
   final Trip trip;
@@ -162,7 +165,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         }
 
         return DefaultTabController(
-          length: 8,
+          length: 9,
           child: Scaffold(
             appBar: AppBar(
               title: GestureDetector(
@@ -179,62 +182,13 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                   ],
                 ),
               ),
-              actions: [
-                 IconButton(
-                   icon: const Icon(Icons.share),
-                   tooltip: "Share Trip ID",
-                   onPressed: () {
-                      Share.share("Join my trip '${currentTrip.name}' on WanderWith! Use Trip ID: ${currentTrip.id}");
-                   },
-                 ),
-                 PopupMenuButton<String>(
-                   onSelected: (value) async {
-                      if (value == 'leave') {
-                         final confirm = await showDialog<bool>(
-                           context: context,
-                           builder: (ctx) => AlertDialog(
-                             title: const Text("Leave Trip?"),
-                             content: const Text("Are you sure you want to leave this trip? You will lose access to all content."),
-                             actions: [
-                               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-                               TextButton(
-                                 onPressed: () => Navigator.pop(ctx, true), 
-                                 child: const Text("Leave", style: TextStyle(color: Colors.red))
-                               ),
-                             ],
-                           )
-                         );
-
-                         if (confirm == true) {
-                            try {
-                               await TripService().leaveTrip(currentTrip.id);
-                               if (mounted) Navigator.pop(context); // Return to Home
-                            } catch (e) {
-                               if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                            }
-                         }
-                      }
-                   },
-                   itemBuilder: (context) => [
-                     const PopupMenuItem(
-                       value: 'leave',
-                       child: Row(
-                         children: [
-                           Icon(Icons.exit_to_app, color: Colors.red),
-                           SizedBox(width: 8),
-                           Text("Leave Trip", style: TextStyle(color: Colors.red)),
-                         ],
-                       ),
-                     )
-                   ],
-                 )
-              ],
               bottom: const TabBar(
                 isScrollable: true,
                 tabs: [
                   Tab(text: "Overview", icon: Icon(Icons.info_outline)),
                   Tab(text: "Dates", icon: Icon(Icons.calendar_today)),
                   Tab(text: "Budget", icon: Icon(Icons.attach_money)),
+                  Tab(text: "Plan", icon: Icon(Icons.map)),
                   Tab(text: "Links", icon: Icon(Icons.link)),
                   Tab(text: "Chat", icon: Icon(Icons.chat_bubble_outline)),
                   Tab(text: "Polls", icon: Icon(Icons.how_to_vote)),
@@ -248,6 +202,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                 _OverviewTab(trip: currentTrip, onRefresh: _refreshData),
                 _DateTab(trip: currentTrip, onRefresh: _refreshData),
                 _BudgetTab(trip: currentTrip, onRefresh: _refreshData),
+                TripPlanTab(trip: currentTrip),
                 _LinksTab(trip: currentTrip, onRefresh: _refreshData),
                 _ChatTab(trip: currentTrip, onRefresh: _refreshData),
                 _PollsTab(trip: currentTrip, onRefresh: _refreshData),
@@ -510,6 +465,21 @@ class _OverviewTab extends StatelessWidget {
             Center(
                child: TextButton.icon(
                  onPressed: () async {
+                    // Check if Owner is trying to leave
+                    if (trip.createdBy == currentUser) {
+                       await showDialog(
+                         context: context, 
+                         builder: (ctx) => AlertDialog(
+                           title: const Text("Cannot Leave Trip"),
+                           content: const Text("You are the owner of this trip. You cannot leave unless you delete the trip or transfer ownership."),
+                           actions: [
+                             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
+                           ],
+                         )
+                       );
+                       return;
+                    }
+
                     final confirm = await showDialog<bool>(
                        context: context,
                        builder: (ctx) => AlertDialog(
@@ -542,13 +512,35 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  void _showAIAssistant(BuildContext context) {
-    showModalBottomSheet(
+  void _showAIAssistant(BuildContext context) async {
+    // Show Loading
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _AIBottomSheet(trip: trip),
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      // 1. Fetch Plan Data
+      final plan = await PlanService().fetchTripPlan(trip.id);
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Close Loader
+        
+        // 2. Navigate to Chat Screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AIGuideScreen(trip: trip, plan: plan),
+          ),
+        );
+      }
+    } catch (e) {
+       if (context.mounted) {
+         Navigator.pop(context); // Close Loader
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not start AI Guide: $e")));
+       }
+    }
   }
 
   void _showManageMembers(BuildContext context) {

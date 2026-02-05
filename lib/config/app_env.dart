@@ -32,6 +32,7 @@ class AppEnv {
   static String get supabaseUrl => _get('SUPABASE_URL');
   static String get supabaseAnonKey => _get('SUPABASE_ANON_KEY');
   static String get googleWebClientId => _get('GOOGLE_WEB_CLIENT_ID');
+  static String get googleMapsApiKey => _get('GOOGLE_MAPS_API_KEY');
   static String get geminiApiKey => _get('GEMINI_API_KEY');
 
   static String _get(String key) {
@@ -50,6 +51,8 @@ class AppEnv {
         return const String.fromEnvironment('SUPABASE_ANON_KEY');
       case 'GOOGLE_WEB_CLIENT_ID':
         return const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+      case 'GOOGLE_MAPS_API_KEY':
+        return const String.fromEnvironment('GOOGLE_MAPS_API_KEY');
       case 'GEMINI_API_KEY':
         return const String.fromEnvironment('GEMINI_API_KEY');
       default:
@@ -62,6 +65,7 @@ class AppEnv {
     if (supabaseUrl.isEmpty) missing.add('SUPABASE_URL');
     if (supabaseAnonKey.isEmpty) missing.add('SUPABASE_ANON_KEY');
     if (googleWebClientId.isEmpty) missing.add('GOOGLE_WEB_CLIENT_ID');
+    // if (googleMapsApiKey.isEmpty) missing.add('GOOGLE_MAPS_API_KEY'); // Optional for now to prevent crash if not set immediately
     if (geminiApiKey.isEmpty) missing.add('GEMINI_API_KEY');
 
     if (missing.isNotEmpty) {
