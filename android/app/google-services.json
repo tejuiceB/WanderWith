@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "39642189753",
+    "project_id": "wanderwith",
+    "storage_bucket": "wanderwith.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:39642189753:android:8c1174c114595be24ff068",
+        "android_client_info": {
+          "package_name": "com.tejuice.wanderwith"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "39642189753-2phnieu3chdbcjbtgl2aj6rkjl7h9c65.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tejuice.wanderwith",
+            "certificate_hash": "c2dd4dd4595c78b4ee9fe3f459bb7de685c511f5"
+          }
+        },
+        {
+          "client_id": "39642189753-g3dfv3930ji9t83tauupe1d4i8p7onb0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tejuice.wanderwith",
+            "certificate_hash": "0714db8b5f90830298364d0fb105080e0e2378fd"
+          }
+        },
+        {
+          "client_id": "39642189753-nr57oq00ftc0il4a6tr5kjji3f0ld0oa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1xQdpl-cfjWGSfdmCGa_f_BtTXwO10gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "39642189753-nr57oq00ftc0il4a6tr5kjji3f0ld0oa.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
