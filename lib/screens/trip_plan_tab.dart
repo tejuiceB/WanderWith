@@ -9,6 +9,9 @@ import '../models/trip.dart';
 import '../models/trip_plan.dart';
 import '../providers/plan_provider.dart';
 import 'place_detail_screen.dart';
+import '../widgets/ai_generation_overlay.dart';
+import '../widgets/timeline_itinerary_item.dart';
+import '../widgets/add_place_bottom_sheet.dart';
 
 class TripPlanTab extends StatefulWidget {
   final Trip trip;
@@ -123,8 +126,8 @@ class _TripPlanTabState extends State<TripPlanTab> {
 
             // Draggable Sheet
             DraggableScrollableSheet(
-              initialChildSize: 0.45,
-              minChildSize: 0.25,
+              initialChildSize: 0.5,
+              minChildSize: 0.4,
               maxChildSize: 0.95, 
               snap: true, 
               builder: (context, scrollController) {
@@ -134,54 +137,129 @@ class _TripPlanTabState extends State<TripPlanTab> {
                     borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                     boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 2)],
                   ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      // Handle
-                      Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-                      const SizedBox(height: 12),
-                      
-                      // Day Selector
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
+                  child: CustomScrollView(
+                    controller: scrollController,
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Column(
                           children: [
-                            for (int i = 0; i < provider.days.length; i++)
+                            const SizedBox(height: 12),
+                            // Handle
+                            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+                            const SizedBox(height: 12),
+                            
+                            // Day Selector Header
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    "Trip Timeline",
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  ),
+                                  Spacer(),
+                                  Icon(Icons.more_horiz, color: Colors.grey),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Premium Day Selector
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                children: [
+                                  for (int i = 0; i < provider.days.length; i++)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 12.0),
+                                      child: InkWell(
+                                        onTap: () {
+                                          provider.selectDay(i);
+                                          _moveCameraToDay(provider);
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 300),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: provider.selectedDayIndex == i ? Colors.blue.shade600 : Colors.blue.shade50.withOpacity(0.5),
+                                            borderRadius: BorderRadius.circular(12),
+                                            boxShadow: provider.selectedDayIndex == i ? [
+                                              BoxShadow(
+                                                color: Colors.blue.withOpacity(0.3),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              )
+                                            ] : [],
+                                          ),
+                                          child: Text(
+                                            "Day ${provider.days[i].dayNumber}",
+                                            style: TextStyle(
+                                              color: provider.selectedDayIndex == i ? Colors.white : Colors.blue.shade700,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Summary / Story Header
+                            if (provider.currentDay != null)
                               Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
-                                child: ChoiceChip(
-                                  label: Text("Day ${provider.days[i].dayNumber}"),
-                                  selected: provider.selectedDayIndex == i,
-                                  onSelected: (selected) {
-                                    if(selected) {
-                                       provider.selectDay(i);
-                                       _moveCameraToDay(provider);
-                                    }
-                                  },
+                                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.blue.shade50),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Day ${provider.currentDay!.dayNumber} Summary",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade800,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                         provider.currentDay!.summary ?? '',
+                                         style: TextStyle(
+                                           fontSize: 14,
+                                           color: Colors.grey.shade700,
+                                           height: 1.4,
+                                         ),
+                                         maxLines: 3,
+                                         overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              )
+                              ),
+                            const SizedBox(height: 12),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      // Summary
-                      if (provider.currentDay != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Text(
-                             provider.currentDay!.summary ?? '',
-                             style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-                             maxLines: 2,
-                             overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      const Divider(),
 
-                      // List
-                      Expanded(
-                        child: provider.currentDay == null ? const SizedBox() : ReorderableListView.builder(
-                          buildDefaultDragHandles: canEdit, // Only admins can drag
+                      if (provider.currentDay != null)
+                        SliverReorderableList(
+                          itemCount: provider.currentDay!.places.length,
+                          onReorder: (oldIndex, newIndex) {
+                             if (!canEdit) return; // Guard
+                             if (newIndex > provider.currentDay!.places.length) newIndex = provider.currentDay!.places.length;
+                             if (oldIndex < newIndex) newIndex -= 1;
+                             provider.reorderPlace(provider.selectedDayIndex, oldIndex, newIndex);
+                          },
                           proxyDecorator: (child, index, animation) {
                              return Material(
                                elevation: 5,
@@ -189,116 +267,118 @@ class _TripPlanTabState extends State<TripPlanTab> {
                                child: child,
                              );
                           },
-                          scrollController: scrollController, 
-                          itemCount: provider.currentDay!.places.length + (canEdit ? 1 : 0), // +1 for Footer only if Admin
-                          onReorder: (oldIndex, newIndex) {
-                             if (!canEdit) return; // Guard
-                             if (newIndex >= provider.currentDay!.places.length) return; // Don't move below footer
-                             if (oldIndex >= provider.currentDay!.places.length) return; // Don't move footer
-                             provider.reorderPlace(provider.selectedDayIndex, oldIndex, newIndex);
-                          },
                           itemBuilder: (context, index) {
-                            if (canEdit && index == provider.currentDay!.places.length) {
-                                // FOOTER: Add Place & Regenerate (Admin Only)
-                                return Column(
-                                  key: const ValueKey('footer'),
-                                  children: [
-                                    const SizedBox(height: 16),
-                                    OutlinedButton.icon(
-                                        onPressed: () {
-                                            if (provider.currentDay != null) {
-                                              _showAddPlaceDialog(context, provider);
-                                            }
-                                        },
-                                        icon: const Icon(Icons.add_location_alt),
-                                        label: const Text("Add a Place manually"),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    if (!provider.isLoading)
-                                      TextButton.icon(
-                                          onPressed: () async {
-                                            try { await provider.generatePlan(widget.trip); } 
-                                            catch (e) { if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e"), backgroundColor: Colors.red)); }
-                                          },
-                                          icon: const Icon(Icons.refresh),
-                                          label: const Text("Regenerate Plan"),
-                                      ),
-                                    const SizedBox(height: 40),
-                                  ],
-                                );
-                            }
-
                             final place = provider.currentDay!.places[index];
-                            return Dismissible(
+                            return ReorderableDelayedDragStartListener(
                               key: ValueKey(place.id),
-                              direction: canEdit ? DismissDirection.endToStart : DismissDirection.none, // Disable for non-admin
-                              background: Container(
-                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                                alignment: Alignment.centerRight, 
-                                padding: const EdgeInsets.only(right: 20), 
-                                child: const Icon(Icons.delete, color: Colors.white)
+                              index: index,
+                              enabled: canEdit,
+                              child: Dismissible(
+                                key: ValueKey("${place.id}_dismiss"),
+                                direction: canEdit ? DismissDirection.endToStart : DismissDirection.none,
+                                background: Container(
+                                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                                  alignment: Alignment.centerRight, 
+                                  padding: const EdgeInsets.only(right: 20), 
+                                  child: const Icon(Icons.delete, color: Colors.white)
+                                ),
+                                confirmDismiss: (direction) async {
+                                  return await showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text("Remove Place?"),
+                                      content: Text("Are you sure you want to remove ${place.name} from the plan?"),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+                                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Remove", style: TextStyle(color: Colors.red))),
+                                      ],
+                                    )
+                                  );
+                                },
+                                onDismissed: (direction) {
+                                    provider.deletePlace(provider.selectedDayIndex, index);
+                                },
+                                child: TimelineItineraryItem(
+                                  place: place,
+                                  index: index,
+                                  isLast: index == provider.currentDay!.places.length - 1,
+                                  canEdit: canEdit,
+                                  onTap: () {
+                                    provider.selectPlace(index);
+                                    _moveCameraToPlace(provider, place.latLng);
+                                    
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      useRootNavigator: true,
+                                      enableDrag: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => Container(
+                                         height: MediaQuery.of(context).size.height * 0.9,
+                                         decoration: const BoxDecoration(
+                                           color: Colors.white,
+                                           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                         ),
+                                         clipBehavior: Clip.antiAlias,
+                                         child: PlaceDetailScreen(place: place),
+                                      )
+                                    );
+                                  },
+                                ),
                               ),
-                              confirmDismiss: (direction) async {
-                                return await showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text("Remove Place?"),
-                                    content: Text("Are you sure you want to remove ${place.name} from the plan?"),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-                                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Remove", style: TextStyle(color: Colors.red))),
-                                    ],
-                                  )
-                                );
-                              },
-                              onDismissed: (direction) {
-                                  provider.deletePlace(provider.selectedDayIndex, index);
-                              },
-                              child: _buildPlaceCard(context, place, index + 1, canEdit),
                             );
                           },
                         ),
-                      ),
+                      
+                      if (canEdit && provider.currentDay != null)
+                        SliverToBoxAdapter(
+                          child: Column(
+                            key: const ValueKey('footer'),
+                            children: [
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                  onPressed: () {
+                                      if (provider.currentDay != null) {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          backgroundColor: Colors.transparent,
+                                          builder: (context) => AddPlaceBottomSheet(
+                                            trip: widget.trip,
+                                            dayId: provider.currentDay!.id,
+                                            dayNumber: provider.currentDay!.dayNumber,
+                                          ),
+                                        );
+                                      }
+                                  },
+                                  icon: const Icon(Icons.add_location_alt),
+                                  label: const Text("Add a Place manually"),
+                              ),
+                              const SizedBox(height: 24),
+                              if (!provider.isLoading)
+                                TextButton.icon(
+                                    onPressed: () async {
+                                      try { await provider.generatePlan(widget.trip); } 
+                                      catch (e) { if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e"), backgroundColor: Colors.red)); }
+                                    },
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text("Regenerate Plan"),
+                                ),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 );
               },
             ),
             
-            // Loading Overlay (Only for AI Generation process)
-            if(provider.isLoading)
-              Container(
-                color: Colors.black54,
-                child: Center(
-                    child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                        margin: const EdgeInsets.symmetric(horizontal: 40),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]
-                        ),
-                        child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 20),
-                                Text(
-                                    provider.loadingStatus,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                    "Please wait while AI builds your plan.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                                )
-                            ],
-                        ),
-                    )
-                ),
-              )
+            // Premium AI Generation Overlay
+            if (provider.isLoading)
+              Positioned.fill(
+                child: AIPlanGenerationOverlay(status: provider.loadingStatus),
+              ),
           ],
         );
       },
@@ -318,154 +398,11 @@ class _TripPlanTabState extends State<TripPlanTab> {
       }
   }
 
-  Widget _buildPlaceCard(BuildContext context, TripPlanPlace place, int number, bool canEdit) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              useRootNavigator: true,
-              enableDrag: true,
-              backgroundColor: Colors.transparent, // Let screen handle it
-              builder: (_) => Container(
-                 height: MediaQuery.of(context).size.height * 0.9, // 90% height
-                 decoration: const BoxDecoration(
-                   color: Colors.white,
-                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                 ),
-                 clipBehavior: Clip.antiAlias,
-                 child: PlaceDetailScreen(place: place),
-              )
-            );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            children: [
-               // Thumbnail with Number Overlay
-               Stack(
-                 children: [
-                   ClipRRect(
-                     borderRadius: BorderRadius.circular(8),
-                     child: place.imageUrl != null 
-                        ? CachedNetworkImage(imageUrl: place.imageUrl!, width: 70, height: 70, fit: BoxFit.cover, errorWidget: (_,__,___)=>Container(width: 70, height: 70, color: Colors.grey[200]))
-                        : Container(width: 70, height: 70, color: Colors.grey[200], child: const Icon(Icons.image, color: Colors.grey)),
-                   ),
-                   Positioned(
-                     top: 0, left: 0,
-                     child: Container(
-                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                       decoration: const BoxDecoration(color: Colors.blueAccent, borderRadius: BorderRadius.only(topLeft: Radius.circular(8), bottomRight: Radius.circular(8))),
-                       child: Text("$number", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                     ),
-                   )
-                 ],
-               ),
-               const SizedBox(width: 16),
-               
-               // Info
-               Expanded(
-                 child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Text(place.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                     const SizedBox(height: 4),
-                     Text(place.type, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                     const SizedBox(height: 6),
-                     Row(
-                       children: [
-                          Icon(Icons.directions_car, size: 14, color: Colors.blue[700]),
-                          const SizedBox(width: 4),
-                          // Placeholder for travel time (e.g., "15 min") - Future Calculation
-                          Text(place.arrivalTime != null ? "${place.arrivalTime} Arrival" : "Travel info...", style: TextStyle(fontSize: 12, color: Colors.blue[700], fontWeight: FontWeight.w500)),
-                          if (place.rating != null) ...[
-                              const SizedBox(width: 10),
-                              Icon(Icons.star, size: 14, color: Colors.amber[700]),
-                              const SizedBox(width: 2),
-                              Text("${place.rating}", style: TextStyle(fontSize: 12, color: Colors.amber[800])),
-                          ]
-                       ],
-                     )
-                   ],
-                 ),
-               ),
-               
-               // Drag Handle (Hide if not editable)
-               if (canEdit)
-                 const Icon(Icons.drag_handle, color: Colors.grey),
-            ],
-          ),
-        ),
+  void _moveCameraToPlace(PlanProvider provider, LatLng position) {
+    _mapController.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: position, zoom: 15),
       ),
-    );
-  }
-
-  Future<void> _showAddPlaceDialog(BuildContext context, PlanProvider provider) async {
-    final TextEditingController _controller = TextEditingController();
-    
-    return showDialog(
-      context: context,
-      builder: (ctx) {
-        bool _isAdding = false;
-        
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Add Place"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      labelText: "Place Name",
-                      hintText: "e.g., 'Eiffel Tower' or a restaurant",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (_isAdding)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: _isAdding ? null : () => Navigator.pop(ctx), 
-                  child: const Text("Cancel")
-                ),
-                ElevatedButton(
-                  onPressed: _isAdding ? null : () async {
-                    if (_controller.text.trim().isEmpty) return;
-                    
-                    setState(() { _isAdding = true; });
-                    
-                    try {
-                       await provider.addPlace(provider.currentDay!.id, _controller.text.trim());
-                       if(ctx.mounted) {
-                         Navigator.pop(ctx);
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Place added!")));
-                       }
-                    } catch (e) {
-                       if(ctx.mounted) {
-                          setState(() { _isAdding = false; });
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e"), backgroundColor: Colors.red));
-                       }
-                    }
-                  }, 
-                  child: const Text("Add")
-                ),
-              ],
-            );
-          }
-        );
-      }
     );
   }
 }

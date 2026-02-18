@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
+import '../../services/auth_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,26 +13,21 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
-  void _handleGoogleSignIn(BuildContext context) async {
+  Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      await authService.signInWithGoogle();
-      // Navigation is handled by the wrapper in main.dart based on auth state
-    } catch (e) {
-      if (!mounted) return;
-      
-      String errorMsg = 'Sign in failed';
-      final eStr = e.toString().toLowerCase();
-      if (eStr.contains('network_error') || eStr.contains('network') || eStr.contains('socket')) {
-         errorMsg = 'No internet connection. Please check your network settings.';
-      } else {
-         errorMsg = 'Sign in failed: ${e.toString().replaceAll("Exception:", "").trim()}';
+      final success = await AuthService.instance.signInWithGoogle();
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in cancelled')),
+        );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg)),
-      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -44,65 +40,108 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Spacer(),
-                // Logo
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20), // Slight round for modern look
-                child: Image.asset('android/assets/logo.png', width: 120, height: 120),
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'WanderWith',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'One trip. One plan. Everyone synced.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const Spacer(), 
-              
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _handleGoogleSignIn(context),
-                    icon: Padding(
-                      padding: const EdgeInsets.only(right: 12.0),
-                      // Ideally use a Google Logo asset here
-                      child: Icon(Icons.login, color: Colors.grey[800]), 
-                    ), 
-                    label: const Text('Continue with Google', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                      ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 2),
+              // App Logo - Designer Centered
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
+                  ],
                 ),
-              const SizedBox(height: 48),
+                child: Image.asset(
+                  'android/assets/logo.png',
+                  width: 80,
+                  height: 80,
+                ),
+              ),
+              const SizedBox(height: 40),
+              // App Name & Tagline
+              Text(
+                "WanderWith",
+                style: GoogleFonts.outfit(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Collaborative travel for everyone.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const Spacer(flex: 3),
+              // Google Button - Designer Style
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: _isLoading ? null : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade200, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.network(
+                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_\"G\"_logo.svg/1200px-Google_\"G\"_logo.svg.png',
+                              height: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              "Continue with Google",
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                "By continuing, you agree to our Terms and Privacy Policy.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Colors.grey[400],
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
-      ),
       ),
     );
   }

@@ -13,6 +13,7 @@ class Trip {
   final String budgetCurrency;
   final Map<String, String>? budgetOptions;
   final Map<String, String>? budgetVotes; // {userId: 'low'|'mid'|'high'}
+  final String? coverImageUrl;
 
   // Computed Status
   String get status {
@@ -70,6 +71,7 @@ class Trip {
     this.budgetCurrency = '\$', 
     this.budgetOptions,
     this.budgetVotes,
+    this.coverImageUrl,
   }) : adminIds = adminIds ?? [createdBy];
 
   Map<String, dynamic> toMap() {
@@ -77,37 +79,47 @@ class Trip {
       'id': id,
       'name': name,
       'location': location,
-      'startDate': startDate?.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
-      'isDateDecided': isDateDecided,
-      'createdBy': createdBy,
-      'memberIds': memberIds,
-      'adminIds': adminIds,
+      'start_date': startDate?.toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
+      'is_date_decided': isDateDecided,
+      'created_by': createdBy,
+      'member_ids': memberIds,
+      'admin_ids': adminIds,
       'metadata': metadata,
-      'budgetCurrency': budgetCurrency,
-      'budgetOptions': budgetOptions,
-      'budgetVotes': budgetVotes,
-      'createdAt': DateTime.now().toIso8601String(),
+      'budget_currency': budgetCurrency,
+      'budget_options': budgetOptions,
+      'budget_votes': budgetVotes,
+      'cover_image_url': coverImageUrl,
     };
   }
 
   factory Trip.fromMap(Map<String, dynamic> map) {
+    // Helper to check multiple key formats
+    dynamic get(String camel, String snake) => map[camel] ?? map[snake];
+
     return Trip(
       id: map['id'] ?? '',
       name: map['name'] ?? 'Unnamed Trip',
       location: map['location'] ?? 'Unknown',
-      startDate: map['startDate'] != null ? DateTime.tryParse(map['startDate']) : null,
-      endDate: map['endDate'] != null ? DateTime.tryParse(map['endDate']) : null,
-      isDateDecided: map['isDateDecided'] ?? true,
-      createdBy: map['createdBy'] ?? '',
-      memberIds: List<String>.from(map['memberIds'] ?? []),
-      adminIds: (map['adminIds'] != null) 
-          ? List<String>.from(map['adminIds']) 
-          : (map['created_by'] != null ? [map['created_by']] : []), // Fallback to creator
+      startDate: map['startDate'] != null || map['start_date'] != null 
+          ? DateTime.tryParse(get('startDate', 'start_date')) 
+          : null,
+      endDate: map['endDate'] != null || map['end_date'] != null 
+          ? DateTime.tryParse(get('endDate', 'end_date')) 
+          : null,
+      isDateDecided: map['isDateDecided'] ?? map['is_date_decided'] ?? true,
+      createdBy: get('createdBy', 'created_by') ?? '',
+      memberIds: List<String>.from(get('memberIds', 'member_ids') ?? []),
+      adminIds: List<String>.from(get('adminIds', 'admin_ids') ?? []),
       metadata: map['metadata'],
-      budgetCurrency: map['budgetCurrency'] ?? '\$',
-      budgetOptions: map['budgetOptions'] != null ? Map<String, String>.from(map['budgetOptions'].map((k,v) => MapEntry(k, v.toString()))) : null,
-      budgetVotes: map['budgetVotes'] != null ? Map<String, String>.from(map['budgetVotes']) : null,
+      budgetCurrency: get('budgetCurrency', 'budget_currency') ?? '\$',
+      budgetOptions: map['budgetOptions'] != null || map['budget_options'] != null 
+          ? Map<String, String>.from(get('budgetOptions', 'budget_options').map((k,v) => MapEntry(k, v.toString()))) 
+          : null,
+      budgetVotes: map['budgetVotes'] != null || map['budget_votes'] != null 
+          ? Map<String, String>.from(get('budgetVotes', 'budget_votes')) 
+          : null,
+      coverImageUrl: map['cover_image_url'],
     );
   }
 }

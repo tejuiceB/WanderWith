@@ -1,9 +1,16 @@
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../models/trip.dart';
+import '../models/user_profile.dart';
 import '../models/notification.dart';
 import 'notification_service.dart';
 import 'analytics_service.dart';
+import '../models/trip_extras.dart';
+import '../models/trip_link.dart';
+import 'url_metadata_service.dart';
 
 class TripService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -21,6 +28,7 @@ class TripService {
     required String creatorUid,
     String budgetCurrency = 'USD',
     double estimatedCost = 0.0,
+    String? coverImageUrl,
   }) async {
     // Client-side ID generation
     final String tripId = _uuid.v4();
@@ -42,7 +50,8 @@ class TripService {
         'budgetCurrency': budgetCurrency,
         'estimated_cost': estimatedCost,
         'adminIds': [creatorUid],
-      }
+      },
+      'cover_image_url': coverImageUrl,
     };
 
     try {
@@ -91,20 +100,44 @@ class TripService {
     }
   }
 
-  // Fetch users trips (Real-time)
+  // Fetch trips for a specific user where they are a member (Real-time)
   Stream<List<Trip>> getUserTrips(String uid) {
-    // Postgrest supports filtering JSONB arrays or standard arrays using 'cs' (contains)
-    // member_ids is likely a text[] or uuid[]
+    // We use member_ids array check to filter
     return _supabase
         .from('trips')
         .stream(primaryKey: ['id'])
+        .eq('status', 'planning') // Optional: default filter, but better to keep it broad or specific
         .map((List<Map<String, dynamic>> data) {
-           // We need to filter client side or ensure the subscription is filtered.
-           // Supabase Stream doesn't support complex array filters easily in the simplified SDK stream() method sometimes.
-           // Ideally we use Row Level Security (RLS) so the user ONLY receives their trips.
-           // So we just ask for 'trips' and RLS filters it on the server.
-           return data.map((map) => _mapToTrip(map)).toList();
+           // Post-process filtering for safety and accuracy
+           // Since .stream() on array contains might be tricky in some versions, 
+           // and RLS provides the base visibility, we filter for the specific user's membership.
+           return data
+               .where((map) {
+                 final members = List<String>.from(map['member_ids'] ?? []);
+                 final creator = map['created_by'];
+                 return members.contains(uid) || creator == uid;
+               })
+               .map((map) => _mapToTrip(map))
+               .toList();
         });
+  }
+
+  /// Get user's trips as a Future (useful for dropdowns)
+  Future<List<Trip>> getUserTripsFuture() async {
+    try {
+      final uid = _supabase.auth.currentUser?.id;
+      if (uid == null) return [];
+      
+      final data = await _supabase
+          .from('trips')
+          .select()
+          .contains('member_ids', [uid]);
+          
+      return (data as List).map((map) => _mapToTrip(map)).toList();
+    } catch (e) {
+      print("Error fetching trips future: $e");
+      return [];
+    }
   }
 
   // Fetch single trip stream (Real-time)
@@ -138,6 +171,7 @@ class TripService {
        budgetVotes: (map['metadata'] != null && map['metadata']['budgetVotes'] != null) 
           ? Map<String, String>.from(map['metadata']['budgetVotes']) 
           : null,
+       coverImageUrl: map['cover_image_url'],
      );
   }
 
@@ -154,158 +188,37 @@ class TripService {
   // Join Trip using ID
   Future<void> joinTrip(String tripId, String uid) async {
     try {
-      // 0. Validations: Prevent Owner Join & Duplicate Join
-      Map<String, dynamic>? tripCheck;
-      try {
-        tripCheck = await _supabase
-            .from('trips')
-            .select('created_by, member_ids, metadata')
-            .eq('id', tripId)
-            .maybeSingle();
-      } catch (_) {
-        // Ignore: RLS may block until after RPC adds membership.
-      }
-
-      if (tripCheck != null) {
-        final createdBy = _normalizeId(tripCheck['created_by']);
-        if (createdBy == uid) {
-          throw Exception("You are the owner of this trip. You cannot join it.");
-        }
-
-        final membersRaw = tripCheck['member_ids'];
-        final members = membersRaw is List
-            ? membersRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
-            : <String>[];
-
-        final meta = Map<String, dynamic>.from(tripCheck['metadata'] ?? {});
-        final pendingRaw = meta['pending_members'];
-        final pendingList = pendingRaw is List
-            ? pendingRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
-            : <String>[];
-
-        if (members.contains(uid)) {
-          if (pendingList.contains(uid)) {
-            throw Exception("Your join request is already pending.");
-          }
-          throw Exception("You have already joined this trip.");
-        }
-      }
-
-      // 1. Add to member_ids table (Low-level database access)
-      // Use RPC function to bypass RLS "select" restriction and add to members array
+      // 1. Add to pending_members via RPC (SECURITY DEFINER)
+      // This RPC handles duplicate checks and appends to metadata->'pending_members'
       await _supabase.rpc('join_trip', params: {
         'trip_uuid': tripId, 
         'user_id': uid
       });
-
-      // 2. Mark as "Pending" in metadata immediately
-      // Now that we are a member (via step 1), we can likely read/update this trip
-      // We rely on the client to put themselves in 'pending' state
-      final resp = await _supabase
-          .from('trips')
-          .select('created_by, member_ids, metadata')
-          .eq('id', tripId)
-          .single();
-
-      final createdBy = _normalizeId(resp['created_by']);
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-      final pendingRaw = metadata['pending_members'];
-      final pending = pendingRaw is List
-          ? pendingRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
-          : <String>[];
-
-      // Logic Update: We just joined via RPC, so we are definitely in 'member_ids'.
-      // We rely on the PRE-CHECK (above) to catch users who were ALREADY members before this function ran.
-      // Therefore, we simply proceed to mark as pending.
-
-      if (!pending.contains(uid)) {
-        pending.add(uid);
-        metadata['pending_members'] = pending;
-        await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-
-        final adminIdsRaw = metadata['adminIds'];
-        final adminIds = adminIdsRaw is List
-            ? adminIdsRaw.map(_normalizeId).where((id) => id.isNotEmpty).toList()
-            : <String>[];
-
-        final validAdmins = adminIds.isNotEmpty ? adminIds : [createdBy].where((id) => id.isNotEmpty).toList();
-
-        final userResp = await _supabase
-            .from('profiles')
-            .select('display_name')
-            .eq('id', uid)
-            .maybeSingle();
-        final userName = userResp != null ? userResp['display_name'] : 'Someone';
-
-        for (final adminId in validAdmins) {
-          await _notificationService.sendNotification(
-            toUserId: adminId,
-            title: "New Join Request",
-            body: "$userName wants to join your trip!",
-            type: NotificationType.joinRequest,
-            tripId: tripId,
-          );
-        }
-      }
-
     } catch (e) {
-      // Clean up error message
-      String message;
-      final text = e.toString();
-
-      if (text.contains('Trip ID not found')) {
-        message = "Trip ID not found";
-      } else if (text.contains('You are the owner of this trip')) {
-        message = "You are the owner of this trip. You cannot join it.";
-      } else if (text.contains('You have already joined this trip')) {
-        message = "You have already joined this trip.";
-      } else if (text.contains('Your join request is already pending')) {
-        message = "Your join request is already pending.";
-      } else {
-        message = text.replaceFirst('Exception: ', '');
-      }
-      _handleException(e);
-      throw Exception(message);
-    }
-  }
-
-  // Accept Member Request
-  Future<void> acceptMember(String tripId, String uid) async {
-    try {
-      final resp = await _supabase.from('trips').select('name, metadata').eq('id', tripId).single();
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-      final tripName = resp['name'];
-      
-      List<String> pending = [];
-      if (metadata['pending_members'] != null) {
-         pending = List<String>.from(metadata['pending_members']);
-      }
-      
-      pending.remove(uid);
-      metadata['pending_members'] = pending;
-      
-      await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-
-      // Log Analytics
-      await _analyticsService.logEvent('member_joined_trip', parameters: {
-        'trip_id': tripId,
-        'user_id': uid
-      });
-
-      // Notify User
-      await _notificationService.sendNotification(
-        toUserId: uid,
-        title: "Request Accepted! 🎉",
-        body: "You have been accepted into '$tripName'.",
-        type: NotificationType.joinResponse,
-        tripId: tripId,
-      );
-
-    } catch (e) {
+      print("Error joining trip: $e");
       _handleException(e);
       rethrow;
     }
   }
+
+  /// Respond to a join request (Approve/Decline)
+  Future<void> respondToJoinRequest(String tripId, String userId, bool approve) async {
+    try {
+      await _supabase.rpc('respond_to_join_request', params: {
+        'trip_uuid': tripId,
+        'target_user_id': userId,
+        'approve': approve,
+      });
+    } catch (e) {
+      print("Error responding to join request: $e");
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> acceptMember(String tripId, String userId) => respondToJoinRequest(tripId, userId, true);
+  Future<void> rejectMember(String tripId, String userId) => respondToJoinRequest(tripId, userId, false);
+
 
 
   // Update Budget (Single Cost + Allocations)
@@ -318,10 +231,34 @@ class TripService {
        metadata['budget_allocations'] = allocations; // [{'title': 'Hotel', 'cost': 500}, ...]
        
        await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-     } catch (e) {
-       _handleException(e);
-       rethrow;
-     }
+     } catch (e) { rethrow; }
+  }
+
+  /// Download location image from Google and upload to Supabase 'trips' bucket.
+  /// Returns the public Supabase URL.
+  Future<String?> uploadTripCover(String googlePhotoUrl, String tripId) async {
+    try {
+      // 1. Download from Google
+      final response = await http.get(Uri.parse(googlePhotoUrl));
+      if (response.statusCode != 200) return null;
+
+      final bytes = response.bodyBytes;
+      final fileName = "cover_$tripId.jpg";
+      final path = "${_supabase.auth.currentUser?.id}/$fileName";
+
+      // 2. Upload to Supabase Storage
+      await _supabase.storage.from('trips').uploadBinary(
+        path, 
+        bytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+      );
+
+      // 3. Get Public URL
+      return _supabase.storage.from('trips').getPublicUrl(path);
+    } catch (e) {
+      print("Error uploading trip cover: $e");
+      return null;
+    }
   }
   
   // Delete Poll (Owner/Creator action)
@@ -398,53 +335,7 @@ class TripService {
     }
   }
 
-  // Delete Photo
-  Future<void> deletePhoto(String tripId, String photoId, String photoUrl, String uploaderId) async {
-    try {
-      // 1. Delete from database record (Use ID for precision)
-      final deleted = await _supabase.from('photos').delete().eq('id', photoId).select();
-      if (deleted.isEmpty) {
-        throw Exception("Photo not deleted (RLS or missing row)");
-      }
-      
-      // 2. Delete from Storage bucket
-      final uri = Uri.parse(photoUrl);
-      final segments = uri.pathSegments;
-      // pathSegments example: ['storage', 'v1', 'object', 'public', 'trip_photos', 'user123', 'file.jpg']
-      
-      final bucketIndex = segments.indexOf('trip_photos');
-      if (bucketIndex != -1 && bucketIndex + 1 < segments.length) {
-         final path = segments.sublist(bucketIndex + 1).join('/');
-         await _supabase.storage.from('trip_photos').remove([path]);
-      }
-      
-    } catch (e) {
-      _handleException(e);
-      rethrow;
-    }
-  }
 
-  // Reject Member Request (Decline join request)
-  Future<void> rejectMember(String tripId, String uid) async {
-    try {
-      final resp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-
-      List<String> pending = [];
-      if (metadata['pending_members'] != null) {
-         pending = List<String>.from(metadata['pending_members']);
-      }
-
-      if (pending.contains(uid)) {
-        pending.remove(uid);
-        metadata['pending_members'] = pending;
-        await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-      }
-    } catch (e) {
-      _handleException(e);
-      rethrow;
-    }
-  }
 
   // Remove Member (Admin Action - Kick User)
   Future<void> removeMember(String tripId, String memberUid) async {
@@ -652,66 +543,140 @@ class TripService {
   // Polls & Admins
   // --------------------------------------------------------------------------
 
-  Future<void> createPoll(String tripId, String question, List<String> options, String creatorId) async {
+  // --------------------------------------------------------------------------
+  // Polls 2.0 (Relational)
+  // --------------------------------------------------------------------------
+
+  Stream<List<TripPoll>> getPollsStream(String tripId) {
+    return _supabase
+        .from('trip_polls')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('is_pinned', ascending: false)
+        .order('updated_at', ascending: false)
+        .asyncMap((pollsData) async {
+          if (pollsData.isEmpty) return [];
+          
+          final List<String> pollIds = pollsData.map((p) => p['id'] as String).toList();
+          
+          // 1. Fetch ALL options and votes in parallel
+          final results = await Future.wait([
+            _supabase.from('trip_poll_options').select().inFilter('poll_id', pollIds),
+            _supabase.from('trip_poll_votes').select().inFilter('poll_id', pollIds),
+          ]);
+          
+          final List<PollOption> allOptions = (results[0] as List).map((o) => PollOption.fromMap(o)).toList();
+          final List<PollVote> allVotes = (results[1] as List).map((v) => PollVote.fromMap(v)).toList();
+
+          // 2. Assemble
+          return pollsData.map((pMap) {
+            final pollId = pMap['id'];
+            final options = allOptions.where((o) => o.pollId == pollId).toList();
+            final votes = allVotes.where((v) => v.pollId == pollId).toList();
+            return TripPoll.fromMap(pMap, options: options, votes: votes);
+          }).toList();
+        });
+  }
+
+  Future<void> deletePollRelational(String pollId) async {
     try {
-      final resp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-      final polls = List<Map<String, dynamic>>.from(metadata['polls'] ?? []);
-
-      final newPoll = {
-        'id': _uuid.v4(),
-        'question': question,
-        'options': options,
-        'createdBy': creatorId,
-        'createdAt': DateTime.now().toIso8601String(),
-        'votes': {} // {userId: optionIndex}
-      };
-
-      polls.add(newPoll);
-      metadata['polls'] = polls;
-
-      await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
-
-      _notificationService.notifyTripMembers(
-        tripId: tripId,
-        title: "New Poll 📊",
-        body: question,
-        type: NotificationType.pollAdded,
-        excludeUserId: creatorId,
-      );
-
+      final response = await _supabase.from('trip_polls').delete().eq('id', pollId).select();
+      if ((response as List).isEmpty) {
+        throw Exception("Delete failed: Record not found or permission denied.");
+      }
     } catch (e) {
-      print("Error creating poll: $e");
       _handleException(e);
       rethrow;
     }
   }
 
-  Future<void> votePoll(String tripId, String pollId, String uid, int optionIndex) async {
+  Future<void> createPollRelational({
+    required String tripId,
+    required String question,
+    required List<String> options,
+    DateTime? endsAt,
+    bool isAnonymous = false,
+    bool allowMultiple = false,
+    bool isPinned = false,
+  }) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
     try {
-      final resp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-      final polls = List<Map<String, dynamic>>.from(metadata['polls'] ?? []);
+      // 1. Create Poll
+      final pollResp = await _supabase.from('trip_polls').insert({
+        'trip_id': tripId,
+        'question': question,
+        'created_by': uid,
+        'ends_at': endsAt?.toIso8601String(),
+        'is_anonymous': isAnonymous,
+        'allow_multiple': allowMultiple,
+        'is_pinned': isPinned,
+      }).select().single();
 
-      // Find and update poll
-      final pollIndex = polls.indexWhere((p) => p['id'] == pollId);
-      if (pollIndex == -1) throw Exception("Poll not found");
+      final pollId = pollResp['id'];
 
-      final poll = Map<String, dynamic>.from(polls[pollIndex]);
-      final votes = Map<String, dynamic>.from(poll['votes'] ?? {});
-      
-      votes[uid] = optionIndex; // User votes for option index
-      poll['votes'] = votes;
-      polls[pollIndex] = poll;
-      metadata['polls'] = polls;
+      // 2. Create Options
+      final optionsToInsert = options.map((opt) => {
+        'poll_id': pollId,
+        'option_text': opt,
+      }).toList();
 
-      await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
+      await _supabase.from('trip_poll_options').insert(optionsToInsert);
+
+      // 3. Notify trip members
+      _notificationService.notifyTripMembers(
+        tripId: tripId,
+        title: "New Poll 🗳️",
+        body: question,
+        type: NotificationType.pollAdded,
+        excludeUserId: uid,
+      );
 
       // Log Analytics
-      await _analyticsService.logEvent('poll_voted', parameters: {
-         'trip_id': tripId,
-         'poll_id': pollId,
-         'option_idx': optionIndex
+      await _analyticsService.logEvent('poll_created_v2', parameters: {
+        'trip_id': tripId,
+        'poll_id': pollId,
+        'options_count': options.length
+      });
+
+    } catch (e) {
+      print("Error creating poll v2: $e");
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> votePollRelational({
+    required String pollId,
+    required String optionId,
+    required bool allowMultiple,
+  }) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      if (!allowMultiple) {
+        // Remove any existing votes for this poll by this user
+        await _supabase
+            .from('trip_poll_votes')
+            .delete()
+            .eq('poll_id', pollId)
+            .eq('user_id', uid);
+      }
+
+      // Add the new vote (upsert handles single-choice toggling if we want, 
+      // but here we just insert since we cleared old votes above for single-choice)
+      await _supabase.from('trip_poll_votes').upsert({
+        'poll_id': pollId,
+        'option_id': optionId,
+        'user_id': uid,
+      });
+
+      // Log Analytics
+      await _analyticsService.logEvent('poll_voted_v2', parameters: {
+        'poll_id': pollId,
+        'option_id': optionId
       });
 
     } catch (e) {
@@ -720,29 +685,195 @@ class TripService {
     }
   }
 
-  Future<void> addAdmin(String tripId, String newAdminId) async {
-    try {
-      final resp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
-      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
-      
-      // Get current adminIds or init with creator? 
-      // Current trip service doesn't fetch creator easily here, but we can rely on existing list.
-      // But we are reading metadata only.
-      // Wait, adminIds in 'metadata' might be missing if it's a legacy trip.
-      List<String> adminIds = [];
-      if (metadata['adminIds'] != null) {
-         adminIds = List<String>.from(metadata['adminIds']);
-      } else {
-         // If missing, we should probably fetch the trip created_by.
-         // But for now, let's assume we append to set.
-         // If list is empty, we might accidentally lock out original creator if we overwrite?
-         // No, 'Trip' model handles fallback. But here we are writing back to DB.
-         // We must be careful.
-         // Better strategy: Read 'created_by' and 'metadata' together.
-      }
-    } catch (e) { rethrow; }
+  // --------------------------------------------------------------------------
+  // Gallery 2.0 & Reactions
+  // --------------------------------------------------------------------------
+
+  Stream<List<Map<String, dynamic>>> getPhotosStream(String tripId) {
+    // We fetch photos and reactions in one go by using a select with join if possible, 
+    // but for real-time streaming, we'll listen to photos and then fetch reactions.
+    // To be truly reactive to BOTH, we'd need to combine streams.
+    return _supabase
+        .from('photos')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at', ascending: false)
+        .asyncMap((photosData) async {
+          if (photosData.isEmpty) return [];
+          
+          final List<String> photoIds = photosData.map((p) => p['id'] as String).toList();
+          
+          // Fetch all reactions for these photos in one batch query
+          final reactionsData = await _supabase
+              .from('trip_photo_reactions')
+              .select()
+              .inFilter('photo_id', photoIds);
+          
+          final List<PhotoReaction> allReactions = (reactionsData as List).map((r) => PhotoReaction.fromMap(r)).toList();
+
+          final List<Map<String, dynamic>> enrichedPhotos = [];
+          for (var photo in photosData) {
+            final photoId = photo['id'];
+            photo['reactions'] = allReactions.where((r) => r.photoId == photoId).toList();
+            enrichedPhotos.add(photo);
+          }
+          return enrichedPhotos;
+        });
   }
+
+  // Stream just for reactions of a specific photo (useful for the viewer)
+  Stream<List<PhotoReaction>> getPhotoReactionsStream(String photoId) {
+    return _supabase
+        .from('trip_photo_reactions')
+        .stream(primaryKey: ['id'])
+        .eq('photo_id', photoId)
+        .map((data) => data.map((r) => PhotoReaction.fromMap(r)).toList());
+  }
+
+  Future<void> togglePhotoReaction(String photoId, String reaction) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      // Check if this specific reaction already exists from this user
+      final existing = await _supabase
+          .from('trip_photo_reactions')
+          .select()
+          .eq('photo_id', photoId)
+          .eq('user_id', uid)
+          .eq('reaction', reaction)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Remove reaction
+        await _supabase
+            .from('trip_photo_reactions')
+            .delete()
+            .eq('id', existing['id']);
+      } else {
+        // Add reaction (or update if user can only have one reaction per photo?)
+        // The unique constraint is on (photo_id, user_id), so one reaction per user per photo.
+        await _supabase.from('trip_photo_reactions').upsert({
+          'photo_id': photoId,
+          'user_id': uid,
+          'reaction': reaction,
+        });
+      }
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> uploadPhotos(String tripId, List<XFile> images, {Function(int, int)? onProgress}) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    int completed = 0;
+    final total = images.length;
+
+    try {
+      // Parallel uploads with batching to avoid hitting rate limits or memory issues if many images
+      // For now, simple Future.wait
+      await Future.wait(images.map((image) async {
+        try {
+          // 1. Upload to Storage
+          String fileExt = image.path.split('.').last;
+          String fileName = "${uid}/${DateTime.now().millisecondsSinceEpoch}_${image.name}";
+          
+          await _supabase.storage
+              .from('trip_photos')
+              .upload(fileName, File(image.path));
+
+          // 2. Get Public URL
+          final String publicUrl = _supabase.storage
+              .from('trip_photos')
+              .getPublicUrl(fileName);
+
+          // 3. Save to Photos Table
+          await _supabase.from('photos').insert({
+            'trip_id': tripId,
+            'url': publicUrl,
+            'uploader_id': uid,
+            'metadata': {
+              'original_name': image.name,
+              'size': await File(image.path).length(),
+            }
+          });
+
+          completed++;
+          if (onProgress != null) onProgress(completed, total);
+        } catch (e) {
+          print("Failed to upload individual photo: $e");
+          // Continue with others
+        }
+      }));
+
+      // Log Analytics
+      await _analyticsService.logEvent('photos_uploaded', parameters: {
+        'trip_id': tripId,
+        'count': completed
+      });
+
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
   
+  Future<void> deletePhoto(String tripId, String photoId, String photoUrl, String uploaderId) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      // 1. Delete from DB (RLS will catch if not permitted, but we check here too)
+      await _supabase.from('photos').delete().eq('id', photoId);
+
+      // 2. Delete from Storage
+      final fileName = photoUrl.split('/').last;
+      final fullPath = "${uploaderId}/$fileName";
+      await _supabase.storage.from('trip_photos').remove([fullPath]);
+
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> updatePhotoCaption(String photoId, String caption) async {
+    try {
+      await _supabase.from('photos').update({'caption': caption}).eq('id', photoId);
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> deletePhotosBatch(String tripId, List<Map<String, dynamic>> photos) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      final List<String> photoIds = photos.map((p) => p['id'] as String).toList();
+      
+      // 1. Delete from DB
+      await _supabase.from('photos').delete().inFilter('id', photoIds);
+
+      // 2. Delete from Storage
+      final List<String> paths = photos.map((p) {
+        final fileName = (p['url'] as String).split('/').last;
+        return "${p['uploader_id']}/$fileName";
+      }).toList();
+      
+      await _supabase.storage.from('trip_photos').remove(paths);
+
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
   // Revised addAdmin with safety
   Future<void> promoteToAdmin(String tripId, String newAdminId) async {
     try {
@@ -814,6 +945,161 @@ class TripService {
 
       metadata['reviews'] = reviews;
       await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  /// Log activity to the trip activity feed
+  Future<void> logActivity({
+    required String tripId,
+    required String type,
+    required String content,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      await _supabase.from('trip_activities').insert({
+        'trip_id': tripId,
+        'user_id': user?.id,
+        'type': type,
+        'content': content,
+        'metadata': metadata ?? {},
+      });
+    } catch (e) {
+      print("Error logging activity: $e");
+    }
+  }
+
+  /// Get Activity Stream for a trip
+  Stream<List<Map<String, dynamic>>> getTripActivityStream(String tripId) {
+     return _supabase
+        .from('trip_activities')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at', ascending: false)
+        .map((data) => List<Map<String, dynamic>>.from(data));
+  }
+
+  /// Get profiles for all trip members securely (Soft Visibility)
+  Future<List<UserProfile>> getTripMembersProfilesByTripId(String tripId) async {
+    try {
+      final data = await _supabase.rpc('get_trip_member_profiles', params: {'trip_id_param': tripId});
+      if (data == null) return [];
+      
+      return (data as List)
+          .where((m) => m != null)
+          .map((m) {
+            final map = Map<String, dynamic>.from(m);
+            final profile = UserProfile.fromMap(map);
+            // We can temporarily store the status in the profile if we wanted, 
+            // but for now we'll just return the profiles and the UI can check trip.memberIds
+            return profile;
+          }).toList();
+    } catch (e) {
+      print("Error fetching member profiles via RPC: $e");
+      return [];
+    }
+  }
+
+  /// Get profiles for multiple member IDs (Strict RLS apply)
+  Future<List<UserProfile>> getTripMembersProfiles(List<String> memberIds) async {
+    if (memberIds.isEmpty) return [];
+    try {
+      final data = await _supabase
+          .from('profiles')
+          .select()
+          .inFilter('id', memberIds);
+      
+      return (data as List).map((m) => UserProfile.fromMap(m)).toList();
+    } catch (e) {
+      print("Error fetching member profiles: $e");
+      return [];
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Links Hub (Relational)
+  // --------------------------------------------------------------------------
+
+  Stream<List<TripLink>> getTripLinksStream(String tripId) {
+    return _supabase
+        .from('trip_links')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('is_pinned', ascending: false)
+        .order('created_at', ascending: false)
+        .map((data) => data.map((map) => TripLink.fromMap(map)).toList());
+  }
+
+  Future<void> addTripLinkRelational({
+    required String tripId,
+    required String title,
+    required String url,
+    String? category,
+  }) async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      // 1. Fetch metadata
+      final metadata = await UrlMetadataService.fetchMetadata(url);
+      
+      // 2. Auto-detect category if not provided
+      final finalCategory = category ?? UrlMetadataService.detectCategory(url);
+
+      // 3. Insert into DB
+      await _supabase.from('trip_links').insert({
+        'trip_id': tripId,
+        'title': title,
+        'url': url,
+        'category': finalCategory,
+        'preview_image': metadata.image,
+        'site_name': metadata.siteName,
+        'description': metadata.description,
+        'added_by': uid,
+      });
+
+      // 4. Activity log
+      await logActivity(
+        tripId: tripId,
+        type: 'link_added',
+        content: "added a new resource: $title",
+      );
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> toggleLinkPin(String linkId, bool isPinned) async {
+    try {
+      await _supabase
+          .from('trip_links')
+          .update({'is_pinned': isPinned})
+          .eq('id', linkId);
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTripLinkRelational(String linkId) async {
+    try {
+      await _supabase.from('trip_links').delete().eq('id', linkId);
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> updateLinkCategory(String linkId, String category) async {
+    try {
+      await _supabase
+          .from('trip_links')
+          .update({'category': category})
+          .eq('id', linkId);
     } catch (e) {
       _handleException(e);
       rethrow;

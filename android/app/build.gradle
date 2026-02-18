@@ -30,7 +30,7 @@ if (keyPropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.example.wander_with"
+    namespace "com.tejuice.wanderwith"
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 

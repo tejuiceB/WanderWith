@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart'; // Import for Clipboard
@@ -14,18 +15,27 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../models/trip.dart';
+import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/trip_service.dart';
 import '../services/analytics_service.dart';
+import '../models/trip_extras.dart';
+import 'profile_screen.dart';
 
 import '../models/notification.dart';
 import '../services/notification_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import '../models/trip_link.dart';
+import '../services/url_metadata_service.dart';
 import '../services/gemini_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import 'trip_plan_tab.dart';
 import 'ai_guide_screen.dart'; // Add this
 import '../services/plan_service.dart'; // Add this
+import '../widgets/trip_activity_tab.dart';
+import '../widgets/trip_chat_tab.dart';
+import '../providers/plan_provider.dart';
 
 class TripDashboardScreen extends StatefulWidget {
   final Trip trip;
@@ -93,6 +103,55 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
     );
   }
 
+  void _leaveTrip(Trip trip) async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    if (trip.createdBy == uid) {
+      await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                title: const Text("Cannot Leave Trip"),
+                content: const Text(
+                    "You are the owner of this trip. You cannot leave unless you delete the trip or transfer ownership."),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("OK"))
+                ],
+              ));
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              title: const Text("Leave Trip?"),
+              content: const Text("Are you sure you want to leave this trip?"),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text("Cancel")),
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text("Leave",
+                        style: TextStyle(color: Colors.red))),
+              ],
+            ));
+
+    if (confirm == true) {
+      try {
+        await TripService().leaveTrip(trip.id);
+        if (mounted) Navigator.of(context).pop();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text("Error: $e")));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get current user ID
@@ -105,7 +164,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         if (snapshot.hasError) {
              final err = snapshot.error.toString().toLowerCase();
              final isNetworkError = err.contains('socket') || err.contains('host lookup') || err.contains('realtime');
-             
+
              return Scaffold(
                 appBar: AppBar(title: const Text("Offline")),
                 body: Center(
@@ -116,9 +175,9 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                          const SizedBox(height: 16),
                          const Text("No Connection", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
                          Padding(
-                           padding: const EdgeInsets.all(16.0), 
+                           padding: const EdgeInsets.all(16.0),
                            child: Text(
-                             isNetworkError 
+                             isNetworkError
                                 ? "We can't reach the servers right now. Please check your internet."
                                 : "Something went wrong. Please try again.",
                              textAlign: TextAlign.center,
@@ -126,7 +185,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                            )
                          ),
                          ElevatedButton.icon(
-                           onPressed: _refreshData, 
+                           onPressed: _refreshData,
                            icon: const Icon(Icons.refresh),
                            label: const Text("Retry Connection")
                          )
@@ -138,7 +197,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
 
         final currentTrip = snapshot.data ?? widget.trip;
         final isAdmin = uid != null && currentTrip.adminIds.contains(uid);
-        
+
         // CHECK PENDING STATUS
         if (uid != null && currentTrip.pendingMembers.contains(uid)) {
            return Scaffold(
@@ -155,7 +214,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                    const Text("An admin must approve your request before you can access trip details.", textAlign: TextAlign.center),
                    const SizedBox(height: 32),
                    OutlinedButton(
-                     onPressed: () => Navigator.pop(context), 
+                     onPressed: () => Navigator.pop(context),
                      child: const Text("Go Back")
                    )
                  ],
@@ -167,48 +226,124 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         return DefaultTabController(
           length: 9,
           child: Scaffold(
-            appBar: AppBar(
-              title: GestureDetector(
-                onTap: () {
-                   if (isAdmin) _editTripName(currentTrip);
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(currentTrip.name),
-                    const SizedBox(width: 8),
-                    if (isAdmin)
-                      const Icon(Icons.edit, size: 16, color: Colors.white70),
-                  ],
-                ),
-              ),
-              bottom: const TabBar(
-                isScrollable: true,
-                tabs: [
-                  Tab(text: "Overview", icon: Icon(Icons.info_outline)),
-                  Tab(text: "Dates", icon: Icon(Icons.calendar_today)),
-                  Tab(text: "Budget", icon: Icon(Icons.attach_money)),
-                  Tab(text: "Plan", icon: Icon(Icons.map)),
-                  Tab(text: "Links", icon: Icon(Icons.link)),
-                  Tab(text: "Chat", icon: Icon(Icons.chat_bubble_outline)),
-                  Tab(text: "Polls", icon: Icon(Icons.how_to_vote)),
-                  Tab(text: "Gallery", icon: Icon(Icons.photo_library)),
-                  Tab(text: "Reviews", icon: Icon(Icons.star)),
+            backgroundColor: const Color(0xFFF8F9FA),
+            body: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverAppBar(
+                    pinned: true,
+                    elevation: 0,
+                    backgroundColor: Colors.white,
+                    centerTitle: false,
+                    title: Text(
+                      "${currentTrip.name} ${currentTrip.metadata?['emoji'] ?? '✈️'}",
+                      style: GoogleFonts.outfit(
+                        color: Colors.black87,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, color: Colors.black87),
+                          onSelected: (value) {
+                            if (value == 'leave') {
+                              _leaveTrip(currentTrip);
+                            } else if (value == 'refresh') {
+                              _refreshData();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'refresh',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.refresh, size: 20, color: Colors.blue),
+                                  SizedBox(width: 12),
+                                  Text("Refresh Data"),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'leave',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.exit_to_app, size: 20, color: Colors.red),
+                                  SizedBox(width: 12),
+                                  Text("Leave Trip", style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(48),
+                      child: Container(
+                        height: 48,
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          border: Border(bottom: BorderSide(color: Color(0xFFF1F3F5), width: 1)),
+                        ),
+                        child: TabBar(
+                          isScrollable: true,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          dividerColor: Colors.transparent,
+                          indicator: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.blueAccent,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blueAccent.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          labelColor: Colors.white,
+                          unselectedLabelColor: Colors.grey.shade500,
+                          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+                          unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                           tabs: const [
+                            Tab(text: "Overview"),
+                            Tab(text: "Dates"),
+                            Tab(text: "Budget"),
+                            Tab(text: "Plan"),
+                            Tab(text: "Links"),
+                            Tab(text: "Chat"),
+                            Tab(text: "Polls"),
+                            Tab(text: "Gallery"),
+                            Tab(text: "Reviews"),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ];
+              },
+              body: TabBarView(
+                children: [
+                  _OverviewTab(trip: currentTrip, onRefresh: _refreshData),
+                  _DateTab(trip: currentTrip, onRefresh: _refreshData),
+                  _BudgetTab(trip: currentTrip, onRefresh: _refreshData),
+                  TripPlanTab(trip: currentTrip),
+                  _LinksTab(trip: currentTrip, onRefresh: _refreshData),
+                  TripChatTab(trip: currentTrip, onRefresh: _refreshData),
+                  _PollsTab(trip: currentTrip, onRefresh: _refreshData),
+                  _GalleryTab(trip: currentTrip, onRefresh: _refreshData),
+                  _ReviewsTab(trip: currentTrip, onRefresh: _refreshData),
                 ],
               ),
-            ),
-            body: TabBarView(
-              children: [
-                _OverviewTab(trip: currentTrip, onRefresh: _refreshData),
-                _DateTab(trip: currentTrip, onRefresh: _refreshData),
-                _BudgetTab(trip: currentTrip, onRefresh: _refreshData),
-                TripPlanTab(trip: currentTrip),
-                _LinksTab(trip: currentTrip, onRefresh: _refreshData),
-                _ChatTab(trip: currentTrip, onRefresh: _refreshData),
-                _PollsTab(trip: currentTrip, onRefresh: _refreshData),
-                _GalleryTab(trip: currentTrip, onRefresh: _refreshData),
-                _ReviewsTab(trip: currentTrip, onRefresh: _refreshData),
-              ],
             ),
           ),
         );
@@ -216,6 +351,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
     );
   }
 }
+
 
 // -----------------------------------------------------------------------------
 // 1. OVERVIEW TAB
@@ -227,17 +363,10 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = Supabase.instance.client.auth.currentUser?.id;
-    final isAdmin = currentUser != null && trip.adminIds.contains(currentUser);
-    final pending = trip.pendingMembers;
-
-    // Determine trip status for blocking invites
+    // Determine trip status
     final now = DateTime.now();
     final isPast = trip.endDate != null && trip.endDate!.isBefore(now);
-    final isOngoing = (trip.startDate != null && trip.endDate != null) && 
-                      trip.startDate!.isBefore(now) && trip.endDate!.isAfter(now);
-    final bool canInvite = !(isPast || isOngoing);
-
+    
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
@@ -249,265 +378,371 @@ class _OverviewTab extends StatelessWidget {
       ),
       body: RefreshIndicator(
         onRefresh: onRefresh,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-
-
-            // Header Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Integrated Hero Image (Full Width, Curved Bottom)
+              _buildIntegratedHero(context),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                     Row(
-                       children: [
-                         const Icon(Icons.location_pin, color: Colors.blueAccent),
-                         const SizedBox(width: 8),
-                         Text(trip.location, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                       ],
-                     ),
-                     const SizedBox(height: 12),
-                     Row(
-                       children: [
-                         const Icon(Icons.date_range, color: Colors.blueAccent),
-                         const SizedBox(width: 8),
-                         Text(
-                           (trip.startDate != null && trip.endDate != null)
-                               ? "${DateFormat('MMM d').format(trip.startDate!)} - ${DateFormat('MMM d, y').format(trip.endDate!)}"
-                               : "Dates TBD ⏳",
-                         ),
-                       ],
-                     ),
-                     const SizedBox(height: 12),
-                     Wrap(
-                       spacing: 8,
-                       children: [
-                         if (trip.status == 'completed')
-                           _buildStatusBadge("COMPLETED", Colors.grey)
-                         else if (trip.status == 'confirmed')
-                           _buildStatusBadge("CONFIRMED", Colors.green)
-                         else
-                           _buildStatusBadge("PLANNING", Colors.orange),
-                       ],
-                     )
+                    if (isPast) _buildPastTripBanner(),
+                    
+                    // Join Requests for Admins
+                    if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && trip.pendingMembers.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      _buildPendingRequests(context, trip.pendingMembers),
+                    ],
+
+                    const SizedBox(height: 12),
+                    _buildOverviewStats(context),
+                    
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildSectionHeader("The Travel Crew"),
+                        if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id))
+                          IconButton(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: trip.id));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trip ID copied! Invite members by sharing this ID.")));
+                            },
+                            icon: const Icon(Icons.person_add_outlined, color: Colors.blueAccent),
+                            tooltip: "Invite Members",
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMembersGrid(context),
+                    const SizedBox(height: 100), // FAB Space
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIntegratedHero(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 240,
+      decoration: BoxDecoration(color: Colors.grey.shade100),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Curved Image
+          ClipPath(
+            clipper: _HeaderClipper(),
+            child: trip.coverImageUrl != null
+              ? CachedNetworkImage(
+                  imageUrl: trip.coverImageUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (c, u) => Container(color: Colors.grey.shade200),
+                )
+              : Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF64B5F6), Color(0xFF1E88E5)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: const Center(child: Icon(Icons.flight_takeoff, size: 64, color: Colors.white70)),
+                ),
+          ),
+          // Gradient for text legibility
+          ClipPath(
+            clipper: _HeaderClipper(),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.05),
+                    Colors.black.withOpacity(0.4),
                   ],
                 ),
               ),
             ),
-            
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                 const Text("Who's Going?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                 if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id))
-                   TextButton.icon(
-                     onPressed: () => _showManageMembers(context),
-                     icon: const Icon(Icons.shield, size: 16),
-                     label: const Text("Manage")
-                   )
-              ],
+          ),
+          // Floating Confirm Badge
+          Positioned(
+            bottom: 45,
+            left: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                  const SizedBox(width: 4),
+                  Text(
+                    "TRIP CONFIRMED",
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            
-            // Member List
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: trip.memberIds.map((uid) {
-                 final isAdmin = trip.adminIds.contains(uid);
-                 // Use Supabase to fetch profile data
-                 return FutureBuilder(
-                   future: Supabase.instance.client
-                       .from('profiles')
-                       .select()
-                       .eq('id', uid)
-                       .maybeSingle(),
-                   builder: (context, snapshot) {
-                     final isLoading = !snapshot.hasData;
-                     
-                     if (isLoading) {
-                       return Skeletonizer(
-                         enabled: true,
-                         child: Column(
-                           children: [
-                             const CircleAvatar(
-                               radius: 24, 
-                               backgroundColor: Colors.grey
-                             ),
-                             const SizedBox(height: 4),
-                             Container(width: 40, height: 10, color: Colors.grey),
-                           ],
-                         ),
-                       );
-                     }
-                     var data = snapshot.data as Map<String, dynamic>?;
-                     String name = data?['display_name'] ?? 'User';
-                     // Initials
-                     String initials = (name.isNotEmpty) ? name[0].toUpperCase() : "?";
-                     
-                     return Column(
-                       children: [
-                         Stack(
-                           children: [
-                             CircleAvatar(
-                               radius: 24,
-                               backgroundColor: Colors.blueAccent.shade100,
-                               child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                             ),
-                             if (isAdmin)
-                               Positioned(bottom: 0, right: 0, child: Icon(Icons.shield, size: 16, color: Colors.orange.shade800))
-                           ],
-                         ),
-                         const SizedBox(height: 4),
-                         Text(name.split(' ').first, style: const TextStyle(fontSize: 12)),
-                       ],
-                     );
-                   }
-                 );
-              }).toList(),
+          ),
+          // Location Overlay on Image
+          Positioned(
+            bottom: 80,
+            left: 20,
+            child: Text(
+              trip.location,
+              style: GoogleFonts.outfit(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [const Shadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 2))],
+              ),
             ),
-            
-            const SizedBox(height: 24),
-            if (canInvite)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                     Clipboard.setData(ClipboardData(text: trip.id));
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Trip ID copied: ${trip.id}")));
-                  }, 
-                  icon: const Icon(Icons.share),
-                  label: const Text("Invite Friends (Copy ID)"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildPastTripBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 20),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.history, color: Colors.amber.shade800),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "This trip has concluded. Relive the memories in the gallery!",
+              style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.w500, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewStats(BuildContext context) {
+    final days = trip.endDate != null && trip.startDate != null
+        ? trip.endDate!.difference(trip.startDate!).inDays + 1
+        : 0;
+
+    return Row(
+      children: [
+        _StatCardV2(
+          icon: Icons.calendar_today_outlined,
+          label: "Duration",
+          value: "$days Days",
+          color: Colors.blueAccent,
+        ),
+        const SizedBox(width: 12),
+        _StatCardV2(
+          icon: Icons.people_outline,
+          label: "Crew",
+          value: "${trip.memberIds.length}",
+          color: Colors.deepPurple,
+        ),
+        const SizedBox(width: 12),
+        _StatCardV2(
+          icon: Icons.account_balance_wallet_outlined,
+          label: "Budget",
+          value: trip.estimatedCost > 0 
+              ? "${trip.budgetCurrency}${trip.estimatedCost.toInt()}"
+              : "TBD",
+          color: Colors.teal,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMembersGrid(BuildContext context) {
+    return FutureBuilder<List<UserProfile>>(
+      future: TripService().getTripMembersProfilesByTripId(trip.id),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator()));
+          final allProfiles = snapshot.data!;
+          
+          // Filter: only show members who are actually accepted or the owner
+          final profiles = allProfiles.where((p) => 
+            trip.memberIds.contains(p.uid) || 
+            p.uid == trip.createdBy
+          ).toList();
+
+          final showProfiles = profiles.take(5).toList();
+          final hasMore = profiles.length > 5;
+        
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            ...showProfiles.map((p) => GestureDetector(
+              onTap: () async {
+                // Check if profile is actually accessible (not blocked)
+                final fullProfile = await AuthService.instance.getOtherUserProfile(p.uid);
+                if (fullProfile == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Profile not available"), behavior: SnackBarBehavior.floating),
+                  );
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: p.uid)));
+                }
+              },
+              child: _MemberChipV2(profile: p)
+            )),
+            if (hasMore)
+              InkWell(
+                onTap: () => _showManageMembers(context),
+                borderRadius: BorderRadius.circular(15),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Text(
+                    "+${profiles.length - 5} more",
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
                   ),
                 ),
-              )
-            else
-              Center(
-                child: Text(
-                  isPast ? "Trip has ended. Invites are closed." : "Trip is ongoing. Invites are closed.",
-                  style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                ),
               ),
-            
-            // PENDING REQUESTS SECTION (ADMIN ONLY)
-            if (isAdmin && pending.isNotEmpty) ...[
-               const SizedBox(height: 24),
-               const Divider(),
-               const SizedBox(height: 12),
-               Card(
-                 color: Colors.orange.shade50,
-                 elevation: 4,
-                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                 child: Padding(
-                   padding: const EdgeInsets.all(16.0),
-                   child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Row(
-                         children: [
-                            const Icon(Icons.person_add, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            Text("Join Requests (${pending.length})", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)),
-                         ],
-                       ),
-                       const Divider(),
-                       ...pending.map((uid) {
-                          // Fetch Profile
-                          return FutureBuilder(
-                             future: Supabase.instance.client.from('profiles').select().eq('id', uid).maybeSingle(),
-                             builder: (context, snapshot) {
-                                final name = (snapshot.hasData && snapshot.data != null) 
-                                    ? snapshot.data!['display_name'] 
-                                    : 'Unknown User';
-                                
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: CircleAvatar(backgroundColor: Colors.white, child: Text(name[0] ?? '?')),
-                                  title: Text(name ?? 'Loading...'),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.check_circle, color: Colors.green),
-                                        onPressed: () async {
-                                          await TripService().acceptMember(trip.id, uid);
-                                          await onRefresh();
-                                        },
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.cancel, color: Colors.red),
-                                        onPressed: () async {
-                                          await TripService().rejectMember(trip.id, uid);
-                                          await onRefresh();
-                                        },
-                                      )
-                                    ],
-                                  ),
-                                );
-                             }
-                          );
-                       }).toList()
-                     ],
-                   ),
-                 ),
+            // Always show a manage button for the creator/admins if they want to invite more
+            if (!hasMore)
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent, size: 28),
+                onPressed: () => _showManageMembers(context),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  Widget _buildPendingRequests(BuildContext context, List<String> pending) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.orange.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+               const Icon(Icons.person_add, color: Colors.orange, size: 20),
+               const SizedBox(width: 12),
+               Text(
+                 "Join Requests (${pending.length})",
+                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)
                ),
             ],
-            
-            const SizedBox(height: 32),
-            Center(
-               child: TextButton.icon(
-                 onPressed: () async {
-                    // Check if Owner is trying to leave
-                    if (trip.createdBy == currentUser) {
-                       await showDialog(
-                         context: context, 
-                         builder: (ctx) => AlertDialog(
-                           title: const Text("Cannot Leave Trip"),
-                           content: const Text("You are the owner of this trip. You cannot leave unless you delete the trip or transfer ownership."),
-                           actions: [
-                             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
-                           ],
-                         )
-                       );
-                       return;
-                    }
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<List<UserProfile>>(
+            future: TripService().getTripMembersProfilesByTripId(trip.id),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              
+              final allProfiles = snapshot.data!;
+              // Filter only pending users from the allProfiles list (RPC returns all)
+              final pendingProfiles = allProfiles.where((p) => pending.contains(p.uid)).toList();
 
-                    final confirm = await showDialog<bool>(
-                       context: context,
-                       builder: (ctx) => AlertDialog(
-                          title: const Text("Leave Trip?"),
-                          content: const Text("Are you sure you want to leave this trip?"),
-                          actions: [
-                             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-                             TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Leave", style: TextStyle(color: Colors.red))),
-                          ],
-                       )
-                    );
-                    
-                    if (confirm == true) {
-                       try {
-                          await TripService().leaveTrip(trip.id);
-                          Navigator.of(context).pop(); 
-                       } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                       }
-                    }
-                 },
-                 icon: const Icon(Icons.exit_to_app, color: Colors.red),
-                 label: const Text("Leave Trip", style: TextStyle(color: Colors.red)),
-               )
-            ),
-          ],
-        ),
-      ),
+              if (pendingProfiles.isEmpty) return const SizedBox.shrink();
+
+              return Column(
+                children: pendingProfiles.map((profile) {
+                  final name = profile.displayName ?? 'New User';
+                  final uid = profile.uid;
+
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      backgroundImage: profile.avatarUrl != null ? CachedNetworkImageProvider(profile.avatarUrl!) : null,
+                      child: profile.avatarUrl == null ? Text(name[0]) : null,
+                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle, color: Colors.green),
+                          onPressed: () async {
+                            await TripService().acceptMember(trip.id, uid);
+                            await onRefresh();
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.cancel, color: Colors.red),
+                          onPressed: () async {
+                            await TripService().rejectMember(trip.id, uid);
+                            await onRefresh();
+                          },
+                        )
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -523,10 +758,10 @@ class _OverviewTab extends StatelessWidget {
     try {
       // 1. Fetch Plan Data
       final plan = await PlanService().fetchTripPlan(trip.id);
-      
+
       if (context.mounted) {
         Navigator.pop(context); // Close Loader
-        
+
         // 2. Navigate to Chat Screen
         Navigator.push(
           context,
@@ -545,9 +780,9 @@ class _OverviewTab extends StatelessWidget {
 
   void _showManageMembers(BuildContext context) {
     showDialog(
-      context: context, 
+      context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Manage Members"),
+        title: const Text("The Crew"),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -560,24 +795,56 @@ class _OverviewTab extends StatelessWidget {
                  builder: (ctx, snap) {
                    if (!snap.hasData) return const ListTile(title: Text("Loading..."));
                    final name = snap.data!['display_name'] ?? 'User';
-                   
+                   final avatarUrl = snap.data!['avatar_url'];
+
                    final currentUid = Supabase.instance.client.auth.currentUser?.id;
                    final iAmAdmin = trip.adminIds.contains(currentUid);
-                   final iAmCreator = trip.createdBy == currentUid;
+                   final iAmOwner = trip.createdBy == currentUid;
+                   
                    final targetIsAdmin = trip.adminIds.contains(uid);
-                   final targetIsCreator = trip.createdBy == uid;
+                   final targetIsOwner = trip.createdBy == uid;
 
                    return ListTile(
-                     leading: CircleAvatar(child: Text(name[0])),
-                     title: Text(name),
-                     subtitle: targetIsCreator ? const Text("Owner", style: TextStyle(fontSize: 10, color: Colors.blue)) : 
-                               targetIsAdmin ? const Text("Admin", style: TextStyle(fontSize: 10, color: Colors.orange)) : null,
-                     trailing: (uid == currentUid || targetIsCreator) 
-                        ? null // Can't manage self or creator here
-                        : !iAmAdmin 
-                            ? null // Non-admins can't manage
+                     leading: CircleAvatar(
+                       backgroundColor: Colors.blue.shade50,
+                       backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+                       child: avatarUrl == null ? Text(name[0].toUpperCase()) : null,
+                     ),
+                     title: Row(
+                       children: [
+                         Flexible(
+                           child: Text(
+                             name, 
+                             style: const TextStyle(fontWeight: FontWeight.w600),
+                             overflow: TextOverflow.ellipsis,
+                           ),
+                         ),
+                         if (targetIsOwner || targetIsAdmin) ...[
+                           const SizedBox(width: 8),
+                           Container(
+                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                             decoration: BoxDecoration(
+                               color: targetIsOwner ? Colors.orange.shade50 : Colors.blue.shade50,
+                               borderRadius: BorderRadius.circular(4),
+                             ),
+                             child: Text(
+                               targetIsOwner ? "OWNER" : "ADMIN",
+                               style: TextStyle(
+                                 fontSize: 8, 
+                                 fontWeight: FontWeight.bold, 
+                                 color: targetIsOwner ? Colors.orange.shade700 : Colors.blue.shade700,
+                               ),
+                             ),
+                           ),
+                         ],
+                       ],
+                     ),
+                     trailing: (uid == currentUid || targetIsOwner)
+                        ? null // Can't manage self or owner
+                        : !(iAmOwner || iAmAdmin)
+                            ? null // Members can't manage
                             : PopupMenuButton<String>(
-                                icon: const Icon(Icons.more_vert),
+                                icon: const Icon(Icons.more_vert, size: 20),
                                 onSelected: (value) async {
                                    Navigator.pop(ctx);
                                    if (value == 'promote') {
@@ -588,7 +855,7 @@ class _OverviewTab extends StatelessWidget {
                                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name is no longer an Admin")));
                                    } else if (value == 'remove') {
                                       final confirm = await showDialog<bool>(
-                                         context: context, 
+                                         context: context,
                                          builder: (dCtx) => AlertDialog(
                                             title: const Text("Remove Member?"),
                                             content: Text("Are you sure you want to remove $name?"),
@@ -607,16 +874,24 @@ class _OverviewTab extends StatelessWidget {
                                 },
                                 itemBuilder: (BuildContext context) {
                                    List<PopupMenuEntry<String>> choices = [];
-                                   if (!targetIsAdmin) {
-                                      choices.add(const PopupMenuItem(value: 'promote', child: Text("Promote to Admin")));
+                                   
+                                   // OWNER PERMISSIONS
+                                   if (iAmOwner) {
+                                      if (!targetIsAdmin) {
+                                         choices.add(const PopupMenuItem(value: 'promote', child: Text("Make Admin")));
+                                      } else {
+                                         choices.add(const PopupMenuItem(value: 'demote', child: Text("Remove Admin")));
+                                      }
                                       choices.add(const PopupMenuItem(value: 'remove', child: Text("Remove from Trip", style: TextStyle(color: Colors.red))));
-                                   } else {
-                                      // Target is Admin
-                                      if (iAmCreator) {
-                                         choices.add(const PopupMenuItem(value: 'demote', child: Text("Demote to Member")));
+                                   } 
+                                   // ADMIN PERMISSIONS
+                                   else if (iAmAdmin) {
+                                      if (!targetIsAdmin) {
                                          choices.add(const PopupMenuItem(value: 'remove', child: Text("Remove from Trip", style: TextStyle(color: Colors.red))));
                                       }
+                                      // Admins cannot manage other Admins or Owner
                                    }
+                                   
                                    return choices;
                                 },
                               )
@@ -627,27 +902,193 @@ class _OverviewTab extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close"))
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Done"))
         ],
       )
     );
   }
+}
 
-  Widget _buildStatusBadge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.5))
-      ),
-      child: Text(text, 
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+class _StatCardV2 extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatCardV2({required this.icon, required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 8),
+            Text(value, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }
 }
 
+class _MemberChipV2 extends StatelessWidget {
+  final UserProfile profile;
+  const _MemberChipV2({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: Colors.grey.shade100,
+            backgroundImage: profile.avatarUrl != null ? CachedNetworkImageProvider(profile.avatarUrl!) : null,
+            child: profile.avatarUrl == null ? Text((profile.displayName ?? " ")[0], style: const TextStyle(fontSize: 10)) : null,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            profile.displayName ?? "User",
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height - 40);
+    path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 40);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class _MemberAvatar extends StatelessWidget {
+  final UserProfile profile;
+  final bool isOwner;
+  final bool isAdmin;
+  final VoidCallback onTap;
+
+  const _MemberAvatar({
+    required this.profile,
+    required this.isOwner,
+    required this.isAdmin,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.blueAccent.shade100,
+                backgroundImage: profile.avatarUrl != null
+                    ? CachedNetworkImageProvider(profile.avatarUrl!)
+                    : null,
+                child: profile.avatarUrl == null
+                    ? Text(
+                        profile.displayName?.isNotEmpty == true
+                            ? profile.displayName![0].toUpperCase()
+                            : "?",
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      )
+                    : null,
+              ),
+              if (isOwner)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.workspace_premium,
+                        size: 14, color: Colors.orange),
+                  ),
+                )
+              else if (isAdmin)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shield,
+                        size: 14, color: Colors.blueAccent),
+                  ),
+                ),
+              if (profile.role == 'agency')
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.verified,
+                        size: 14, color: Colors.green),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 70,
+            child: Text(
+              profile.displayName?.split(' ').first ?? 'User',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // -----------------------------------------------------------------------------
 // 2. DATES TAB (Calendar View)
@@ -676,7 +1117,7 @@ class _DateTabState extends State<_DateTab> {
     _rangeStart = widget.trip.startDate;
     _rangeEnd = widget.trip.endDate;
   }
-  
+
   @override
   void didUpdateWidget(_DateTab oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -690,89 +1131,110 @@ class _DateTabState extends State<_DateTab> {
   }
 
   Widget _buildTripSnapshotCard(BuildContext context) {
-      Color statusColor = Colors.orange;
-      String statusText = "Planning";
-      
-      final now = DateTime.now();
-      if (widget.trip.isDateDecided) {
-        statusColor = Colors.blue;
-        statusText = "Confirmed";
-      }
-      if (widget.trip.startDate != null) {
-         if (now.isAfter(widget.trip.startDate!) && now.isBefore(widget.trip.endDate!)) {
-            statusColor = Colors.green;
-            statusText = "Live";
-         } else if (now.isAfter(widget.trip.endDate!)) {
-            statusColor = Colors.grey;
-            statusText = "Completed";
-         }
-      }
+    final now = DateTime.now();
+    String dateRange = "Dates TBD ⏳";
+    String duration = "";
+    int days = 0;
 
-      final isFixed = widget.trip.metadata != null && widget.trip.metadata!['isFixedBudget'] == true;
-      final budgetText = isFixed ? "Fixed Budget" : "Mixed Votes";
-      final members = widget.trip.memberIds.length;
-      
-      String dateText = "Dates TBD";
-      if (widget.trip.startDate != null) {
-          dateText = "${DateFormat('MMM d').format(widget.trip.startDate!)} - ${DateFormat('MMM d, y').format(widget.trip.endDate!)}";
-      }
+    if (widget.trip.startDate != null && widget.trip.endDate != null) {
+      dateRange = "${DateFormat('MMM d').format(widget.trip.startDate!)} – ${DateFormat('MMM d, y').format(widget.trip.endDate!)}";
+      days = widget.trip.endDate!.difference(widget.trip.startDate!).inDays + 1;
+      duration = "$days Days Trip";
+    }
 
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-             crossAxisAlignment: CrossAxisAlignment.start,
-             children: [
-                Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                      Expanded(child: Text(widget.trip.location, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                           color: statusColor.withOpacity(0.1),
-                           borderRadius: BorderRadius.circular(12),
-                           border: Border.all(color: statusColor)
-                        ),
-                        child: Text(" $statusText ", style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                      )
-                   ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                   children: [
-                      const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text(dateText, style: const TextStyle(fontSize: 14)),
-                   ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                       Row(
-                          children: [
-                             const Icon(Icons.group, size: 16, color: Colors.grey),
-                             const SizedBox(width: 8),
-                             Text("$members members", style: const TextStyle(fontSize: 14)),
-                          ]
-                       ),
-                       Row(
-                          children: [
-                             const Icon(Icons.attach_money, size: 16, color: Colors.grey),
-                             const SizedBox(width: 4),
-                             Text(budgetText, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                          ]
-                       )
-                   ],
-                )
-             ],
-          ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade400, Colors.blue.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      );
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.trip.location,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 14, color: Colors.white70),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            dateRange,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.flight_takeoff, color: Colors.white30, size: 40),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              if (duration.isNotEmpty)
+                _buildTimelineBadge(duration, Icons.timer_outlined),
+              const SizedBox(width: 10),
+              _buildTimelineBadge("${widget.trip.memberIds.length} Traveler${widget.trip.memberIds.length > 1 ? 's' : ''}", Icons.group_outlined),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineBadge(String text, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveDates() async {
@@ -790,6 +1252,89 @@ class _DateTabState extends State<_DateTab> {
     }
   }
 
+  void _showCalendarModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Select Trip Dates", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: TableCalendar(
+                      firstDay: DateTime.now().subtract(const Duration(days: 365)),
+                      lastDay: DateTime.now().add(const Duration(days: 730)),
+                      focusedDay: _focusedDay,
+                      calendarFormat: _calendarFormat,
+                      rangeSelectionMode: _rangeSelectionMode,
+                      rangeStartDay: _rangeStart,
+                      rangeEndDay: _rangeEnd,
+                      onRangeSelected: (start, end, focusedDay) {
+                        setModalState(() {
+                          _focusedDay = focusedDay;
+                          _rangeStart = start;
+                          _rangeEnd = end;
+                          _rangeSelectionMode = RangeSelectionMode.toggledOn;
+                        });
+                        setState(() { // Updates the parent state too
+                          _rangeStart = start;
+                          _rangeEnd = end;
+                        });
+                      },
+                      headerStyle: const HeaderStyle(formatButtonVisible: false, titleCentered: true),
+                      calendarStyle: CalendarStyle(
+                        rangeHighlightColor: Colors.blue.shade50,
+                        rangeStartDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                        rangeEndDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                        todayDecoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: (_rangeStart != null && _rangeEnd != null) ? () {
+                      _saveDates();
+                      Navigator.pop(ctx);
+                    } : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: _isSaving 
+                      ? const CircularProgressIndicator(color: Colors.white) 
+                      : const Text("Confirm Dates", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
@@ -798,92 +1343,123 @@ class _DateTabState extends State<_DateTab> {
       onRefresh: widget.onRefresh,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 2️⃣ Trip Overview Snapshot Card
             _buildTripSnapshotCard(context),
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
             
-            TableCalendar(
-              firstDay: DateTime.now().subtract(const Duration(days: 365)),
-              lastDay: DateTime.now().add(const Duration(days: 365)),
-              focusedDay: _focusedDay,
-              calendarFormat: _calendarFormat,
-              
-              // Range Selection Logic
-              rangeSelectionMode: _rangeSelectionMode,
-              rangeStartDay: _rangeStart,
-              rangeEndDay: _rangeEnd,
-              
-              onRangeSelected: (start, end, focusedDay) {
-                if (!isAdmin) return; // Read-only for non-admins
-                
-                // Prevent past selection
-                if (start != null) {
-                   final now = DateTime.now();
-                   final today = DateTime(now.year, now.month, now.day);
-                   if (start.isBefore(today)) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cannot set trip dates in the past!")));
-                      return;
-                   }
-                }
-
-                setState(() {
-                  _selectedDay = null;
-                  _focusedDay = focusedDay;
-                  _rangeStart = start;
-                  _rangeEnd = end;
-                  _rangeSelectionMode = RangeSelectionMode.toggledOn;
-                });
-              },
-              
-              onFormatChanged: (format) {
-                  setState(() {
-                    _calendarFormat = format;
-                  });
-              },
-              onPageChanged: (focusedDay) {
-                _focusedDay = focusedDay;
-              },
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Timeline", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (isAdmin)
+                  TextButton.icon(
+                    onPressed: _showCalendarModal,
+                    icon: const Icon(Icons.edit_calendar, size: 18),
+                    label: const Text("Edit Dates"),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
-            
-            // ADMIN CONTROLS
-            if (isAdmin) 
-               Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                 child: Column(
-                   children: [
-                     const Text("Admin: Select a date range above to modify."),
-                     const SizedBox(height: 8),
-                     if (_rangeStart != null && _rangeEnd != null && (_rangeStart != widget.trip.startDate || _rangeEnd != widget.trip.endDate))
-                        ElevatedButton.icon(
-                          onPressed: _isSaving ? null : _saveDates,
-                          icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
-                          label: const Text("Save New Dates"),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                        )
-                   ],
-                 ),
-               ),
 
-            if (widget.trip.isDateDecided && widget.trip.startDate != null && widget.trip.endDate != null)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  "Trip Dates: ${DateFormat('MM/dd').format(widget.trip.startDate!)} - ${DateFormat('MM/dd').format(widget.trip.endDate!)}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            if (widget.trip.startDate != null && widget.trip.endDate != null) ...[
+              // Horizontal Timeline Visualizer
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(
+                    widget.trip.endDate!.difference(widget.trip.startDate!).inDays + 1,
+                    (index) {
+                      final dayDate = widget.trip.startDate!.add(Duration(days: index));
+                      final isLast = index == widget.trip.endDate!.difference(widget.trip.startDate!).inDays;
+                      
+                      return Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.blue.shade100),
+                            ),
+                            child: Text(
+                              "${dayDate.day}",
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                            ),
+                          ),
+                          if (!isLast)
+                            Container(width: 20, height: 2, color: Colors.blue.shade100),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: const Text(
-                  "Dates are tentative. Use this calendar to discuss availability!",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 32),
+              
+              const Text("Day-by-Day View", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: widget.trip.endDate!.difference(widget.trip.startDate!).inDays + 1,
+                itemBuilder: (context, index) {
+                  final dayDate = widget.trip.startDate!.add(Duration(days: index));
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade100),
+                    ),
+                    child: ListTile(
+                      onTap: () {
+                        DefaultTabController.of(context).animateTo(3); // Go to Plan Tab
+                      },
+                      leading: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text("D${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      title: Text(DateFormat('EEEE, MMM d').format(dayDate)),
+                      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                    ),
+                  );
+                },
+              ),
+            ] else
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    children: [
+                      Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      const Text("No dates set yet", style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+                      if (isAdmin) ...[
+                        const SizedBox(height: 8),
+                        const Text("Set dates to start planning the timeline.", style: TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _showCalendarModal,
+                          child: const Text("Select Trip Dates"),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              )
+              ),
           ],
         ),
       ),
@@ -909,131 +1485,224 @@ class _BudgetTabState extends State<_BudgetTab> {
   @override
   Widget build(BuildContext context) {
     final currency = widget.trip.budgetCurrency;
-    
     final currentUser = Supabase.instance.client.auth.currentUser?.id;
     final isAdmin = currentUser != null && widget.trip.adminIds.contains(currentUser);
+
+    double totalAllocated = widget.trip.budgetAllocations.fold(0, (prev, e) => prev + (e['cost'] is int ? (e['cost'] as int).toDouble() : (e['cost'] as double? ?? 0.0)));
+    double remaining = widget.trip.estimatedCost - totalAllocated;
+    double progress = widget.trip.estimatedCost > 0 ? (totalAllocated / widget.trip.estimatedCost).clamp(0.0, 1.0) : 0.0;
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with Edit Button
-            Card(
-              elevation: 4,
-              color: Colors.blue.shade50,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                     Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Text("Total Budget", style: GoogleFonts.poppins(fontSize: 14, color: Colors.blueGrey)),
-                         const SizedBox(height: 4),
-                         Text("$currency ${widget.trip.estimatedCost.toStringAsFixed(0)}", 
-                              style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                       ],
-                     ),
-                     if (isAdmin)
-                       IconButton.filled(
-                         onPressed: _showEditBudgetDialog,
-                         icon: const Icon(Icons.edit, size: 20),
-                         style: IconButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.blueAccent),
-                         tooltip: "Edit Budget",
-                       )
-                  ],
+            // Premium Budget Overview Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade400, Colors.teal.shade700],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Total Budget",
+                              style: TextStyle(color: Colors.white70, fontSize: 14),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "$currency ${widget.trip.estimatedCost.toStringAsFixed(0)}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isAdmin)
+                        IconButton(
+                          onPressed: _showEditBudgetDialog,
+                          icon: const Icon(Icons.edit_note, color: Colors.white, size: 28),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Spent: $currency ${totalAllocated.toStringAsFixed(0)}",
+                        style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                      Text(
+                        "Remaining: $currency ${remaining.toStringAsFixed(0)}",
+                        style: TextStyle(
+                          color: remaining < 0 ? Colors.orange.shade200 : Colors.white70, 
+                          fontSize: 12, 
+                          fontWeight: FontWeight.w500
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      valueColor: AlwaysStoppedAnimation<Color>(remaining < 0 ? Colors.orange : Colors.white),
+                      minHeight: 8,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-            // Distribution
+            // Category Quick-Add / Filter Chips
+            const Text("Categories", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildCategoryChip("🏨 Hotels", Colors.blue),
+                  _buildCategoryChip("✈️ Flights", Colors.orange),
+                  _buildCategoryChip("🍽 Food", Colors.green),
+                  _buildCategoryChip("🚗 Transport", Colors.purple),
+                  _buildCategoryChip("🎟 Activities", Colors.pink),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Expenses Breakdown", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-                if (isAdmin)
+                const Text("Breakdown", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (isAdmin && widget.trip.budgetAllocations.isNotEmpty)
                   TextButton.icon(
-                    onPressed: _showEditBudgetDialog, 
-                    icon: const Icon(Icons.add_circle_outline, size: 16),
+                    onPressed: _showEditBudgetDialog,
+                    icon: const Icon(Icons.add, size: 18),
                     label: const Text("Manage"),
-                  )
+                  ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
             if (widget.trip.budgetAllocations.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200)
-                  ),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Column(
                     children: [
-                      const Icon(Icons.pie_chart_outline, size: 48, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      const Text("No breakdown added yet.", style: TextStyle(color: Colors.grey)),
-                      if (isAdmin)
-                        TextButton(onPressed: _showEditBudgetDialog, child: const Text("Add Expenses"))
+                      Icon(Icons.account_balance_wallet_outlined, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Track your travel expenses smartly ✈️",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Add hotels, flights, food & activities.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      if (isAdmin) ...[
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _showEditBudgetDialog,
+                          child: const Text("Start Tracking"),
+                        ),
+                      ],
                     ],
                   ),
-                )
-            else 
+                ),
+              )
+            else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: widget.trip.budgetAllocations.length,
-                separatorBuilder: (ctx, i) => const Divider(height: 1),
+                separatorBuilder: (ctx, i) => const SizedBox(height: 12),
                 itemBuilder: (ctx, i) {
                    final item = widget.trip.budgetAllocations[i];
                    final cost = item['cost'] is int ? (item['cost'] as int).toDouble() : (item['cost'] as double? ?? 0.0);
-                   return ListTile(
-                     contentPadding: EdgeInsets.zero,
-                     leading: CircleAvatar(
-                        backgroundColor: Colors.blue.shade50,
-                        child: const Icon(Icons.category_outlined, color: Colors.blueAccent, size: 20),
+                   return Container(
+                     decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade100),
                      ),
-                     title: Text(item['title'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.w500)),
-                     trailing: Text("$currency ${cost.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                     child: ListTile(
+                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                       leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                             color: Colors.teal.shade50,
+                             shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.receipt_long_outlined, color: Colors.teal, size: 20),
+                       ),
+                       title: Text(item['title'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.bold)),
+                       subtitle: Text("Allocation", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                       trailing: Text(
+                         "$currency ${cost.toStringAsFixed(0)}", 
+                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal)
+                       ),
+                     ),
                    );
                 }
               ),
-              
-            // Summary Calculation
-            if (widget.trip.budgetAllocations.isNotEmpty) ...[
-               const Divider(height: 32, thickness: 1),
-               Builder(
-                 builder: (context) {
-                    double totalAllocated = widget.trip.budgetAllocations.fold(0, (prev, e) => prev + (e['cost'] is int ? (e['cost'] as int).toDouble() : (e['cost'] as double? ?? 0.0)));
-                    double remaining = widget.trip.estimatedCost - totalAllocated;
-                    
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                         const Text("Unallocated / Buffer", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                         Text("$currency ${remaining.toStringAsFixed(0)}", 
-                             style: TextStyle(
-                               fontWeight: FontWeight.bold, 
-                               color: remaining < 0 ? Colors.red : Colors.green,
-                               fontSize: 16
-                             )
-                         ),
-                      ],
-                    );
-                 }
-               )
-            ]
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String label, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
       ),
     );
   }
@@ -1044,13 +1713,13 @@ class _BudgetTabState extends State<_BudgetTab> {
      List<Map<String, dynamic>> tempAllocations = List.from(
         widget.trip.budgetAllocations.map((e) => Map<String, dynamic>.from(e))
      );
-     
+
      showDialog(
        context: context,
        builder: (ctx) => StatefulBuilder(
          builder: (context, setState) {
            double sum = tempAllocations.fold(0, (prev, e) => prev + (e['cost'] is int ? (e['cost'] as int).toDouble() : (e['cost'] as double? ?? 0.0)));
-           
+
            return AlertDialog(
              title: const Text("Edit Budget"),
              content: SizedBox(
@@ -1063,10 +1732,10 @@ class _BudgetTabState extends State<_BudgetTab> {
                       const Text("Total Estimated Budget", style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
                       TextField(
-                        controller: cTotal, 
+                        controller: cTotal,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
-                          prefixText: "${widget.trip.budgetCurrency} ", 
+                          prefixText: "${widget.trip.budgetCurrency} ",
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.attach_money)
                         ),
@@ -1110,7 +1779,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                           ]
                         ),
                       ),
-                      
+
                       const SizedBox(height: 12),
                       // Add new item simple form
                       InkWell(
@@ -1174,7 +1843,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                     } catch (e) {
                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
                     }
-                 }, 
+                 },
                  child: const Text("Save Changes")
                )
              ],
@@ -1188,263 +1857,6 @@ class _BudgetTabState extends State<_BudgetTab> {
 // -----------------------------------------------------------------------------
 // 4. CHAT TAB (Real-time Basic - SUPABASE)
 // -----------------------------------------------------------------------------
-class _ChatTab extends StatefulWidget {
-  final Trip trip;
-  final Future<void> Function() onRefresh;
-  const _ChatTab({required this.trip, required this.onRefresh});
-
-  @override
-  State<_ChatTab> createState() => _ChatTabState();
-}
-
-class _ChatTabState extends State<_ChatTab> {
-  final TextEditingController _msgController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  late Stream<List<Map<String, dynamic>>> _messagesStream;
-  final ImagePicker _chatImagePicker = ImagePicker();
-  bool _isUploadingImage = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Setup Supabase Realtime Stream
-    _messagesStream = Supabase.instance.client
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .eq('trip_id', widget.trip.id)
-        .order('created_at', ascending: false) // Reverse order (newest first)
-        .map((data) => data);
-  }
-
-  void _sendMessage(String uid, String name) async {
-    final text = _msgController.text.trim();
-    if (text.isEmpty) return;
-    
-    // Clear immediately for UX
-    _msgController.clear();
-    
-    try {
-      await Supabase.instance.client.from('messages').insert({
-        'trip_id': widget.trip.id,
-        'sender_id': uid,
-        'sender_name': name,
-        'text': text,
-        'message_type': 'text',
-        'image_url': null,
-        // created_at is default now()
-      });
-      
-      // Auto scroll if needed
-      if (_scrollController.hasClients) {
-          _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-      
-      // Notify (Fire and forget, don't await blocking UI)
-      NotificationService().notifyTripMembers(
-        tripId: widget.trip.id,
-        title: "New Message from $name",
-        body: text,
-        type: NotificationType.message,
-        excludeUserId: uid
-      );
-
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to send: $e")));
-    }
-  }
-
-  Future<void> _sendImage(String uid, String name) async {
-    if (_isUploadingImage) return;
-    try {
-      final XFile? image = await _chatImagePicker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image == null) return;
-
-      setState(() => _isUploadingImage = true);
-
-      final fileExt = image.path.split('.').last;
-      final fileName = "chat/${widget.trip.id}/$uid/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
-
-      await Supabase.instance.client.storage
-          .from('chat_media')
-          .upload(fileName, File(image.path));
-
-      final publicUrl = Supabase.instance.client.storage
-          .from('chat_media')
-          .getPublicUrl(fileName);
-
-      await Supabase.instance.client.from('messages').insert({
-        'trip_id': widget.trip.id,
-        'sender_id': uid,
-        'sender_name': name,
-        'text': '',
-        'message_type': 'image',
-        'image_url': publicUrl,
-      });
-
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-
-      NotificationService().notifyTripMembers(
-        tripId: widget.trip.id,
-        title: "Photo from $name",
-        body: "Sent a photo",
-        type: NotificationType.message,
-        excludeUserId: uid,
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Image send failed: $e")));
-      }
-    } finally {
-      if (mounted) setState(() => _isUploadingImage = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Supabase User also works with our AuthService provider
-    final user = Provider.of<AuthService>(context).user;
-    final userProfile = Provider.of<AuthService>(context).userProfile;
-    
-    if (user == null) return const Center(child: Text("Please Log In"));
-
-    return Column(
-      children: [
-        Expanded(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _messagesStream,
-            builder: (context, snapshot) {
-              final isLoading = snapshot.connectionState == ConnectionState.waiting;
-              final messages = snapshot.data ?? (isLoading ? List.generate(5, (index) => {'text': 'Loading messsages...', 'sender_id': 'skeleton', 'sender_name': 'Loading'}) : []);
-              
-              if (messages.isEmpty && !isLoading) {
-                 return RefreshIndicator(
-                   onRefresh: widget.onRefresh,
-                   child: SingleChildScrollView(
-                     physics: const AlwaysScrollableScrollPhysics(),
-                     child: SizedBox(
-                       height: MediaQuery.of(context).size.height * 0.6,
-                       child: Column(
-                         mainAxisAlignment: MainAxisAlignment.center,
-                         children: [
-                             const Icon(Icons.chat_bubble_outline, size: 60, color: Colors.grey),
-                             const SizedBox(height: 16),
-                             const Text("Start planning together 👋", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.grey)),
-                             const SizedBox(height: 8),
-                             const Text("Share ideas, routes, and excitement!", style: TextStyle(color: Colors.grey))
-                         ],
-                       ),
-                     )
-                   )
-                 );
-              }
-
-              return RefreshIndicator(
-                onRefresh: widget.onRefresh,
-                child: Skeletonizer(
-                  enabled: isLoading,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(), // Ensure refresh works even if few items
-                    controller: _scrollController,
-                    reverse: true, // Chat style
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final isMe = msg['sender_id'] == user.id;
-                      
-                      final msgType = msg['message_type'] ?? 'text';
-                      final imageUrl = msg['image_url'] as String?;
-
-                      return Bubble(
-                        margin: const BubbleEdges.only(top: 8),
-                        alignment: isMe ? Alignment.topRight : Alignment.topLeft,
-                        nip: isMe ? BubbleNip.rightTop : BubbleNip.leftTop,
-                        color: isMe ? Colors.blue.shade100 : Colors.grey.shade200,
-                        child: Column(
-                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            if (!isMe) Text(msg['sender_name'] ?? 'Unknown', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            if (msgType == 'image' && imageUrl != null)
-                              GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => Dialog(
-                                      child: PhotoView(
-                                        imageProvider: CachedNetworkImageProvider(imageUrl),
-                                        backgroundDecoration: const BoxDecoration(color: Colors.black),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    width: 220,
-                                    height: 220,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Container(
-                                      width: 220,
-                                      height: 220,
-                                      color: Colors.grey.shade300,
-                                      child: const Center(child: CircularProgressIndicator()),
-                                    ),
-                                    errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
-                                  ),
-                                ),
-                              )
-                            else
-                              Text(msg['text'] ?? '', style: const TextStyle(fontSize: 16)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          color: Colors.white,
-          child: Row(
-            children: [
-              IconButton(
-                icon: _isUploadingImage
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.photo, color: Colors.blueAccent),
-                onPressed: _isUploadingImage
-                    ? null
-                    : () => _sendImage(user.id, userProfile?.displayName ?? 'User'),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _msgController,
-                  decoration: const InputDecoration(
-                    hintText: "Message group...",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              CircleAvatar(
-                backgroundColor: Colors.blueAccent,
-                child: IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                  onPressed: () => _sendMessage(user.id, userProfile?.displayName ?? 'User'),
-                ),
-              )
-            ],
-          ),
-        )
-      ],
-    );
-  }
-}
 
 // -----------------------------------------------------------------------------
 // 5. POLLS TAB (Real-time)
@@ -1458,269 +1870,571 @@ class _PollsTab extends StatefulWidget {
   State<_PollsTab> createState() => _PollsTabState();
 }
 
-class _PollsTabState extends State<_PollsTab> {
+class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
+  late Stream<List<TripPoll>> _pollsStream;
 
-  void _showCreatePollDialog() {
+  @override
+  void initState() {
+    super.initState();
+    _pollsStream = TripService().getPollsStream(widget.trip.id);
+  }
+
+  void _showCreatePollBottomSheet() {
     final cQuestion = TextEditingController();
     final List<TextEditingController> cOptions = [
       TextEditingController(),
       TextEditingController()
     ];
+    
+    DateTime? endsAt;
+    bool isAnonymous = false;
+    bool allowMultiple = false;
+    bool isPinned = false;
+    bool showAdvanced = false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Create Poll"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: cQuestion,
-                    decoration: const InputDecoration(labelText: "Question"),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("Options", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...cOptions.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final controller = entry.value;
-                    return Row(
-                      children: [
-                        Expanded(child: TextField(controller: controller, decoration: InputDecoration(labelText: "Option ${index + 1}"))),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () {
-                             if (cOptions.length > 2) {
-                               setState(() {
-                                 cOptions.removeAt(index);
-                               });
-                             }
-                          },
-                        )
-                      ],
-                    );
-                  }),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        cOptions.add(TextEditingController());
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text("Add Option"),
-                  )
-                ],
-              ),
+        builder: (context, setModalState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-              ElevatedButton(
-                onPressed: () async {
-                  if (cQuestion.text.isEmpty) return;
-                  final options = cOptions.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
-                  if (options.length < 2) {
-                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("At least 2 options required")));
-                     return;
-                  }
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Create Poll", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: cQuestion,
+                          autofocus: true,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                          decoration: const InputDecoration(
+                            hintText: "What are we deciding?",
+                            border: InputBorder.none,
+                          ),
+                          maxLines: 2,
+                        ),
+                        const Divider(),
+                        const SizedBox(height: 16),
+                        ...cOptions.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final controller = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: TextField(
+                                      controller: controller,
+                                      onSubmitted: (_) {
+                                        if (index == cOptions.length - 1) {
+                                          setModalState(() => cOptions.add(TextEditingController()));
+                                        }
+                                      },
+                                      decoration: InputDecoration(
+                                        hintText: "Option ${index + 1}",
+                                        border: InputBorder.none,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (cOptions.length > 2)
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                                    onPressed: () => setModalState(() => cOptions.removeAt(index)),
+                                  )
+                              ],
+                            ),
+                          );
+                        }),
+                        TextButton.icon(
+                          onPressed: () => setModalState(() => cOptions.add(TextEditingController())),
+                          icon: const Icon(Icons.add),
+                          label: const Text("Add Option"),
+                        ),
+                        const SizedBox(height: 24),
+                        InkWell(
+                          onTap: () => setModalState(() => showAdvanced = !showAdvanced),
+                          child: Row(
+                            children: [
+                              Text("Advanced Settings", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 4),
+                              Icon(showAdvanced ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
+                            ],
+                          ),
+                        ),
+                        if (showAdvanced) ...[
+                          const SizedBox(height: 16),
+                          _buildToggleOption(
+                            Icons.timer_outlined, "End Time", 
+                            endsAt == null ? "None" : DateFormat('MMM d, HH:mm').format(endsAt!),
+                            onTap: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now().add(const Duration(hours: 2)),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(const Duration(days: 30)),
+                              );
+                              if (date != null) {
+                                final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                                if (time != null) {
+                                  setModalState(() => endsAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+                                }
+                              }
+                            }
+                          ),
+                          _buildSwitchOption(Icons.person_off_outlined, "Anonymous voting", isAnonymous, (v) => setModalState(() => isAnonymous = v)),
+                          _buildSwitchOption(Icons.checklist_rtl, "Allow multiple votes", allowMultiple, (v) => setModalState(() => allowMultiple = v)),
+                          _buildSwitchOption(Icons.push_pin_outlined, "Pin poll", isPinned, (v) => setModalState(() => isPinned = v)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (cQuestion.text.isEmpty) return;
+                      final options = cOptions.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+                      if (options.length < 2) return;
 
-                  try {
-                    final uid = Supabase.instance.client.auth.currentUser!.id;
-                    await TripService().createPoll(widget.trip.id, cQuestion.text.trim(), options, uid);
-                    if (mounted) Navigator.pop(ctx);
-                    widget.onRefresh();
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                  }
-                },
-                child: const Text("Create"),
-              )
-            ],
+                      try {
+                        await TripService().createPollRelational(
+                          tripId: widget.trip.id,
+                          question: cQuestion.text.trim(),
+                          options: options,
+                          endsAt: endsAt,
+                          isAnonymous: isAnonymous,
+                          allowMultiple: allowMultiple,
+                          isPinned: isPinned,
+                        );
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Poll created successfully! 🗳️"),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           SnackBar(
+                             content: Text("Error: $e"),
+                             backgroundColor: Colors.redAccent,
+                           )
+                         );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text("Create Poll", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
           );
         }
       )
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Rely on updated widget.trip from parent StreamBuilder
-    final metadata = widget.trip.metadata ?? {};
-    final polls = (metadata['polls'] != null) 
-        ? List<Map<String, dynamic>>.from(metadata['polls']) 
-        : <Map<String, dynamic>>[];
-    
-    // Check Admin
-    final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
-
-    return RefreshIndicator(
-      onRefresh: widget.onRefresh,
-      child: Scaffold(
-        floatingActionButton: isAdmin ? FloatingActionButton.extended(
-          onPressed: _showCreatePollDialog,
-          icon: const Icon(Icons.poll),
-          label: const Text("Create Poll"),
-        ) : null,
-        body: (polls.isEmpty) 
-          ? RefreshIndicator( // Added RefreshIndicator to support pull-down on empty state
-              onRefresh: widget.onRefresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                    const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                           Icon(Icons.poll_outlined, size: 60, color: Colors.grey),
-                           SizedBox(height: 16),
-                           Text("Create a poll to decide faster", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.grey)),
-                           SizedBox(height: 8),
-                           Text("Resolve conflicts on dates, stays, or food easily.", style: TextStyle(color: Colors.grey))
-                        ]
-                      )
-                    ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: polls.length,
-              physics: const AlwaysScrollableScrollPhysics(), // Important for refresh
-              itemBuilder: (context, index) {
-                final poll = polls[index];
-                return _buildPollCard(poll);
-              },
-            ),
+  Widget _buildToggleOption(IconData icon, String title, String value, {required VoidCallback onTap}) {
+    return ListTile(
+      leading: Icon(icon, size: 20),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+          const Icon(Icons.chevron_right, size: 16, color: Colors.blue),
+        ],
       ),
+      onTap: onTap,
     );
   }
 
-  Widget _buildPollCard(Map<String, dynamic> poll) {
-    final question = poll['question'] ?? 'No Question';
-    final options = List<String>.from(poll['options'] ?? []);
-    final votes = Map<String, dynamic>.from(poll['votes'] ?? {}); // {uid: optionIndex}
-    
-    final uid = Supabase.instance.client.auth.currentUser!.id;
-    final myVote = votes[uid]; // int index or null
-    final isAdmin = widget.trip.adminIds.contains(uid);
+  Widget _buildSwitchOption(IconData icon, String title, bool value, Function(bool) onChanged) {
+    return SwitchListTile(
+      secondary: Icon(icon, size: 20),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
 
-    // Calculate totals
-    final totalVotes = votes.length;
-    final counts = List.filled(options.length, 0);
-    votes.values.forEach((v) {
-       if (v is int && v < counts.length) counts[v]++;
-    });
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreatePollBottomSheet,
+        icon: const Icon(Icons.add),
+        label: const Text("New Poll"),
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+      ),
+      body: StreamBuilder<List<TripPoll>>(
+        stream: _pollsStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+             return const Center(child: CircularProgressIndicator());
+          }
+          final polls = snapshot.data ?? [];
+
+          if (polls.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: () async => widget.onRefresh(),
+              child: ListView(
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                          child: const Icon(Icons.how_to_vote_outlined, size: 48, color: Colors.blueAccent),
+                        ),
+                        const SizedBox(height: 24),
+                        Text("No active polls", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        const Text("Decision making made easy.", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => widget.onRefresh(),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: polls.length,
+              itemBuilder: (context, index) => _RelationalPollCard(
+                poll: polls[index],
+                isAdmin: isAdmin,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _RelationalPollCard extends StatefulWidget {
+  final TripPoll poll;
+  final bool isAdmin;
+
+  const _RelationalPollCard({required this.poll, required this.isAdmin});
+
+  @override
+  State<_RelationalPollCard> createState() => _RelationalPollCardState();
+}
+
+class _RelationalPollCardState extends State<_RelationalPollCard> {
+  @override
+  Widget build(BuildContext context) {
+    final totalVotes = widget.poll.votes.length;
+    final uid = Supabase.instance.client.auth.currentUser!.id;
+    final myVoteOptionIds = widget.poll.votes.where((v) => v.userId == uid).map((v) => v.optionId).toList();
+    final isExpired = widget.poll.isExpired;
 
     return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(question, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
-                if (isAdmin)
+                FutureBuilder<UserProfile?>(
+                  future: AuthService.instance.getOtherUserProfile(widget.poll.createdBy),
+                  builder: (context, snap) {
+                    final profile = snap.data;
+                    return CircleAvatar(
+                      radius: 12,
+                      backgroundImage: profile?.avatarUrl != null ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
+                      child: profile?.avatarUrl == null ? const Icon(Icons.person, size: 12) : null,
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FutureBuilder<UserProfile?>(
+                    future: AuthService.instance.getOtherUserProfile(widget.poll.createdBy),
+                    builder: (context, snap) {
+                      final name = snap.data?.displayName ?? "Someone";
+                      return Text("$name created a poll", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey));
+                    },
+                  ),
+                ),
+                if (widget.poll.isPinned) const Icon(Icons.push_pin, size: 14, color: Colors.blueAccent),
+                if (widget.isAdmin)
                    IconButton(
                      visualDensity: VisualDensity.compact,
-                     icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
-                     onPressed: () async {
-                        final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-                          title: const Text("Delete Poll"),
-                          content: const Text("Are you sure? This cannot be undone."),
-                          actions: [
-                             TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
-                             TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
-                          ]
-                       ));
-                       
-                       if (confirm == true) {
-                          try {
-                             await TripService().deletePoll(widget.trip.id, poll['id']);
-                             widget.onRefresh();
-                          } catch (e) {
-                             if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                          }
-                       }
+                     icon: const Icon(Icons.more_horiz, size: 20),
+                     onPressed: () {
+                       _showPollOptions(context);
                      },
                    )
               ],
             ),
-            const SizedBox(height: 4),
-            Text("$totalVotes votes", style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 12),
-            ...options.asMap().entries.map((entry) {
-               final idx = entry.key;
-               final text = entry.value;
-               final count = counts[idx];
-               final percent = totalVotes > 0 ? count / totalVotes : 0.0;
-               final isSelected = myVote == idx;
+            Text(widget.poll.question, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.how_to_vote, size: 14, color: Colors.blue.shade300),
+                const SizedBox(width: 6),
+                Text("$totalVotes votes", style: TextStyle(fontSize: 12, color: Colors.blue.shade300, fontWeight: FontWeight.bold)),
+                if (widget.poll.endsAt != null) ...[
+                  const SizedBox(width: 12),
+                  Icon(Icons.timer_outlined, size: 14, color: isExpired ? Colors.red : Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    isExpired ? "Ended" : "Ends in ${_getTimeRemaining()}", 
+                    style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : Colors.grey)
+                  ),
+                ]
+              ],
+            ),
+            const SizedBox(height: 20),
+            ...widget.poll.options.map((option) {
+              final voteCount = widget.poll.votes.where((v) => v.optionId == option.id).length;
+              final percent = totalVotes > 0 ? voteCount / totalVotes : 0.0;
+              final isSelected = myVoteOptionIds.contains(option.id);
 
-               return InkWell(
-                 onTap: () async {
-                    // Vote
-                    try {
-                      await TripService().votePoll(widget.trip.id, poll['id'], uid, idx);
-                      await widget.onRefresh();
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to vote: $e")));
-                    }
-                 },
-                 child: Container(
-                   margin: const EdgeInsets.only(bottom: 8),
-                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                   decoration: BoxDecoration(
-                     border: Border.all(color: isSelected ? Colors.blueAccent : Colors.grey.shade300, width: isSelected ? 2 : 1),
-                     borderRadius: BorderRadius.circular(8),
-                     color: isSelected ? Colors.blue.shade50 : null,
-                   ),
-                   child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Row(
-                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                         children: [
-                           Expanded(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal))),
-                           if (isSelected) const Icon(Icons.check_circle, size: 16, color: Colors.blueAccent)
-                         ],
-                       ),
-                       const SizedBox(height: 6),
-                       LinearProgressIndicator(value: percent, backgroundColor: Colors.grey.shade200),
-                       Align(alignment: Alignment.centerRight, child: Text("${(percent * 100).toInt()}% ($count)", style: const TextStyle(fontSize: 10))),
-                       if (isAdmin && count > 0)
-                          FutureBuilder(
-                            future: _fetchVotersNames(votes, idx),
-                            builder: (context, snap) {
-                              if (!snap.hasData) return const SizedBox();
-                              return Padding(padding: const EdgeInsets.only(top: 4), child: Text("Voters: ${snap.data}", style: const TextStyle(fontSize: 10, color: Colors.grey)));
-                            }
-                          )
-                     ],
-                   ),
-                 ),
-               );
-            }).toList()
+              return GestureDetector(
+                onTap: isExpired ? null : () => _handleVote(option.id),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  height: 52,
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      // Animated Bar Background
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeOutCubic,
+                        width: MediaQuery.of(context).size.width * percent,
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      // Content
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: isSelected ? Colors.blueAccent.withOpacity(0.5) : Colors.transparent),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                option.optionText, 
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                                )
+                              )
+                            ),
+                            Text("${(percent * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            const SizedBox(height: 8),
+            _buildVoterAvatars(),
           ],
         ),
       ),
     );
   }
 
-  Future<String> _fetchVotersNames(Map<String, dynamic> votes, int optionIdx) async {
-     final uids = votes.entries.where((e) => e.value == optionIdx).map((e) => e.key).toList();
-     if (uids.isEmpty) return "";
-     
-     final resp = await Supabase.instance.client.from('profiles').select('display_name').filter('id', 'in', uids);
-     final names = (resp as List).map((e) => e['display_name'] as String).toList();
-     return names.take(3).join(', ') + (names.length > 3 ? " +${names.length - 3}" : "");
+  String _getTimeRemaining() {
+    if (widget.poll.endsAt == null) return "";
+    final diff = widget.poll.endsAt!.difference(DateTime.now());
+    if (diff.isNegative) return "0m";
+    if (diff.inDays > 0) return "${diff.inDays}d";
+    if (diff.inHours > 0) return "${diff.inHours}h";
+    return "${diff.inMinutes}m";
   }
-} // End _PollsTabState
+
+  Widget _buildVoterAvatars() {
+    if (widget.poll.votes.isEmpty) return const SizedBox();
+    
+    // Get unique voter IDs, up to 3 for display
+    final voterIds = widget.poll.votes.map((v) => v.userId).toSet().toList();
+    final displayIds = voterIds.take(3).toList();
+    final othersCount = voterIds.length - displayIds.length;
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 24.0 * displayIds.length + (othersCount > 0 ? 30 : 0),
+          height: 24,
+          child: Stack(
+            children: [
+              ...displayIds.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final uid = entry.value;
+                return Positioned(
+                  left: idx * 16.0,
+                  child: FutureBuilder<UserProfile?>(
+                    future: AuthService.instance.getOtherUserProfile(uid),
+                    builder: (context, snap) {
+                      final profile = snap.data;
+                      return Container(
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: CircleAvatar(
+                          radius: 10,
+                          backgroundImage: profile?.avatarUrl != null ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
+                          child: profile?.avatarUrl == null ? const Icon(Icons.person, size: 10) : null,
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }),
+              if (othersCount > 0)
+                Positioned(
+                  left: displayIds.length * 16.0,
+                  child: Container(
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: CircleAvatar(
+                      radius: 10,
+                      backgroundColor: Colors.grey.shade200,
+                      child: Text("+$othersCount", style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          "Voted: ${voterIds.length} members", 
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500)
+        ),
+      ],
+    );
+  }
+
+  void _handleVote(String optionId) async {
+    HapticFeedback.lightImpact(); // Add haptic feedback
+    try {
+      await TripService().votePollRelational(
+        pollId: widget.poll.id,
+        optionId: optionId,
+        allowMultiple: widget.poll.allowMultiple,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to vote: $e")));
+    }
+  }
+
+  void _showPollOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: const Text("Delete Poll", style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              Navigator.pop(ctx);
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  title: const Text("Delete Poll"),
+                  content: const Text("This cannot be undone."),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text("Cancel")),
+                    TextButton(onPressed: () => Navigator.pop(d, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                try {
+                  await TripService().deletePollRelational(widget.poll.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Poll deleted successfully! 🗑️"), backgroundColor: Colors.blueAccent)
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Delete failed: $e"), backgroundColor: Colors.redAccent)
+                    );
+                  }
+                }
+              }
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+} // End _RelationalPollCardState
 
 // -----------------------------------------------------------------------------
 // 6. GALLERY & MEMORIES TAB
@@ -1737,65 +2451,96 @@ class _GalleryTab extends StatefulWidget {
 class _GalleryTabState extends State<_GalleryTab> {
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
-  Future<List<Map<String, dynamic>>>? _photosFuture;
+  int _uploadingCount = 0;
+  int _totalToUpload = 0;
+  late Stream<List<Map<String, dynamic>>> _photosStream;
+
+  // Multi-select state
+  bool _isSelectionMode = false;
+  final Set<String> _selectedPhotoIds = {};
 
   @override
   void initState() {
     super.initState();
-    _loadPhotos();
+    _photosStream = TripService().getPhotosStream(widget.trip.id);
   }
 
-  void _loadPhotos() {
-     setState(() {
-        _photosFuture = Supabase.instance.client
-          .from('photos')
-          .select()
-          .eq('trip_id', widget.trip.id)
-          .order('created_at', ascending: false);
-     });
+  void _toggleSelection(String photoId) {
+    setState(() {
+      if (_selectedPhotoIds.contains(photoId)) {
+        _selectedPhotoIds.remove(photoId);
+        if (_selectedPhotoIds.isEmpty) _isSelectionMode = false;
+      } else {
+        _selectedPhotoIds.add(photoId);
+        _isSelectionMode = true;
+      }
+    });
   }
 
-  Future<void> _manualRefresh() async {
-     await widget.onRefresh(); 
-     _loadPhotos();
+  void _enterSelectionMode(String photoId) {
+    HapticFeedback.heavyImpact();
+    setState(() {
+      _isSelectionMode = true;
+      _selectedPhotoIds.add(photoId);
+    });
   }
 
-  Future<void> _uploadPhoto() async {
+  Future<void> _deleteSelectedPhotos(List<Map<String, dynamic>> allPhotos) async {
+    final toDelete = allPhotos.where((p) => _selectedPhotoIds.contains(p['id'])).toList();
+    if (toDelete.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Delete ${toDelete.length} Memories?"),
+        content: const Text("This will permanently remove these photos from the trip."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await TripService().deletePhotosBatch(widget.trip.id, toDelete);
+        setState(() {
+          _isSelectionMode = false;
+          _selectedPhotoIds.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Memories deleted! 🗑️")));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadPhotos() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image == null) return;
+      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 70);
+      if (images.isEmpty) return;
 
-      setState(() => _isUploading = true);
-      
-      final user = Provider.of<AuthService>(context, listen: false).user;
-      if (user == null) throw Exception("Not logged in");
-
-      // 1. Upload to Supabase Storage
-      String fileExt = image.path.split('.').last;
-      String fileName = "${user.id}/${DateTime.now().millisecondsSinceEpoch}.$fileExt";
-      
-      await Supabase.instance.client.storage
-          .from('trip_photos')
-          .upload(fileName, File(image.path));
-      
-      // 2. Get Public URL
-      final String publicUrl = Supabase.instance.client.storage
-          .from('trip_photos')
-          .getPublicUrl(fileName);
-
-      // 3. Save reference in 'photos' table
-      // (This requires a 'photos' table, I will make assumption users run SQL or I'll provide it)
-      // If table doesn't exist, this fails. I'll advise user.
-      await Supabase.instance.client.from('photos').insert({
-          'trip_id': widget.trip.id,
-          'url': publicUrl,
-          'uploader_id': user.id,
-          // created_at is default
+      setState(() {
+        _isUploading = true;
+        _totalToUpload = images.length;
+        _uploadingCount = 0;
       });
 
+      await TripService().uploadPhotos(
+        widget.trip.id, 
+        images,
+        onProgress: (completed, total) {
+          setState(() {
+            _uploadingCount = completed;
+          });
+        }
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Photo uploaded 📸")));
-        _loadPhotos();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Successfully uploaded ${images.length} memories! 📸")));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
@@ -1804,180 +2549,265 @@ class _GalleryTabState extends State<_GalleryTab> {
     }
   }
 
-  void _shareSummary() {
-      // Basic text share for MVP
-      String dates = "Dates TBD";
-      if (widget.trip.startDate != null) {
-        dates = "${DateFormat('MMM d').format(widget.trip.startDate!)} - ${DateFormat('MMM d, y').format(widget.trip.endDate!)}";
-      }
-
-      String summary = "✨ Trip Memories: ${widget.trip.location} ✨\n"
-                       "📅 $dates\n\n"
-                       "Shared via WanderWith App 🌍";
-      Share.share(summary);
+  Map<String, List<Map<String, dynamic>>> _groupPhotosByDay(List<Map<String, dynamic>> photos) {
+    final Map<String, List<Map<String, dynamic>>> groups = {};
+    for (var photo in photos) {
+      final date = photo['created_at'] != null 
+          ? DateTime.parse(photo['created_at']).toLocal() 
+          : DateTime.now();
+      final dateKey = DateFormat('MMM d, y').format(date);
+      groups.putIfAbsent(dateKey, () => []).add(photo);
+    }
+    return groups;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Lock uploads if planning
-    final isLocked = widget.trip.status == 'planning';
-
     return Scaffold(
-      floatingActionButton: isLocked ? null : FloatingActionButton.extended(
-        onPressed: _isUploading ? null : _uploadPhoto,
-        backgroundColor: Colors.blueAccent,
-        icon: _isUploading ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.add_a_photo),
-        label: Text(_isUploading ? "Uploading..." : "Add Photo"),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _manualRefresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-              SliverToBoxAdapter(
+      floatingActionButton: _isSelectionMode 
+          ? null 
+          : FloatingActionButton.extended(
+              onPressed: _isUploading ? null : _pickAndUploadPhotos,
+              backgroundColor: Colors.blueAccent,
+              icon: _isUploading 
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                  : const Icon(Icons.add_a_photo),
+              label: Text(_isUploading ? "Uploading $_uploadingCount/$_totalToUpload..." : "Add Photos"),
+            ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _photosStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final photos = snapshot.data ?? [];
+          if (photos.isEmpty && !_isUploading) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle),
+                    child: const Icon(Icons.photo_library_outlined, size: 48, color: Colors.orangeAccent),
+                  ),
+                  const SizedBox(height: 24),
+                  Text("No memories yet", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text("Start capturing your trip together.", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          final groups = _groupPhotosByDay(photos);
+          final sortedDateKeys = groups.keys.toList();
+
+          return RefreshIndicator(
+            onRefresh: () async => widget.onRefresh(),
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
                   child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                              Text("Memories from ${widget.trip.location} ✨", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 8),
-                              if (!isLocked)
-                                SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                        onPressed: _shareSummary,
-                                        icon: const Icon(Icons.ios_share),
-                                        label: const Text("Share Trip Summary"),
-                                    ),
-                                ),
+                            Text(_isSelectionMode ? "${_selectedPhotoIds.length} Selected" : "Memory Timeline", 
+                                style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold)),
+                            Text(_isSelectionMode ? "Tap photos to select/deselect" : "All moments from ${widget.trip.location}", 
+                                style: TextStyle(color: Colors.grey.shade600)),
                           ],
-                      ),
-                  ),
-              ),
-              if (isLocked)
-                 const SliverFillRemaining(
-                   child: Center(
-                     child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                           Icon(Icons.lock_clock, size: 64, color: Colors.grey),
-                           SizedBox(height: 16),
-                           Text("Memories Locked", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.grey)),
-                           SizedBox(height: 8),
-                           Text("Confirm trip to start sharing photos!", style: TextStyle(color: Colors.grey))
-                        ]
-                     )
-                   )
-                 )
-              else
-              FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _photosFuture,
-                  builder: (context, snapshot) {
-                      if (snapshot.hasError) return SliverToBoxAdapter(child: Center(child: Text("Error loading photos: ${snapshot.error}")));
-                      
-                      // Using Skeletonizer for loading state
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                          return SliverToBoxAdapter(
-                             child: Skeletonizer(
-                               enabled: true,
-                               child: GridView.builder(
-                                 shrinkWrap: true,
-                                 physics: const NeverScrollableScrollPhysics(),
-                                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                     crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
-                                 itemCount: 9,
-                                 itemBuilder: (ctx, i) => Container(color: Colors.grey[300]),
-                               ),
-                             )
-                          );
-                      }
-                      
-                      var photos = snapshot.data ?? [];
-                      if (photos.isEmpty) {
-                          return SliverToBoxAdapter(
-                              child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 64.0, horizontal: 32),
-                                  child: Center(
-                                    child: Column(
-                                      children: [
-                                          const Icon(Icons.photo_library_outlined, size: 60, color: Colors.grey),
-                                          const SizedBox(height: 16),
-                                          const Text("Upload your first memory 📸", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.grey)),
-                                          const SizedBox(height: 8),
-                                          const Text("Keep your trip photos all in one place.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-                                      ],
-                                    ),
-                                  ),
+                        ),
+                        if (_isSelectionMode)
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                onPressed: () => _deleteSelectedPhotos(photos),
                               ),
-                          );
-                      }
-
-                      return SliverGrid(
-                          delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                  var data = photos[index];
-                                  final uid = Supabase.instance.client.auth.currentUser!.id;
-                                  final isAdmin = widget.trip.adminIds.contains(uid);
-
-                                  return GestureDetector(
-                                      onTap: () async {
-                                          await Navigator.push(context, MaterialPageRoute(builder: (_) => GalleryViewer(
-                                            galleryItems: photos,
-                                            initialIndex: index,
-                                            currentUserId: uid,
-                                            isAdmin: isAdmin,
-                                            tripId: widget.trip.id,
-                                            onDelete: () { 
-                                               _manualRefresh();
-                                            },
-                                          )));
-                                          _loadPhotos(); 
-                                      },
-                                      child: Hero(
-                                          tag: data['url'],
-                                          child: CachedNetworkImage(
-                                              imageUrl: data['url'],
-                                              fit: BoxFit.cover,
-                                              placeholder: (context, url) => Skeletonizer(enabled: true, child: Container(color: Colors.grey)),
-                                              errorWidget: (context, url, error) => const Icon(Icons.error),
-                                          ),
-                                      ),
-                                  );
-                              },
-                              childCount: photos.length,
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => setState(() {
+                                  _isSelectionMode = false;
+                                  _selectedPhotoIds.clear();
+                                }),
+                              ),
+                            ],
                           ),
+                      ],
+                    ),
+                  ),
+                ),
+                ...sortedDateKeys.map((dateKey) {
+                  final dayPhotos = groups[dateKey]!;
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                          child: Text(dateKey, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        sliver: SliverGrid(
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 2,
-                              mainAxisSpacing: 2,
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 1,
                           ),
-                      );
-                  },
-              ),
-          ],
-        ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final photo = dayPhotos[index];
+                              final isSelected = _selectedPhotoIds.contains(photo['id']);
+                              return _GalleryGridTile(
+                                photo: photo, 
+                                allPhotos: photos, 
+                                trip: widget.trip,
+                                isSelectionMode: _isSelectionMode,
+                                isSelected: isSelected,
+                                onSelect: () => _toggleSelection(photo['id']),
+                                onLongPress: () => _enterSelectionMode(photo['id']),
+                              );
+                            },
+                            childCount: dayPhotos.length,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 }
 
+class _GalleryGridTile extends StatelessWidget {
+  final Map<String, dynamic> photo;
+  final List<Map<String, dynamic>> allPhotos;
+  final Trip trip;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback onSelect;
+  final VoidCallback onLongPress;
+
+  const _GalleryGridTile({
+    required this.photo, 
+    required this.allPhotos, 
+    required this.trip,
+    required this.isSelectionMode,
+    required this.isSelected,
+    required this.onSelect,
+    required this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reactions = photo['reactions'] as List<PhotoReaction>? ?? [];
+    
+    return GestureDetector(
+      onTap: isSelectionMode ? onSelect : () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GalleryViewer(
+              initialIndex: allPhotos.indexOf(photo),
+              allPhotos: allPhotos,
+              trip: trip,
+            ),
+          ),
+        );
+      },
+      onLongPress: isSelectionMode ? null : onLongPress,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: isSelected ? const EdgeInsets.all(4) : EdgeInsets.zero,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? Colors.blueAccent.withOpacity(0.3) : Colors.transparent,
+        ),
+        child: Hero(
+          tag: photo['id'], 
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(isArraySelected(isSelected) ? 8 : 12),
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: photo['url'],
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(color: Colors.grey.shade200),
+                  errorWidget: (context, url, e) => const Icon(Icons.error),
+                ),
+                if (isSelectionMode)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.blueAccent : Colors.black26,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Icon(
+                        isSelected ? Icons.check : null,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                if (!isSelectionMode && reactions.isNotEmpty)
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(reactions.first.reaction, style: const TextStyle(fontSize: 10)),
+                          if (reactions.length > 1)
+                            Text(" +${reactions.length - 1}", style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool isArraySelected(bool selected) => selected; // Helper
+}
+
 class GalleryViewer extends StatefulWidget {
-  final List<Map<String, dynamic>> galleryItems;
   final int initialIndex;
-  final String currentUserId;
-  final bool isAdmin;
-  final String tripId;
-  final VoidCallback onDelete;
+  final List<Map<String, dynamic>> allPhotos;
+  final Trip trip;
 
   const GalleryViewer({
-    super.key, 
-    required this.galleryItems, 
-    this.initialIndex = 0,
-    required this.currentUserId,
-    required this.isAdmin,
-    required this.tripId,
-    required this.onDelete,
+    super.key,
+    required this.initialIndex,
+    required this.allPhotos,
+    required this.trip,
   });
 
   @override
@@ -1987,6 +2817,7 @@ class GalleryViewer extends StatefulWidget {
 class _GalleryViewerState extends State<GalleryViewer> {
   late PageController _pageController;
   late int _currentIndex;
+  bool _showDetails = true;
 
   @override
   void initState() {
@@ -1995,157 +2826,216 @@ class _GalleryViewerState extends State<GalleryViewer> {
     _pageController = PageController(initialPage: widget.initialIndex);
   }
 
-  Future<void> _handleDelete() async {
-     final item = widget.galleryItems[_currentIndex];
-     final uploaderId = item['uploader_id'] ?? '';
-     
-     // Double check permission
-     if (!widget.isAdmin && uploaderId != widget.currentUserId) {
-        return;
-     }
+  Future<void> _deletePhoto() async {
+    final photo = widget.allPhotos[_currentIndex];
+    final uid = Supabase.instance.client.auth.currentUser!.id;
+    final isAdmin = widget.trip.adminIds.contains(uid);
+    final isOwner = photo['uploader_id'] == uid;
 
-     final confirm = await showDialog<bool>(
-       context: context, 
-       builder: (c) => AlertDialog(
-         title: const Text("Delete Photo"),
-         content: const Text("This action cannot be undone."),
-         actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
-            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
-         ]
-       )
-     );
+    if (!isAdmin && !isOwner) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Only owner or admin can delete memories.")));
+       return;
+    }
 
-     if (confirm == true) {
-        try {
-           final item = widget.galleryItems[_currentIndex];
-           await TripService().deletePhoto(widget.tripId, item['id'], item['url'], uploaderId);
-           widget.onDelete(); // Refresh list in parent
-           if (mounted) Navigator.pop(context); // Close viewer
-        } catch (e) {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Delete failed: $e")));
-        }
-     }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Memory"),
+        content: const Text("Are you sure? This will remove the photo from everyone's timeline."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await TripService().deletePhoto(widget.trip.id, photo['id'], photo['url'], photo['uploader_id']);
+        if (mounted) Navigator.pop(context);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Delete failed: $e")));
+      }
+    }
+  }
+
+  Future<void> _generateAICaption() async {
+    final photo = widget.allPhotos[_currentIndex];
+    HapticFeedback.mediumImpact();
+    try {
+      final caption = await GeminiService().generateImageCaption(photo['url'], widget.trip.location);
+      await TripService().updatePhotoCaption(photo['id'], caption);
+      setState(() {
+         photo['caption'] = caption; // Local update for immediate feedback
+      });
+    } catch (e) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("AI failed to caption this moment.")));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.galleryItems.isEmpty) return const SizedBox();
-    final currentItem = widget.galleryItems[_currentIndex];
-
-    String dateStr = "";
-    if (currentItem['created_at'] != null) {
-       final dt = DateTime.parse(currentItem['created_at']);
-       dateStr = DateFormat.yMMMd().add_jm().format(dt.toLocal());
-    }
-
-    final canDelete = widget.isAdmin || (currentItem['uploader_id'] == widget.currentUserId);
+    final currentPhoto = widget.allPhotos[_currentIndex];
+    final uid = Supabase.instance.client.auth.currentUser!.id;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
-        alignment: Alignment.bottomRight,
         children: [
-          PhotoViewGallery.builder(
-            scrollPhysics: const BouncingScrollPhysics(),
-            builder: (BuildContext context, int index) {
-              final item = widget.galleryItems[index];
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(item['url']),
-                initialScale: PhotoViewComputedScale.contained,
-                minScale: PhotoViewComputedScale.contained * 0.8,
-                maxScale: PhotoViewComputedScale.covered * 2,
-                heroAttributes: PhotoViewHeroAttributes(tag: item['url']),
-              );
-            },
-            itemCount: widget.galleryItems.length,
-            loadingBuilder: (context, event) => const Center(
-              child: CircularProgressIndicator(),
-            ),
-            backgroundDecoration: const BoxDecoration(color: Colors.black),
-            pageController: _pageController,
-            onPageChanged: (index) {
-               setState(() => _currentIndex = index);
-            },
-          ),
-          
-                   // Header Bar with Delete
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Container(
-                padding: const EdgeInsets.all(8.0),
-                color: Colors.black45, // Slightly darker
-                child: Row(
-                  children: [
-                    IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                    ),
-                    const Spacer(),
-                    Text(
-                      "${_currentIndex + 1} / ${widget.galleryItems.length}",
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const Spacer(),
-                    if (canDelete)
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.redAccent),
-                        onPressed: _handleDelete,
-                      )
-                    else 
-                      const SizedBox(width: 48)
-                  ],
-                ),
-              ),
+          // Main Image View
+          GestureDetector(
+            onTap: () => setState(() => _showDetails = !_showDetails),
+            child: PhotoViewGallery.builder(
+              itemCount: widget.allPhotos.length,
+              builder: (context, index) {
+                return PhotoViewGalleryPageOptions(
+                  imageProvider: CachedNetworkImageProvider(widget.allPhotos[index]['url']),
+                  minScale: PhotoViewComputedScale.contained,
+                  maxScale: PhotoViewComputedScale.covered * 2,
+                  heroAttributes: PhotoViewHeroAttributes(tag: widget.allPhotos[index]['id']),
+                );
+              },
+              pageController: _pageController,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              backgroundDecoration: const BoxDecoration(color: Colors.black),
             ),
           ),
 
-          // Footer Bar with metadata
-          Positioned(
+          // Top Bar
+          if (_showDetails)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.white70),
+                        onPressed: _deletePhoto,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined, color: Colors.white),
+                        onPressed: () => Share.share("Checkout this memory from our trip to ${widget.trip.location}! 🌍\n${currentPhoto['url']}"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Bottom Bar Details
+          if (_showDetails)
+            Positioned(
               bottom: 0,
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.all(16),
-                color: Colors.black54,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                     if (dateStr.isNotEmpty)
-                       Text(
-                          dateStr, 
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                          textAlign: TextAlign.center,
-                       ),
-                     if (currentItem['uploader_id'] != null)
-                        FutureBuilder<Map<String, dynamic>?>(
-                           // Naive fetch for uploader name (future optimization: join in query)
-                           future: Supabase.instance.client
-                               .from('profiles')
-                               .select('display_name')
-                               .eq('id', currentItem['uploader_id'])
-                               .maybeSingle(),
-                           builder: (context, snapshot) {
-                              if (snapshot.hasData && snapshot.data != null) {
-                                 return Padding(
-                                   padding: const EdgeInsets.only(top: 4.0),
-                                   child: Text(
-                                      "Uploaded by ${snapshot.data!['display_name']}",
-                                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                   ),
-                                 );
-                              }
-                              return const SizedBox();
-                           }
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent],
+                  ),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          FutureBuilder<UserProfile?>(
+                            future: AuthService.instance.getOtherUserProfile(currentPhoto['uploader_id']),
+                            builder: (context, snap) {
+                              final name = snap.data?.displayName ?? "...";
+                              return Text("Shared by $name", style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold));
+                            },
+                          ),
+                          const Spacer(),
+                          Text(
+                            DateFormat('MMM d, HH:mm').format(DateTime.parse(currentPhoto['created_at']).toLocal()),
+                            style: const TextStyle(color: Colors.white38, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (currentPhoto['caption'] != null && currentPhoto['caption'].isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            currentPhoto['caption'],
+                            style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                          ),
                         )
-                  ],
+                      else
+                        TextButton.icon(
+                          onPressed: _generateAICaption,
+                          icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.orangeAccent),
+                          label: const Text("Generate AI Caption", style: TextStyle(color: Colors.orangeAccent)),
+                        ),
+                      const SizedBox(height: 16),
+                      StreamBuilder<List<PhotoReaction>>(
+                        stream: TripService().getPhotoReactionsStream(currentPhoto['id']),
+                        builder: (context, snapshot) {
+                          final reactions = snapshot.data ?? [];
+                          return Row(
+                            children: [
+                              _buildReactionButton('❤️', reactions, currentPhoto['id'], uid),
+                              _buildReactionButton('🔥', reactions, currentPhoto['id'], uid),
+                              _buildReactionButton('😍', reactions, currentPhoto['id'], uid),
+                              _buildReactionButton('📸', reactions, currentPhoto['id'], uid),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
-           )
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildReactionButton(String emoji, List<PhotoReaction> allReactions, String photoId, String uid) {
+    final count = allReactions.where((r) => r.reaction == emoji).length;
+    final isMe = allReactions.any((r) => r.reaction == emoji && r.userId == uid);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          TripService().togglePhotoReaction(photoId, emoji);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isMe ? Colors.white24 : Colors.white10,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isMe ? Colors.white54 : Colors.transparent),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Text("$count", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2171,9 +3061,9 @@ class _ReviewsTabState extends State<_ReviewsTab> {
   @override
   Widget build(BuildContext context) {
     // 1. Check if trip is done
-    final isTripDone = widget.trip.endDate != null && 
+    final isTripDone = widget.trip.endDate != null &&
                        widget.trip.endDate!.isBefore(DateTime.now());
-    
+
     if (!isTripDone) {
       return RefreshIndicator(
         onRefresh: widget.onRefresh,
@@ -2273,8 +3163,8 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: (_selectedRating == 0 || _isSubmitting) ? null : _submitReview,
-                          icon: _isSubmitting 
-                             ? const SizedBox(width:20, height:20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                          icon: _isSubmitting
+                             ? const SizedBox(width:20, height:20, child: CircularProgressIndicator(strokeWidth: 2))
                              : const Icon(Icons.send),
                           label: const Text("Submit Review"),
                         ),
@@ -2291,12 +3181,12 @@ class _ReviewsTabState extends State<_ReviewsTab> {
            const SizedBox(height: 16),
            if (reviews.isEmpty)
               const Center(child: Text("No reviews yet. Be the first!", style: TextStyle(color: Colors.grey)))
-           else 
+           else
               ...reviews.entries.map((entry) {
                  final review = entry.value as Map<String, dynamic>;
                  final rRating = review['rating'] as int;
                  final rComment = review['comment'] as String;
-                 
+
                  return FutureBuilder(
                    future: Supabase.instance.client
                      .from('profiles')
@@ -2324,7 +3214,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                               Row(
                                 children: List.generate(5, (i) => Icon(
                                   i < rRating ? Icons.star : Icons.star,
-                                  size: 16, 
+                                  size: 16,
                                   color: i < rRating ? Colors.amber : Colors.grey.shade300
                                 )),
                               )
@@ -2351,12 +3241,12 @@ class _ReviewsTabState extends State<_ReviewsTab> {
       final uid = Supabase.instance.client.auth.currentUser!.id;
       final tripService = TripService();
       await tripService.submitReview(
-        widget.trip.id, 
-        uid, 
-        _selectedRating, 
+        widget.trip.id,
+        uid,
+        _selectedRating,
         _commentController.text
       );
-      
+
       if (mounted) {
          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Review submitted!")));
       }
@@ -2376,161 +3266,510 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 // -----------------------------------------------------------------------------
 // 8. LINKS TAB
 // -----------------------------------------------------------------------------
-class _LinksTab extends StatelessWidget {
+class _LinksTab extends StatefulWidget {
   final Trip trip;
   final Future<void> Function() onRefresh;
-  const _LinksTab({required this.trip, required this.onRefresh});
+  const _LinksTab({super.key, required this.trip, required this.onRefresh});
+
+  @override
+  State<_LinksTab> createState() => _LinksTabState();
+}
+
+class _LinksTabState extends State<_LinksTab> {
+  late Stream<List<TripLink>> _linksStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _linksStream = TripService().getTripLinksStream(widget.trip.id);
+  }
 
   Future<void> _launchUrl(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not launch $url")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not launch $url")));
     }
   }
 
-  void _showAddLinkDialog(BuildContext context) {
-    final cTitle = TextEditingController();
-    final cUrl = TextEditingController();
-
-    showDialog(
+  void _showAddResourceSheet(BuildContext context) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Add Important Link"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: cTitle,
-              decoration: const InputDecoration(labelText: "Description (e.g. Hotel Map)"),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: cUrl,
-              decoration: const InputDecoration(labelText: "URL (https://...)"),
-              keyboardType: TextInputType.url,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-               if (cTitle.text.isEmpty || cUrl.text.isEmpty) return;
-               
-               // Basic URL Validation prefix
-               String url = cUrl.text.trim();
-               if (!url.startsWith('http')) {
-                  url = 'https://$url';
-               }
-
-               final uid = Supabase.instance.client.auth.currentUser!.id;
-
-               try {
-                  Navigator.pop(ctx);
-                  await TripService().addTripLink(trip.id, cTitle.text.trim(), url, uid);
-                  onRefresh();
-               } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-               }
-            },
-            child: const Text("Add"),
-          )
-        ],
-      )
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AddResourceSheet(tripId: widget.trip.id, onAdded: widget.onRefresh),
     );
   }
 
-  void _confirmDelete(BuildContext context, Map<String, dynamic> link) async {
-     final confirm = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-           title: const Text("Remove Link?"),
-           content: Text("Delete '${link['title']}'?"),
-           actions: [
-              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
-              TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
-           ],
-        )
-     );
+  void _handlePin(TripLink link, bool value) async {
+    try {
+      await TripService().toggleLinkPin(link.id, value);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
+  }
 
-     if (confirm == true) {
-        try {
-           await TripService().deleteTripLink(trip.id, link['id']);
-           onRefresh();
-        } catch(e) {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-        }
-     }
+  void _confirmDelete(BuildContext context, TripLink link) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Remove Resource?"),
+        content: Text("Delete '${link.title}'?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Delete", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await TripService().deleteTripLinkRelational(link.id);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = Supabase.instance.client.auth.currentUser?.id;
-    final isAdmin = currentUser != null && trip.adminIds.contains(currentUser);
-    
-    final metadata = trip.metadata ?? {};
-    final links = (metadata['links'] != null)
-        ? List<Map<String, dynamic>>.from(metadata['links'])
-        : <Map<String, dynamic>>[];
+    final isAdmin = currentUser != null && widget.trip.adminIds.contains(currentUser);
 
     return Scaffold(
-      floatingActionButton: isAdmin ? FloatingActionButton.extended(
-        onPressed: () => _showAddLinkDialog(context),
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddResourceSheet(context),
         icon: const Icon(Icons.add_link),
         backgroundColor: Colors.blueAccent,
-        label: const Text("Add Link"),
-      ) : null,
-      body: links.isEmpty
-          ? RefreshIndicator(
-             onRefresh: onRefresh,
-             child: ListView(
-               physics: const AlwaysScrollableScrollPhysics(),
-               children: [
-                   SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                   const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                           Icon(Icons.link_off, size: 64, color: Colors.grey),
-                           SizedBox(height: 16),
-                           Text("No links added yet.", style: TextStyle(fontSize: 18, color: Colors.grey)),
-                        ],
-                      )
-                   )
-               ],
-             ),
-          )
-          : RefreshIndicator(
-             onRefresh: onRefresh,
-             child: ListView.separated(
-               padding: const EdgeInsets.all(16),
-               itemCount: links.length,
-               separatorBuilder: (c, i) => const Divider(),
-               itemBuilder: (context, index) {
-                  final link = links[index];
-                  // If metadata is simple, just show. 
-                  // link: {id, title, url, added_by, created_at}
-                  
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () => _launchUrl(context, link['url']),
-                    leading: CircleAvatar(
-                       backgroundColor: Colors.blue.shade50,
-                       child: const Icon(Icons.link, color: Colors.blueAccent),
+        label: const Text("Add Resource"),
+      ),
+      body: StreamBuilder<List<TripLink>>(
+        stream: _linksStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          final links = snapshot.data ?? [];
+          
+          if (links.isEmpty) {
+            return _buildEmptyState(context);
+          }
+
+          // Grouping by Category
+          final grouped = <String, List<TripLink>>{};
+          for (var link in links) {
+            final cat = link.category;
+            if (!grouped.containsKey(cat)) grouped[cat] = [];
+            grouped[cat]!.add(link);
+          }
+
+          // Move Pinned to top group or handle it specially?
+          // Let's just group them and show Pinned items at the top of each list (already handled by stream order)
+          
+          final categories = grouped.keys.toList()..sort();
+
+          return RefreshIndicator(
+            onRefresh: widget.onRefresh,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              children: [
+                // Quick Actions Header
+                _buildQuickActions(context),
+                const SizedBox(height: 20),
+                
+                ...categories.expand((cat) => [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 12, top: 12),
+                    child: Text(
+                      cat.toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                    title: Text(link['title'] ?? 'Link', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(link['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline)),
-                    trailing: (isAdmin || link['added_by'] == currentUser) 
-                        ? IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                            onPressed: () => _confirmDelete(context, link),
-                          )
-                        : const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
-                  );
-               },
-             ),
-          ),
+                  ),
+                  ...grouped[cat]!.map((link) => _LinkCard(
+                    link: link,
+                    isAdmin: isAdmin,
+                    isOwner: link.addedBy == currentUser,
+                    onTap: () => _launchUrl(context, link.url),
+                    onDelete: () => _confirmDelete(context, link),
+                    onPin: (val) => _handlePin(link, val),
+                  )),
+                ]),
+                const SizedBox(height: 80), // Space for FAB
+              ],
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Quick Add",
+          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _QuickActionChip(icon: Icons.hotel_outlined, label: "Stay", color: Colors.blue, onTap: () => _showAddResourceSheet(context)),
+              _QuickActionChip(icon: Icons.flight_takeoff, label: "Flight", color: Colors.purple, onTap: () => _showAddResourceSheet(context)),
+              _QuickActionChip(icon: Icons.confirmation_number_outlined, label: "Ticket", color: Colors.orange, onTap: () => _showAddResourceSheet(context)),
+              _QuickActionChip(icon: Icons.restaurant_menu, label: "Food", color: Colors.red, onTap: () => _showAddResourceSheet(context)),
+              _QuickActionChip(icon: Icons.directions_car_outlined, label: "Transp", color: Colors.teal, onTap: () => _showAddResourceSheet(context)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), shape: BoxShape.circle),
+            child: const Icon(Icons.link, size: 64, color: Colors.blueAccent),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            "Trip Resources Hub",
+            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              "Keep all your bookings, tickets, and travel documents in one organized place.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionChip({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.15)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LinkCard extends StatelessWidget {
+  final TripLink link;
+  final bool isAdmin;
+  final bool isOwner;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final Function(bool) onPin;
+
+  const _LinkCard({
+    required this.link,
+    required this.isAdmin,
+    required this.isOwner,
+    required this.onTap,
+    required this.onDelete,
+    required this.onPin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final catColor = _getCategoryColor(link.category);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Category Accent Bar
+              Container(width: 6, color: catColor),
+              Expanded(
+                child: InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                link.title,
+                                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (link.isPinned)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 8),
+                                child: Icon(Icons.push_pin, size: 14, color: Colors.orange),
+                              ),
+                          ],
+                        ),
+                        Text(
+                          link.siteName ?? Uri.parse(link.url).host,
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        ),
+                        if (link.previewImage != null) ...[
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              imageUrl: link.previewImage!,
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              placeholder: (c, u) => Container(color: Colors.grey.shade100),
+                              errorWidget: (c, u, e) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Added ${timeago.format(link.createdAt)}",
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                            ),
+                            Row(
+                              children: [
+                                if (isAdmin || isOwner)
+                                  IconButton(
+                                    icon: Icon(link.isPinned ? Icons.push_pin : Icons.push_pin_outlined, 
+                                        size: 18, color: link.isPinned ? Colors.orange : Colors.grey),
+                                    onPressed: () => onPin(!link.isPinned),
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(4),
+                                  ),
+                                if (isAdmin || isOwner)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+                                    onPressed: onDelete,
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(4),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String cat) {
+    switch (cat) {
+      case 'Stay': return Colors.blue;
+      case 'Flights': return Colors.purple;
+      case 'Tickets': return Colors.orange;
+      case 'Restaurants': return Colors.red;
+      case 'Transport': return Colors.teal;
+      case 'Places': return Colors.green;
+      case 'Documents': return Colors.grey;
+      default: return Colors.blueGrey;
+    }
+  }
+}
+
+class _AddResourceSheet extends StatefulWidget {
+  final String tripId;
+  final Future<void> Function() onAdded;
+  const _AddResourceSheet({required this.tripId, required this.onAdded});
+
+  @override
+  State<_AddResourceSheet> createState() => _AddResourceSheetState();
+}
+
+class _AddResourceSheetState extends State<_AddResourceSheet> {
+  final _cTitle = TextEditingController();
+  final _cUrl = TextEditingController();
+  String _selectedCategory = 'Other';
+  bool _isSaving = false;
+
+  final List<String> _categories = [
+    'Stay', 'Flights', 'Tickets', 'Restaurants', 'Transport', 'Places', 'Documents', 'Other'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _cUrl.addListener(_autoDetectCategory);
+  }
+
+  void _autoDetectCategory() {
+    if (_cUrl.text.isNotEmpty) {
+      final cat = UrlMetadataService.detectCategory(_cUrl.text);
+      if (cat != 'Other' && _selectedCategory == 'Other') {
+        setState(() => _selectedCategory = cat);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Add Trip Resource", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: InputDecoration(
+              labelText: "Category",
+              prefixIcon: const Icon(Icons.label_outline),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            onChanged: (v) => setState(() => _selectedCategory = v!),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _cTitle,
+            decoration: InputDecoration(
+              labelText: "Title (e.g. Flight to Amsterdam)",
+              prefixIcon: const Icon(Icons.title),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _cUrl,
+            decoration: InputDecoration(
+              labelText: "URL (https://...)",
+              prefixIcon: const Icon(Icons.link),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            keyboardType: TextInputType.url,
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isSaving 
+                  ? const CircularProgressIndicator(color: Colors.white) 
+                  : const Text("Save Resource", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _save() async {
+    if (_cTitle.text.isEmpty || _cUrl.text.isEmpty) return;
+    
+    setState(() => _isSaving = true);
+    
+    try {
+      String url = _cUrl.text.trim();
+      if (!url.startsWith('http')) url = 'https://$url';
+
+      await TripService().addTripLinkRelational(
+        tripId: widget.tripId,
+        title: _cTitle.text.trim(),
+        url: url,
+        category: _selectedCategory,
+      );
+      
+      await widget.onAdded();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 }
 
@@ -2641,9 +3880,9 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
                 children: [
                   Icon(Icons.auto_awesome, color: Colors.blueAccent.shade200),
                   const SizedBox(width: 8),
-                  const Text('AI Assistant', 
+                  const Text('AI Assistant',
                     style: TextStyle(
-                      fontSize: 20, 
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87
                     )

@@ -55,7 +55,7 @@ We reserve the right, at our sole discretion, to modify or replace these Terms a
 ## 8. Contact Us
 
 If you have any questions about these Terms, please contact us at:
-**legal@wanderwith.app**
+**legal@tejuice.fun**
 """,
       ),
     );

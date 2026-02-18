@@ -54,6 +54,7 @@ class TripPlanPlace {
   final int orderIndex;
   final String? description;
   final double? rating;
+  final String? aiInsight;
 
   TripPlanPlace({
     required this.id,
@@ -68,6 +69,7 @@ class TripPlanPlace {
     required this.orderIndex,
     this.description,
     this.rating,
+    this.aiInsight,
   });
 
   factory TripPlanPlace.fromJson(Map<String, dynamic> json) {
@@ -84,6 +86,7 @@ class TripPlanPlace {
       orderIndex: json['order_index'] ?? 0,
       description: json['description'],
       rating: (json['rating'] as num?)?.toDouble(),
+      aiInsight: json['ai_insight'],
     );
   }
 
@@ -100,6 +103,7 @@ class TripPlanPlace {
       'order_index': orderIndex,
       'description': description,
       'rating': rating,
+      // 'ai_insight': aiInsight, // Removed as column doesn't exist in DB
     };
   }
   

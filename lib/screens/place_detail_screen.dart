@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart'; // We might need to add this or use simple icons
 import 'package:url_launcher/url_launcher.dart';
 import '../models/trip_plan.dart';
 
@@ -10,7 +9,6 @@ class PlaceDetailScreen extends StatelessWidget {
   const PlaceDetailScreen({super.key, required this.place});
 
   Future<void> _launchMaps() async {
-    // Launch Google Maps with navigation to this place
     final uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}&query_place_id=${place.googlePlaceId}");
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -20,138 +18,254 @@ class PlaceDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: CustomScrollView(
         slivers: [
-          // 1. Hero Image App Bar
+          // 1. Premium Hero Section with Parallax
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 400,
             pinned: true,
+            stretch: true,
             leading: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: CircleAvatar(
-                backgroundColor: Colors.black45,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+              padding: const EdgeInsets.all(12.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: BackdropFilter(
+                  filter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken),
+                  child: Container(
+                    color: Colors.black26,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
                 ),
               ),
             ),
+            backgroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
-              // Title hidden when expanded to avoid text over image issues, shown when collapsed handled by system or custom title logic if needed.
-              // We'll put the title in the body for the "Clean Startup" look
+              stretchModes: const [
+                StretchMode.zoomBackground,
+                StretchMode.fadeTitle,
+              ],
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                   place.imageUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: place.imageUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(color: Colors.grey[300]),
-                        errorWidget: (context, url, error) => const Icon(Icons.error),
-                      )
-                    : Container(color: Colors.grey, child: const Icon(Icons.image, size: 50, color: Colors.white)),
-                   // Gradient overlay for text readability if we had text here
-                   const DecoratedBox(
-                     decoration: BoxDecoration(
-                       gradient: LinearGradient(
-                         begin: Alignment.topCenter,
-                         end: Alignment.bottomCenter,
-                         colors: [Colors.transparent, Colors.black26],
-                       )
-                     ),
-                   ),
+                  Hero(
+                    tag: 'place-image-${place.id}',
+                    child: place.imageUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: place.imageUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(color: Colors.grey.shade100),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.error_outline, color: Colors.grey),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image, size: 100, color: Colors.grey),
+                          ),
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black26,
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black54,
+                        ],
+                        stops: [0.0, 0.3, 0.7, 1.0],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 24,
+                    left: 24,
+                    right: 24,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade600,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            place.type.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          place.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
 
-          // 2. Content
+          // 2. Content Section
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0), // More padding for premium feel
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Text(
-                    place.name,
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Type & Rating
-                  Row(
-                    children: [
-                      Chip(label: Text(place.type), backgroundColor: Colors.blue.shade50),
-                      const Spacer(),
-                      if (place.rating != null) ...[
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
-                        const SizedBox(width: 4),
-                        Text("${place.rating} / 5.0", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ]
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Actions
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _launchMaps,
-                          icon: const Icon(Icons.directions),
-                          label: const Text("Get Directions"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Action Buttons Row
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: _launchMaps,
+                            icon: const Icon(Icons.directions_outlined, size: 20),
+                            label: const Text("Get Directions"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                           // TODO: Save to saved places
-                        },
-                        icon: const Icon(Icons.bookmark_border),
-                        label: const Text("Save"),
-                         style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                        const SizedBox(width: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Description
-                  const Text("About this place", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(
-                    place.description ?? "No description available for this place.",
-                    style: const TextStyle(fontSize: 16, height: 1.5, color: Colors.black87),
-                  ),
-
-                  const SizedBox(height: 24),
-                  
-                  // Details Box (Mock data for now since we only fetch basic info)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Community Notes", style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
-                        _NoteRow(icon: Icons.access_time, text: "Best time: Early morning"),
-                        _NoteRow(icon: Icons.accessibility, text: "Wheelchair accessible"),
-                        _NoteRow(icon: Icons.camera_alt, text: "Great for photography"),
+                          child: IconButton(
+                            onPressed: () {},
+                            icon: Icon(Icons.add_circle_outline, color: Colors.blue.shade700),
+                            padding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: IconButton(
+                            onPressed: () {},
+                            icon: const Icon(Icons.bookmark_border, color: Colors.black87),
+                            padding: const EdgeInsets.all(16),
+                          ),
+                        ),
                       ],
                     ),
-                  )
-                ],
+                    const SizedBox(height: 32),
+
+                    // AI Travel Insight Section
+                    if (place.aiInsight != null && place.aiInsight!.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade50, Colors.white],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.blue.shade100.withOpacity(0.5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  "✨ AI TRAVEL INSIGHT",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade800,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              place.aiInsight!,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey.shade800,
+                                height: 1.6,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    // Info Grid
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 2.5,
+                      children: [
+                        _infoTile(Icons.star_outline, "Rating", "${place.rating ?? 'N/A'}/5.0"),
+                        _infoTile(Icons.access_time, "Best Time", "Morning"),
+                        _infoTile(Icons.timer_outlined, "Duration", "1.5 - 2h"),
+                        _infoTile(Icons.payments_outlined, "Price", "Moderate"),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // About Section
+                    const Text(
+                      "About this place",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      place.description ?? "Explore this amazing location and discover its unique highlights.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.6,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
             ),
           ),
@@ -159,22 +273,40 @@ class PlaceDetailScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _NoteRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _NoteRow({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+  Widget _infoTile(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
-          const SizedBox(width: 8),
-          Text(text, style: TextStyle(color: Colors.grey.shade800)),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: Colors.blue.shade600),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              ),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+            ],
+          ),
         ],
       ),
     );

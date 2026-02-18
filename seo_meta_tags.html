@@ -1,0 +1,22 @@
+<!-- Recommended SEO Meta Tags for WanderWith Shared Profiles -->
+<!-- These should be dynamically injected by your web server/edge function -->
+
+<title>${displayName} on WanderWith</title>
+<meta name="description" content="Check out ${displayName}'s travel profile on WanderWith. ${bio}">
+
+<!-- Facebook / Open Graph -->
+<meta property="og:type" content="profile">
+<meta property="og:url" content="https://wanderwith.app/u/${username}">
+<meta property="og:title" content="${displayName} on WanderWith">
+<meta property="og:description" content="${bio}">
+<meta property="og:image" content="${avatarUrl}">
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="https://wanderwith.app/u/${username}">
+<meta property="twitter:title" content="${displayName} on WanderWith">
+<meta property="twitter:description" content="${bio}">
+<meta property="twitter:image" content="${avatarUrl}">
+
+<!-- iOS Smart App Banner -->
+<meta name="apple-itunes-app" content="app-id=YOUR_APP_ID, app-argument=https://wanderwith.app/u/${username}">

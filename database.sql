@@ -51,6 +51,33 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.trip_days (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  trip_id uuid NOT NULL,
+  day_number integer NOT NULL,
+  date date,
+  summary text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT trip_days_pkey PRIMARY KEY (id),
+  CONSTRAINT trip_days_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id)
+);
+CREATE TABLE public.trip_plan_places (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  trip_day_id uuid NOT NULL,
+  google_place_id text,
+  name text NOT NULL,
+  type text,
+  latitude double precision,
+  longitude double precision,
+  image_url text,
+  arrival_time text,
+  order_index integer NOT NULL,
+  description text,
+  rating double precision,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT trip_plan_places_pkey PRIMARY KEY (id),
+  CONSTRAINT trip_plan_places_day_id_fkey FOREIGN KEY (trip_day_id) REFERENCES public.trip_days(id)
+);
 CREATE TABLE public.trips (
   id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),

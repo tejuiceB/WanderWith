@@ -70,7 +70,7 @@ You have the right to:
 ## 6. Contact Us
 
 If you have any questions about this Privacy Policy, please contact us at:
-**support@wanderwith.app**
+**support@tejuice.fun**
 """,
       ),
     );

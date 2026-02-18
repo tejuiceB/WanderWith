@@ -10,7 +10,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   // Navigation Callback
-  static Function(String type, String tripId)? _onNotificationClick;
+  static Function(String type, Map<String, dynamic> data)? _onNotificationClick;
 
   // Singleton pattern for easier init
   static final NotificationService _instance = NotificationService._internal();
@@ -18,7 +18,7 @@ class NotificationService {
   NotificationService._internal();
 
   /// Initialize Local Notifications
-  Future<void> init(Function(String type, String tripId) onNotificationClick) async {
+  Future<void> init(Function(String type, Map<String, dynamic> data) onNotificationClick) async {
     _onNotificationClick = onNotificationClick;
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher'); // Ensure app icon exists
@@ -29,8 +29,8 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: (response) {
          if (response.payload != null) {
-            final data = jsonDecode(response.payload!);
-            _onNotificationClick?.call(data['type'], data['tripId'] ?? '');
+            final data = Map<String, dynamic>.from(jsonDecode(response.payload!));
+            _onNotificationClick?.call(data['type'] ?? '', data);
          }
       }
     );
@@ -90,7 +90,11 @@ class NotificationService {
        notif.title, 
        notif.body, 
        details,
-       payload: jsonEncode({'type': notif.type.name, 'tripId': notif.tripId})
+       payload: jsonEncode({
+         'type': AppNotification.typeToString(notif.type), 
+         'tripId': notif.tripId,
+         if (notif.metadata != null) ...notif.metadata!,
+       })
      );
   }
 

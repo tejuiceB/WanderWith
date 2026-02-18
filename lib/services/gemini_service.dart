@@ -145,7 +145,8 @@ OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN, NO COMMENTS):
           "type": "Temple",
           "query_name": "Shreemant Dagdusheth Halwai Ganpati Mandir ${trip.location}",
           "start_time": "09:00",
-          "duration_hours": 1.5
+          "duration_hours": 1.5,
+          "ai_insight": "A deeply spiritual experience; best visited during the morning Aarti. Observe the intricate gold work on the idol."
         }
       ]
     }
@@ -279,5 +280,87 @@ If the user asks about something not in the context, assume they mean near the c
     } catch (e) {
       return "Network error: $e";
     }
+  }
+
+  Future<List<Map<String, String>>> getAIPlaceSuggestions({
+    required Trip trip,
+    required int dayNumber,
+    required List<String> existingActivities,
+  }) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = """
+You are a travel expert matching the vibe of a specific trip.
+Based on the trip details and existing plan for Day $dayNumber, suggest 3-5 HIGH-QUALITY additional places the user might like to add.
+
+TRIP CONTEXT:
+Location: ${trip.location}
+Vibe: ${trip.metadata?['vibe'] ?? 'Balanced'}
+Target Day: Day $dayNumber
+Current Activities for this day: ${existingActivities.join(', ')}
+
+OUTPUT FORMAT (STRICT JSON LIST ONLY, NO MARKDOWN):
+[
+  {"name": "Place Name", "reason": "Short 1-sentence reason why it fits this day"},
+  ...
+]
+""";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [{"parts": [{"text": prompt}]}],
+          "generationConfig": {"response_mime_type": "application/json"}
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final contentText = data['candidates'][0]['content']['parts'][0]['text'];
+        final List<dynamic> suggestions = jsonDecode(contentText);
+        return suggestions.map((s) => {
+          'name': s['name'].toString(),
+          'reason': s['reason'].toString(),
+        }).toList();
+      }
+    } catch (e) {
+    }
+    return [];
+  }
+
+  Future<String> generateImageCaption(String imageUrl, String destination) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = "You are a professional travel blogger. Looking at this photo from a trip to $destination, write a short, emotional, and engaging one-sentence caption (like an Instagram caption) with 1-2 relevant emojis. Return ONLY the caption text.";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": base64Encode(await http.readBytes(Uri.parse(imageUrl)))}}
+              ]
+            }
+          ],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        return text?.trim() ?? "Memories in $destination ✨";
+      }
+    } catch (e) {
+      print('AI Caption Error: $e');
+    }
+    return "Great times in $destination! 📸";
   }
 }

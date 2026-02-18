@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.wander_with">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.tejuice.wanderwith">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -27,6 +27,32 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
+            <!-- Verified App Links for tejuice.fun -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tejuice.fun" android:pathPrefix="/u" />
+                <data android:scheme="https" android:host="tejuice.fun" android:pathPrefix="/p" />
+            </intent-filter>
+
+            <!-- Deep linking for Profile Sharing (Legacy) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="wanderwith.app" android:pathPrefix="/u" />
+                <data android:scheme="https" android:host="wanderwith.app" android:pathPrefix="/p" />
+            </intent-filter>
+
+            <!-- Deep linking for Custom Scheme (Reliable for Testing) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="wanderwith" />
+            </intent-filter>
+
             <!-- Deep linking for Supabase Auth -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

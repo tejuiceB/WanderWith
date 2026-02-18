@@ -8,7 +8,9 @@ enum NotificationType {
   system,
   joinRequest,
   joinResponse,
-  tripUpdate
+  tripUpdate,
+  like,
+  comment
 }
 
 class AppNotification {
@@ -59,6 +61,8 @@ class AppNotification {
       case 'join_request': return NotificationType.joinRequest;
       case 'join_response': return NotificationType.joinResponse;
       case 'trip_update': return NotificationType.tripUpdate;
+      case 'like': return NotificationType.like;
+      case 'comment': return NotificationType.comment;
       default: return NotificationType.system;
     }
   }
@@ -74,6 +78,8 @@ class AppNotification {
       case NotificationType.joinRequest: return 'join_request';
       case NotificationType.joinResponse: return 'join_response';
       case NotificationType.tripUpdate: return 'trip_update';
+      case NotificationType.like: return 'like';
+      case NotificationType.comment: return 'comment';
       default: return 'system';
     }
   }
