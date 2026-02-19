@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   bool _isBlocked = false;
   String? _requestStatus; // 'pending', 'accepted', or null
   bool _isCheckingFollow = false;
+  
   
   bool get isCurrentUser => widget.userId == null || widget.userId == Supabase.instance.client.auth.currentUser?.id;
 
@@ -1060,7 +1063,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      final cName = TextEditingController(text: profile?.displayName);
      final cUsername = TextEditingController(text: profile?.username);
      final cBio = TextEditingController(text: profile?.bio);
-     final cCity = TextEditingController(text: profile?.city);
       
      bool isSaving = false;
 
@@ -1093,19 +1095,57 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     const SizedBox(height: 16),
                     TextField(controller: cBio, decoration: InputDecoration(labelText: "Bio", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), maxLines: 3),
                     const SizedBox(height: 16),
-                    TextField(controller: cCity, decoration: InputDecoration(labelText: "City", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: isSaving ? null : () async {
+                           final username = cUsername.text.toLowerCase().trim();
+                           if (username.isNotEmpty && username.length < 3) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                 const SnackBar(content: Text("Username must be at least 3 characters"))
+                              );
+                              return;
+                           }
+
                            setSheetState(() => isSaving = true);
                            try {
+                              // Auto-fetch location
+                              double? lat, lng;
+                              String? city, country;
+                              
+                              try {
+                                bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                                if (serviceEnabled) {
+                                  LocationPermission permission = await Geolocator.checkPermission();
+                                  if (permission == LocationPermission.denied) {
+                                    permission = await Geolocator.requestPermission();
+                                  }
+                                  
+                                  if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+                                    Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+                                    lat = pos.latitude;
+                                    lng = pos.longitude;
+                                    
+                                    List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
+                                    if (placemarks.isNotEmpty) {
+                                      city = placemarks.first.locality ?? placemarks.first.subAdministrativeArea;
+                                      country = placemarks.first.country;
+                                    }
+                                  }
+                                }
+                              } catch (e) {
+                                print("Silent location fetch failed: $e");
+                              }
+
                               await Provider.of<AuthService>(context, listen: false).updateProfile(
                                  displayName: cName.text,
                                  username: cUsername.text.toLowerCase().trim(),
                                  bio: cBio.text,
-                                 city: cCity.text,
+                                 latitude: lat,
+                                 longitude: lng,
+                                 city: city,
+                                 country: country,
                               );
                               
                               if (ctx.mounted) Navigator.pop(ctx);

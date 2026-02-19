@@ -32,21 +32,31 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await AuthService.instance.saveOnboardingData(
+      final authService = AuthService.instance;
+      final locationString = _locationController.text.trim();
+      
+      // Perform Geocoding
+      final geoData = await authService.geocodeLocation(locationString);
+      
+      await authService.saveOnboardingData(
         role: 'traveler',
         displayName: _nameController.text.trim(),
         username: _usernameController.text.trim(),
         bio: _bioController.text.trim(),
-        city: _locationController.text.trim(),
-        // Interests etc can be handled in a separate step or defaults
+        city: geoData?['city'] ?? locationString,
+        country: geoData?['country'],
+        latitude: geoData?['latitude'],
+        longitude: geoData?['longitude'],
       );
       
       // Navigate to Home - GoRouter RefreshListenable will catch this
       if (mounted) context.go('/');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -104,7 +114,12 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
                   controller: _usernameController,
                   style: GoogleFonts.inter(fontSize: 16),
                   decoration: _inputDecoration('e.g. john_travels'),
-                  validator: (v) => v == null || v.isEmpty ? 'Please enter a username' : null,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Please enter a username';
+                    if (v.trim().length < 3) return 'Username must be at least 3 characters';
+                    if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(v)) return 'Invalid characters (use a-z, 0-9, . , _)';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
 

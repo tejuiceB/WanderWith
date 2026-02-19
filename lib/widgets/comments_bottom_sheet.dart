@@ -8,8 +8,9 @@ import '../screens/profile_screen.dart';
 
 class CommentsBottomSheet extends StatefulWidget {
   final String postId;
+  final VoidCallback? onCommentAdded;
 
-  const CommentsBottomSheet({super.key, required this.postId});
+  const CommentsBottomSheet({super.key, required this.postId, this.onCommentAdded});
 
   @override
   State<CommentsBottomSheet> createState() => _CommentsBottomSheetState();
@@ -167,6 +168,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
       }
       _commentController.clear();
       setState(() => _replyingTo = null);
+      if (widget.onCommentAdded != null) widget.onCommentAdded!();
       await _loadComments();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));

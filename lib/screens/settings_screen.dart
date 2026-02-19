@@ -101,8 +101,47 @@ class SettingsScreen extends StatelessWidget {
             context,
             icon: Icons.delete_outline, 
             title: "Delete Account", 
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Account deletion not implemented in beta.")));
+            onTap: () async {
+               // Rigorous Warning Dialog
+               final confirm = await showDialog<bool>(
+                 context: context,
+                 builder: (ctx) => AlertDialog(
+                   title: const Text("Delete Account permanently?"),
+                   content: const Text(
+                     "This action is permanent and cannot be undone.\n\n"
+                     "All your trips, posts, followers, and social data will be permanently deleted from our servers.",
+                     style: TextStyle(fontSize: 14),
+                   ),
+                   actions: [
+                     TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+                     TextButton(
+                       onPressed: () => Navigator.pop(ctx, true), 
+                       child: const Text("DELETE EVERYTHING", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+                     ),
+                   ],
+                 )
+               );
+
+               if (confirm == true) {
+                 // Show a loading overlay or just proceed if the service handles it
+                 try {
+                   // Pop all screens leading to this one and return to first
+                   Navigator.popUntil(context, (route) => route.isFirst);
+                   await authService.deleteAccount();
+                   
+                   if (context.mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       const SnackBar(content: Text("Account and data successfully deleted."))
+                     );
+                   }
+                 } catch (e) {
+                   if (context.mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(content: Text("Error: $e"))
+                     );
+                   }
+                 }
+               }
             },
             isDestructive: true,
             showChevron: false

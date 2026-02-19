@@ -36,14 +36,22 @@ class _AgencyFormScreenState extends State<AgencyFormScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await AuthService.instance.saveOnboardingData(
+      final authService = AuthService.instance;
+      final locationString = _locationController.text.trim();
+      
+      // Perform Geocoding
+      final geoData = await authService.geocodeLocation(locationString);
+
+      await authService.saveOnboardingData(
         role: 'agency',
         displayName: _agencyNameController.text.trim(),
         username: _usernameController.text.trim(),
         agencyName: _agencyNameController.text.trim(),
         contactPerson: _contactPersonController.text.trim(),
-        // Note: phone, license etc can be added if needed, but keeping it clean per user request
-        officeLocation: _locationController.text.trim(),
+        officeLocation: geoData?['city'] ?? locationString,
+        country: geoData?['country'],
+        latitude: geoData?['latitude'],
+        longitude: geoData?['longitude'],
         agencyDescription: _descriptionController.text.trim(),
       );
       

@@ -25,6 +25,7 @@ class _PostCardState extends State<PostCard> {
   final PostService _postService = PostService();
   late bool _isLiked;
   late int _likeCount;
+  late int _commentCount;
   late String? _caption;
 
   @override
@@ -32,6 +33,7 @@ class _PostCardState extends State<PostCard> {
     super.initState();
     _isLiked = widget.post.isLiked;
     _likeCount = widget.post.likeCount;
+    _commentCount = widget.post.commentCount;
     _caption = widget.post.caption;
   }
 
@@ -80,7 +82,16 @@ class _PostCardState extends State<PostCard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => CommentsBottomSheet(postId: widget.post.id),
+      builder: (context) => CommentsBottomSheet(
+        postId: widget.post.id,
+        onCommentAdded: () {
+          if (mounted) {
+            setState(() {
+              _commentCount++;
+            });
+          }
+        },
+      ),
     );
   }
 
@@ -406,7 +417,7 @@ class _PostCardState extends State<PostCard> {
                 const SizedBox(width: 20),
                 _InteractionButton(
                   icon: Icons.chat_bubble_outline_rounded,
-                  label: "${widget.post.commentCount}",
+                  label: "$_commentCount",
                   onTap: _showComments,
                 ),
                 const Spacer(),

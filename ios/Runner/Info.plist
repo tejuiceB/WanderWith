@@ -60,5 +60,9 @@
 				</array>
 			</dict>
 		</array>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>WanderWith needs your location to help you find nearby places and shared trips.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>WanderWith needs your location to help you find nearby places and shared trips.</string>
 	</dict>
 </plist>

@@ -23,6 +23,8 @@ class UserProfile {
   final bool allowFollowRequests;
   final String messagePrivacy; // 'everyone', 'followers', 'nobody'
   final bool onboardingCompleted;
+  final double? latitude;
+  final double? longitude;
 
   // Agency Specific
   final String? agencyName;
@@ -65,6 +67,8 @@ class UserProfile {
     this.website,
     this.uploadHdPosts = false,
     this.onboardingCompleted = false,
+    this.latitude,
+    this.longitude,
   });
 
   Map<String, dynamic> toMap() {
@@ -98,6 +102,8 @@ class UserProfile {
       'website': website,
       'upload_hd_posts': uploadHdPosts,
       'onboarding_completed': onboardingCompleted,
+      'latitude': latitude,
+      'longitude': longitude,
       'updated_at': DateTime.now().toIso8601String(),
     };
   }
@@ -133,6 +139,8 @@ class UserProfile {
       website: map['website'],
       uploadHdPosts: map['upload_hd_posts'] ?? map['uploadHdPosts'] ?? false,
       onboardingCompleted: map['onboarding_completed'] ?? map['onboardingCompleted'] ?? false,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
     );
   }
 }

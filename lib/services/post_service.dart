@@ -47,6 +47,8 @@ class PostService {
         'hashtags': socialData['hashtags'],
         'mentions': socialData['mentions'],
       });
+
+      notifyRefresh();
     } catch (e) {
       print("Error creating post: $e");
       rethrow;
@@ -111,6 +113,8 @@ class PostService {
           .delete()
           .eq('id', post.id)
           .eq('user_id', user.id);
+      
+      notifyRefresh();
     } catch (e) {
       print("Error deleting post: $e");
       rethrow;
@@ -124,6 +128,8 @@ class PostService {
           .from('posts')
           .update({'caption': caption})
           .eq('id', postId);
+      
+      notifyRefresh();
     } catch (e) {
       print("Error updating post caption: $e");
       rethrow;
@@ -137,6 +143,8 @@ class PostService {
           .from('posts')
           .update({'is_archived': archived})
           .eq('id', postId);
+      
+      notifyRefresh();
     } catch (e) {
       print("Error setting post archive status: $e");
       rethrow;

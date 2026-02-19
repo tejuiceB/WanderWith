@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
 import 'dart:io';
 import '../config/app_env.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AuthService with ChangeNotifier {
   static final AuthService instance = AuthService();
@@ -118,6 +120,8 @@ class AuthService with ChangeNotifier {
           licenseNumber: data['license_number'],
           website: data['website'],
           onboardingCompleted: data['onboarding_completed'] == true,
+          latitude: (data['latitude'] as num?)?.toDouble(),
+          longitude: (data['longitude'] as num?)?.toDouble(),
         );
       } else {
         // NEW USER: No record in 'profiles' table yet.
@@ -268,6 +272,37 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  // Geocoding Helper
+  Future<Map<String, dynamic>?> geocodeLocation(String location) async {
+    try {
+      List<Location> locations = await locationFromAddress(location);
+      if (locations.isNotEmpty) {
+        final loc = locations.first;
+        
+        // Also try to get city/country name back from lat/long to be sure
+        List<Placemark> placemarks = await placemarkFromCoordinates(loc.latitude, loc.longitude);
+        String? city;
+        String? country;
+        
+        if (placemarks.isNotEmpty) {
+           final p = placemarks.first;
+           city = p.locality ?? p.subAdministrativeArea;
+           country = p.country;
+        }
+
+        return {
+          'latitude': loc.latitude,
+          'longitude': loc.longitude,
+          'city': city,
+          'country': country,
+        };
+      }
+    } catch (e) {
+      print("Geocoding error for $location: $e");
+    }
+    return null;
+  }
+
   // Save Onboarding Data (New Flow)
   Future<void> saveOnboardingData({
     required String role,
@@ -284,6 +319,9 @@ class AuthService with ChangeNotifier {
     String? agencyDescription,
     String? website,
     String? licenseNumber,
+    double? latitude,
+    double? longitude,
+    String? country,
   }) async {
     if (_user == null) return;
 
@@ -304,6 +342,9 @@ class AuthService with ChangeNotifier {
       'website': website,
       'license_number': licenseNumber,
       'onboarding_completed': true,
+      'latitude': latitude,
+      'longitude': longitude,
+      'country': country,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
@@ -325,6 +366,9 @@ class AuthService with ChangeNotifier {
       website: website,
       licenseNumber: licenseNumber,
       onboardingCompleted: true,
+      latitude: latitude,
+      longitude: longitude,
+      country: country,
     );
     notifyListeners();
 
@@ -364,11 +408,36 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  // Permanent account deletion
+  Future<void> deleteAccount() async {
+    if (_user == null) return;
+    final userId = _user!.id;
+
+    try {
+      // Call the RPC to wipe all user data, including the auth record
+      await _supabase.rpc('wipe_user_data', params: {'target_user_id': userId});
+      
+      // Clear local state
+      _user = null;
+      _userProfile = null;
+      notifyListeners();
+      
+      // Force sign out just in case the RPC didn't trigger immediate session termination
+      await _supabase.auth.signOut();
+    } catch (e) {
+      print("Error during account deletion: $e");
+      throw Exception("Failed to delete account. Please try again or contact support.");
+    }
+  }
+
   Future<void> updateProfile({
     String? displayName,
     String? username,
     String? bio,
     String? city,
+    String? country,
+    double? latitude,
+    double? longitude,
   }) async {
     if (_user == null) return;
     
@@ -377,6 +446,9 @@ class AuthService with ChangeNotifier {
     if (username != null) updates['username'] = username;
     if (bio != null) updates['bio'] = bio;
     if (city != null) updates['city'] = city;
+    if (country != null) updates['country'] = country;
+    if (latitude != null) updates['latitude'] = latitude;
+    if (longitude != null) updates['longitude'] = longitude;
 
     if (updates.isEmpty) return;
 
