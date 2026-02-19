@@ -7,13 +7,15 @@ import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../screens/profile_screen.dart';
 import 'comments_bottom_sheet.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:share_plus/share_plus.dart';
 
 class PostCard extends StatefulWidget {
   final Post post;
+  final VoidCallback? onChanged;
 
-  const PostCard({super.key, required this.post});
+  const PostCard({super.key, required this.post, this.onChanged});
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -23,12 +25,14 @@ class _PostCardState extends State<PostCard> {
   final PostService _postService = PostService();
   late bool _isLiked;
   late int _likeCount;
+  late String? _caption;
 
   @override
   void initState() {
     super.initState();
     _isLiked = widget.post.isLiked;
     _likeCount = widget.post.likeCount;
+    _caption = widget.post.caption;
   }
 
   void _handleLikeToggle() async {
@@ -78,6 +82,182 @@ class _PostCardState extends State<PostCard> {
       backgroundColor: Colors.transparent,
       builder: (context) => CommentsBottomSheet(postId: widget.post.id),
     );
+  }
+
+  void _showPostOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text("Edit Caption", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditCaptionDialog();
+              },
+            ),
+            ListTile(
+              leading: Icon(widget.post.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined),
+              title: Text(widget.post.isArchived ? "Unarchive Post" : "Archive Post", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _handleArchiveToggle();
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: Text("Delete Post", style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              subtitle: Text("This action cannot be undone.", style: GoogleFonts.inter(fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context); // Close bottom sheet
+                _confirmDelete();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditCaptionDialog() {
+    final controller = TextEditingController(text: widget.post.caption);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit Caption", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: "What's on your mind?",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              final newCaption = controller.text.trim();
+              Navigator.pop(context);
+              _handleUpdateCaption(newCaption);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleUpdateCaption(String newCaption) async {
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    try {
+      await _postService.updatePostCaption(widget.post.id, newCaption);
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        setState(() {
+          _caption = newCaption;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Caption updated! ✨")));
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  Future<void> _handleArchiveToggle() async {
+    final bool willArchive = !widget.post.isArchived;
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    try {
+      await _postService.setPostArchived(widget.post.id, willArchive);
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(willArchive ? "Post archived 📦" : "Post unarchived! 🌍")),
+        );
+        PostService.notifyRefresh();
+        if (widget.onChanged != null) widget.onChanged!();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Delete Post?", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text("Are you sure you want to permanently delete this post?", style: GoogleFonts.inter()),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: GoogleFonts.inter(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              _handleDelete();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleDelete() async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.blueAccent)),
+    );
+
+    try {
+      await _postService.deletePost(widget.post);
+      
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Post deleted 🗑️"), behavior: SnackBarBehavior.floating),
+        );
+        PostService.notifyRefresh();
+        if (widget.onChanged != null) widget.onChanged!();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error deleting post: $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   Widget _buildCaption(String caption) {
@@ -136,7 +316,7 @@ class _PostCardState extends State<PostCard> {
         children: [
           // 1. Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
             child: Row(
               children: [
                 GestureDetector(
@@ -169,6 +349,14 @@ class _PostCardState extends State<PostCard> {
                   timeago.format(widget.post.createdAt, locale: 'en_short'),
                   style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[400]),
                 ),
+                if (widget.post.userId == Supabase.instance.client.auth.currentUser?.id)
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
+                    onPressed: () => _showPostOptions(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                  ),
               ],
             ),
           ),
@@ -231,10 +419,10 @@ class _PostCardState extends State<PostCard> {
           ),
 
           // 4. Caption
-          if (widget.post.caption != null && widget.post.caption!.isNotEmpty)
+          if (_caption != null && _caption!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _buildCaption(widget.post.caption!),
+              child: _buildCaption(_caption!),
             ),
         ],
       ),

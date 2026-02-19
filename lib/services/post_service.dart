@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post.dart';
 import '../models/user_profile.dart';
@@ -8,6 +9,11 @@ import '../models/notification.dart';
 class PostService {
   final SupabaseClient _supabase = Supabase.instance.client;
   SupabaseClient get supabase => _supabase;
+
+  // Global refresh signal for feeds
+  static final StreamController<void> _refreshController = StreamController<void>.broadcast();
+  static Stream<void> get refreshStream => _refreshController.stream;
+  static void notifyRefresh() => _refreshController.add(null);
 
   /// Create a new travel post
   Future<void> createPost({
@@ -79,16 +85,100 @@ class PostService {
     };
   }
 
-  /// Soft delete a post
-  Future<void> deletePost(String postId) async {
+  /// Hard delete a post and its associated image from storage
+  Future<void> deletePost(Post post) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
     try {
+      // 1. Delete image from storage if it exists
+      if (post.imageUrl.isNotEmpty) {
+        // Extract the path from the public URL
+        // Example URL: https://ixrxxiyvxxoxoxox.supabase.co/storage/v1/object/public/posts/posts/USER_ID/FILENAME.jpg
+        // We need the part after '/posts/' (the bucket name)
+        final uri = Uri.parse(post.imageUrl);
+        final pathSegments = uri.pathSegments;
+        final postsIndex = pathSegments.indexOf('posts');
+        if (postsIndex != -1 && postsIndex + 1 < pathSegments.length) {
+          final storagePath = pathSegments.sublist(postsIndex + 1).join('/');
+          await _supabase.storage.from('posts').remove([storagePath]);
+        }
+      }
+
+      // 2. Hard delete from DB with user_id check for extra safety
       await _supabase
           .from('posts')
-          .update({'is_deleted': true})
-          .eq('id', postId);
+          .delete()
+          .eq('id', post.id)
+          .eq('user_id', user.id);
     } catch (e) {
       print("Error deleting post: $e");
       rethrow;
+    }
+  }
+
+  /// Update post caption
+  Future<void> updatePostCaption(String postId, String caption) async {
+    try {
+      await _supabase
+          .from('posts')
+          .update({'caption': caption})
+          .eq('id', postId);
+    } catch (e) {
+      print("Error updating post caption: $e");
+      rethrow;
+    }
+  }
+
+  /// Archive or Unarchive a post
+  Future<void> setPostArchived(String postId, bool archived) async {
+    try {
+      await _supabase
+          .from('posts')
+          .update({'is_archived': archived})
+          .eq('id', postId);
+    } catch (e) {
+      print("Error setting post archive status: $e");
+      rethrow;
+    }
+  }
+
+  /// Get archived posts for current user
+  Future<List<Post>> getArchivedPosts({int limit = 20, DateTime? beforeTimestamp}) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      var query = _supabase
+          .from('posts')
+          .select('*, profiles!user_id(*), is_liked:likes(user_id)')
+          .eq('user_id', user.id)
+          .eq('is_archived', true)
+          .eq('is_deleted', false);
+
+      if (beforeTimestamp != null) {
+        query = query.lt('created_at', beforeTimestamp.toIso8601String());
+      }
+
+      final List<dynamic> response = await query
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return response.map((json) {
+        var authorMap = json['profiles'];
+        if (authorMap is List && authorMap.isNotEmpty) authorMap = authorMap[0];
+        final author = authorMap != null ? UserProfile.fromMap(authorMap as Map<String, dynamic>) : null;
+        
+        final likesRaw = json['is_liked'];
+        final bool isLiked = (likesRaw is List) 
+            ? likesRaw.any((l) => l['user_id'] == user.id)
+            : (likesRaw != null && (likesRaw as Map)['user_id'] == user.id);
+
+        return Post.fromJson(json, author: author, isLiked: isLiked);
+      }).toList();
+    } catch (e) {
+      print("Error fetching archived posts: $e");
+      return [];
     }
   }
 
@@ -278,7 +368,8 @@ class PostService {
           .from('posts')
           .select('*, profiles!user_id(*), is_liked:likes(user_id)')
           .eq('user_id', userId)
-          .eq('is_deleted', false);
+          .eq('is_deleted', false)
+          .eq('is_archived', false);
 
       if (beforeTimestamp != null) {
         query = query.lt('created_at', beforeTimestamp.toIso8601String());
@@ -324,6 +415,7 @@ class PostService {
           .select('*, profiles!user_id(*), is_liked:likes(user_id)')
           .eq('id', postId)
           .eq('is_deleted', false)
+          .eq('is_archived', false)
           .maybeSingle();
 
       if (response == null) return null;
@@ -357,6 +449,7 @@ class PostService {
           .from('posts')
           .select('hashtags')
           .eq('is_deleted', false)
+          .eq('is_archived', false)
           .order('created_at', ascending: false)
           .limit(100);
 
@@ -387,6 +480,7 @@ class PostService {
           .from('posts')
           .select('*, profiles!user_id(*), is_liked:likes(user_id)')
           .eq('is_deleted', false)
+          .eq('is_archived', false)
           .eq('visibility', 'public');
 
       if (beforeTimestamp != null) {
@@ -424,6 +518,7 @@ class PostService {
           .select('*, profiles!user_id(*), is_liked:likes(user_id)')
           .contains('hashtags', [hashtag.toLowerCase()])
           .eq('is_deleted', false)
+          .eq('is_archived', false)
           .order('created_at', ascending: false)
           .limit(limit);
 

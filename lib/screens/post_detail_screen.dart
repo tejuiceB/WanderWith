@@ -73,7 +73,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 )
               : SingleChildScrollView(
-                  child: PostCard(post: _post!),
+                  child: PostCard(
+                    post: _post!,
+                    onChanged: () {
+                      if (mounted) Navigator.pop(context);
+                    },
+                  ),
                 ),
     );
   }

@@ -29,7 +29,8 @@ class FeedService {
           .from('posts')
           .select('*, profiles!user_id(*), is_liked:likes(user_id)')
           .inFilter('user_id', followingIds)
-          .eq('is_deleted', false);
+          .eq('is_deleted', false)
+          .eq('is_archived', false);
 
       if (beforeTimestamp != null) {
         query = query.lt('created_at', beforeTimestamp.toIso8601String());

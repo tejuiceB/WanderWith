@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -18,6 +19,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final PostService _postService = PostService();
   final TextEditingController _searchController = TextEditingController();
+  StreamSubscription? _postRefreshSub;
   
   List<Post> _discoverPosts = [];
   List<Map<String, dynamic>> _trendingTags = [];
@@ -32,6 +34,17 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _loadDiscoverData();
+
+    _postRefreshSub = PostService.refreshStream.listen((_) {
+      if (mounted) _loadDiscoverData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _postRefreshSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDiscoverData() async {

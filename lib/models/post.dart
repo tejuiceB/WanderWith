@@ -10,6 +10,7 @@ class Post {
   final String visibility;
   final DateTime createdAt;
   final bool isDeleted;
+  final bool isArchived;
   final List<String> hashtags;
   final List<String> mentions;
   
@@ -29,6 +30,7 @@ class Post {
     required this.visibility,
     required this.createdAt,
     this.isDeleted = false,
+    this.isArchived = false,
     this.hashtags = const [],
     this.mentions = const [],
     this.author,
@@ -48,6 +50,7 @@ class Post {
       visibility: json['visibility'] ?? 'public',
       createdAt: DateTime.parse(json['created_at']),
       isDeleted: json['is_deleted'] ?? false,
+      isArchived: json['is_archived'] ?? false,
       hashtags: List<String>.from(json['hashtags'] ?? []),
       mentions: List<String>.from(json['mentions'] ?? []),
       author: author,

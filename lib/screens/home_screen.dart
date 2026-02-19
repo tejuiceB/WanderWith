@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +14,7 @@ import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'create_trip_screen.dart';
 import '../services/notification_service.dart';
+import '../services/post_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final FeedService _feedService = FeedService();
   final ScrollController _scrollController = ScrollController();
+  StreamSubscription? _postRefreshSub;
   bool _isLoading = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -35,11 +38,16 @@ class _HomeScreenState extends State<HomeScreen> {
      _loadInitialFeed();
      _scrollController.addListener(_onScroll);
      _requestPermissions();
+
+     _postRefreshSub = PostService.refreshStream.listen((_) {
+        if (mounted) _loadInitialFeed();
+     });
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _postRefreshSub?.cancel();
     super.dispose();
   }
 
@@ -215,7 +223,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemCount: _posts.length + (_hasMore ? 1 : 0),
                           itemBuilder: (context, index) {
                              if (index < _posts.length) {
-                                return PostCard(post: _posts[index]);
+                                return PostCard(
+                                  post: _posts[index],
+                                  onChanged: () {
+                                    setState(() {
+                                      _posts.removeAt(index);
+                                    });
+                                  },
+                                );
                              } else {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 24.0),

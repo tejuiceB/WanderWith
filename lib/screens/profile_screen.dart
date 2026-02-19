@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   final FollowService _followService = FollowService();
   final PostService _postService = PostService();
   late TabController _tabController;
+  StreamSubscription? _postRefreshSub;
   
   List<Post> _userPosts = [];
   bool _isLoadingPosts = true;
@@ -63,6 +65,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     } else {
        _loadProfileData();
     }
+
+    _postRefreshSub = PostService.refreshStream.listen((_) {
+      if (mounted && isCurrentUser) {
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        if (uid != null) _loadUserPosts(uid);
+      }
+    });
   }
 
   bool _isLoadingMorePosts = false;
@@ -198,6 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   @override
   void dispose() {
     _tabController.dispose();
+    _postRefreshSub?.cancel();
     super.dispose();
   }
 
@@ -912,7 +922,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         itemCount: _userPosts.length + (_hasMorePosts ? 1 : 0),
         itemBuilder: (context, index) {
           if (index < _userPosts.length) {
-            return PostCard(post: _userPosts[index]);
+            return PostCard(
+              post: _userPosts[index],
+              onChanged: () {
+                setState(() {
+                  _userPosts.removeAt(index);
+                });
+              },
+            );
           } else {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),

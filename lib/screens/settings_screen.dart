@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_conditions_screen.dart';
 import 'privacy_settings_screen.dart';
+import 'archived_posts_screen.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -55,6 +56,12 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 32),
           _buildSectionHeader("Privacy"),
+          _buildSettingsItem(
+            context,
+            icon: Icons.archive_outlined, 
+            title: "Archived Posts", 
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchivedPostsScreen()))
+          ),
           _buildSettingsItem(
             context,
             icon: Icons.lock_outline_rounded, 
