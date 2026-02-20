@@ -116,6 +116,14 @@ Keep it friendly but professional.
     final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
 
+    // Calculate explicit duration
+    int durationDays = 3; // Default
+    if (trip.startDate != null && trip.endDate != null) {
+      durationDays = trip.endDate!.difference(trip.startDate!).inDays + 1;
+    } else {
+      durationDays = trip.metadata?['days'] ?? 3;
+    }
+
     final prompt = """
 You are a backend travel planning engine.
 You do NOT check availability. You do NOT browse the live web.
@@ -123,13 +131,17 @@ Your ONLY job is to accept trip parameters and return a structured JSON itinerar
 The plan must be realistic, grouping locations geographically to minimize travel time.
 Limit to 4-5 high-quality stops per day.
 
+CRITICAL: You MUST generate EXACTLY $durationDays days of itinerary. No more, no less.
+Each day's activities should be distinct and optimized for a $durationDays-day trip.
+
 Make the plan purely based on the **Best Experience** for the location and duration.
 Ignore any budget constraints. Create the best possible itinerary regardless of cost.
 Admins can adjust the plan later if needed.
 
 INPUT DATA:
 Destination: ${trip.location}
-Dates: ${trip.startDate?.toIso8601String() ?? 'Day 1'} to ${trip.endDate?.toIso8601String() ?? 'Day ${trip.metadata?['days'] ?? 3}'}
+Total Days: $durationDays
+Dates: ${trip.startDate?.toIso8601String() ?? 'Day 1'} to ${trip.endDate?.toIso8601String() ?? 'Day $durationDays'}
 Vibe: ${trip.metadata?['vibe'] ?? 'Balanced'}
 
 OUTPUT FORMAT (STRICT JSON ONLY, NO MARKDOWN, NO COMMENTS):

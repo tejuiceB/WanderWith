@@ -163,7 +163,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         metadata: {
           'status': 'planning',
           'budgetCurrency': _selectedCurrency,
-          'estimated_cost': totalBudget
+          'estimated_cost': totalBudget,
+          'days': startDate != null && endDate != null ? endDate.difference(startDate).inDays + 1 : 3,
         },
         coverImageUrl: finalCoverUrl,
       );

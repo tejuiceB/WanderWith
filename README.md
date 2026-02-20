@@ -36,7 +36,7 @@ The same flags work for release bundles if you prefer not to use an `.env` file.
 
 ## Database Setup
 
-Run the SQL migrations in `/sql` against your Supabase instance (order is documented inside each file).
+Run the consolidated schema script in `sql/production_schema.sql` against your Supabase instance to set up all tables, RLS policies, functions, and triggers. Historical migrations are archived in `sql/legacy/`.
 
 ## Google Play Upload
 

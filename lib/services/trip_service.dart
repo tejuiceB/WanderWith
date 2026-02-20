@@ -33,6 +33,10 @@ class TripService {
     // Client-side ID generation
     final String tripId = _uuid.v4();
     
+    final int durationDays = (startDate != null && endDate != null) 
+        ? endDate.difference(startDate).inDays + 1 
+        : 3; // Default
+
     final tripData = {
       'id': tripId,
       'name': name,
@@ -50,6 +54,7 @@ class TripService {
         'budgetCurrency': budgetCurrency,
         'estimated_cost': estimatedCost,
         'adminIds': [creatorUid],
+        'days': durationDays,
       },
       'cover_image_url': coverImageUrl,
     };
@@ -465,18 +470,25 @@ class TripService {
   // Update Dates (Admin Only check should be in UI, but this performs the action)
   Future<void> updateTripDates(String tripId, DateTime start, DateTime end) async {
       final uid = _supabase.auth.currentUser?.id;
+      final int days = end.difference(start).inDays + 1;
+
+      // Fetch current metadata to preserve other fields
+      final response = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
+      Map<String, dynamic> metadata = Map<String, dynamic>.from(response['metadata'] ?? {});
+      metadata['days'] = days;
       
       await _supabase.from('trips').update({
         'start_date': start.toIso8601String(),
         'end_date': end.toIso8601String(),
-        'is_date_decided': true
+        'is_date_decided': true,
+        'metadata': metadata
       }).eq('id', tripId);
 
       if (uid != null) {
         await _notificationService.notifyTripMembers(
           tripId: tripId,
           title: "Dates Updated 📅",
-          body: "Trip dates set to ${start.day}/${start.month} - ${end.day}/${end.month}",
+          body: "Trip dates set to ${start.day}/${start.month} - ${end.day}/${end.month} ($days Days)",
           type: NotificationType.dateChange,
           excludeUserId: uid,
         );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -17,9 +18,47 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
   final _bioController = TextEditingController();
   final _locationController = TextEditingController();
   bool _isLoading = false;
+  
+  // Username check
+  bool? _isUsernameAvailable;
+  bool _checkingUsername = false;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_onUsernameChanged);
+  }
+
+  void _onUsernameChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    
+    final username = _usernameController.text.trim();
+    if (username.length < 3) {
+      setState(() {
+        _isUsernameAvailable = null;
+        _checkingUsername = false;
+      });
+      return;
+    }
+
+    setState(() => _checkingUsername = true);
+    
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      final available = await AuthService.instance.isUsernameAvailable(username);
+      if (mounted && _usernameController.text.trim() == username) {
+        setState(() {
+          _isUsernameAvailable = available;
+          _checkingUsername = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _usernameController.removeListener(_onUsernameChanged);
     _nameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
@@ -113,14 +152,29 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
                 TextFormField(
                   controller: _usernameController,
                   style: GoogleFonts.inter(fontSize: 16),
-                  decoration: _inputDecoration('e.g. john_travels'),
+                  decoration: _inputDecoration('e.g. john_travels').copyWith(
+                    suffixIcon: _checkingUsername 
+                        ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+                        : _isUsernameAvailable != null 
+                            ? Icon(_isUsernameAvailable! ? Icons.check_circle : Icons.error, color: _isUsernameAvailable! ? Colors.green : Colors.red)
+                            : null,
+                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Please enter a username';
                     if (v.trim().length < 3) return 'Username must be at least 3 characters';
                     if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(v)) return 'Invalid characters (use a-z, 0-9, . , _)';
+                    if (_isUsernameAvailable == false) return 'This username is already taken';
                     return null;
                   },
                 ),
+                if (_isUsernameAvailable == false)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, left: 4),
+                    child: Text(
+                      'This username is already taken. Try another one!',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.red),
+                    ),
+                  ),
                 const SizedBox(height: 20),
 
                 _buildFieldLabel('Location'),

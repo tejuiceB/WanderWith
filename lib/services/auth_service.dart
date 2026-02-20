@@ -180,6 +180,21 @@ class AuthService with ChangeNotifier {
       return null;
     }
   }
+
+  /// Check if a username is currently taken
+  Future<bool> isUsernameAvailable(String username) async {
+    if (username.length < 3) return false;
+    try {
+      final bool available = await _supabase.rpc(
+        'check_username_available',
+        params: {'target_username': username.trim()},
+      );
+      return available;
+    } catch (e) {
+      print("Error checking username availability: $e");
+      return false;
+    }
+  }
   
   // Update Avatar
   Future<void> updateAvatar(File imageFile) async {
