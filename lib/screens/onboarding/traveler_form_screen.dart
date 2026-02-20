@@ -17,6 +17,8 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
   final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
   final _locationController = TextEditingController();
+  final _interestController = TextEditingController();
+  List<String> _selectedInterests = [];
   bool _isLoading = false;
   
   // Username check
@@ -63,6 +65,7 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
     _usernameController.dispose();
     _bioController.dispose();
     _locationController.dispose();
+    _interestController.dispose();
     super.dispose();
   }
 
@@ -86,6 +89,7 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
         country: geoData?['country'],
         latitude: geoData?['latitude'],
         longitude: geoData?['longitude'],
+        interests: _selectedInterests,
       );
       
       // Navigate to Home - GoRouter RefreshListenable will catch this
@@ -193,6 +197,54 @@ class _TravelerFormScreenState extends State<TravelerFormScreen> {
                   style: GoogleFonts.inter(fontSize: 16),
                   decoration: _inputDecoration('Tell us about your travel style...'),
                 ),
+                const SizedBox(height: 20),
+
+                _buildFieldLabel('Interests / Travel Style'),
+                TextFormField(
+                  controller: _interestController,
+                  style: GoogleFonts.inter(fontSize: 16),
+                  decoration: _inputDecoration('e.g. Hiking, Photography (Press Enter)').copyWith(
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        final text = _interestController.text.trim();
+                        if (text.isNotEmpty && !_selectedInterests.contains(text)) {
+                          setState(() {
+                            _selectedInterests.add(text);
+                            _interestController.clear();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  onFieldSubmitted: (text) {
+                    if (text.trim().isNotEmpty && !_selectedInterests.contains(text.trim())) {
+                      setState(() {
+                        _selectedInterests.add(text.trim());
+                        _interestController.clear();
+                      });
+                    }
+                  },
+                ),
+                if (_selectedInterests.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12.0),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _selectedInterests.map((interest) {
+                        return Chip(
+                          label: Text(interest, style: GoogleFonts.inter(fontSize: 12)),
+                          backgroundColor: Colors.blue.shade50,
+                          side: BorderSide.none,
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () {
+                            setState(() => _selectedInterests.remove(interest));
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 const SizedBox(height: 40),
 
                 SizedBox(

@@ -119,6 +119,7 @@ class AuthService with ChangeNotifier {
           agencyDescription: data['agency_description'],
           licenseNumber: data['license_number'],
           website: data['website'],
+          coverImageUrl: data['cover_image_url'],
           onboardingCompleted: data['onboarding_completed'] == true,
           latitude: (data['latitude'] as num?)?.toDouble(),
           longitude: (data['longitude'] as num?)?.toDouble(),
@@ -236,6 +237,36 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  // Update Agency Cover
+  Future<void> updateAgencyCover(File imageFile) async {
+    if (_user == null || _userProfile?.role != 'agency') return;
+    try {
+      final fileExt = imageFile.path.split('.').last;
+      final fileName = '${_user!.id}/cover.$fileExt';
+      
+      final storage = _supabase.storage.from('agency_covers');
+      
+      await storage.upload(
+        fileName,
+        imageFile,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      );
+      
+      final imageUrl = storage.getPublicUrl(fileName);
+      final bustCacheUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      
+      await _supabase.from('profiles').update({
+        'cover_image_url': bustCacheUrl,
+      }).eq('id', _user!.id);
+      
+      await refreshProfile();
+      
+    } catch (e) {
+      print("Error uploading cover: $e");
+      rethrow;
+    }
+  }
+
   // Google Sign In (Native)
   Future<bool> signInWithGoogle() async {
     try {
@@ -337,6 +368,7 @@ class AuthService with ChangeNotifier {
     double? latitude,
     double? longitude,
     String? country,
+    String? coverImageUrl,
   }) async {
     if (_user == null) return;
 
@@ -360,6 +392,7 @@ class AuthService with ChangeNotifier {
       'latitude': latitude,
       'longitude': longitude,
       'country': country,
+      'cover_image_url': coverImageUrl,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
@@ -453,6 +486,8 @@ class AuthService with ChangeNotifier {
     String? country,
     double? latitude,
     double? longitude,
+    String? coverImageUrl,
+    List<String>? interests,
   }) async {
     if (_user == null) return;
     
@@ -464,6 +499,8 @@ class AuthService with ChangeNotifier {
     if (country != null) updates['country'] = country;
     if (latitude != null) updates['latitude'] = latitude;
     if (longitude != null) updates['longitude'] = longitude;
+    if (coverImageUrl != null) updates['cover_image_url'] = coverImageUrl;
+    if (interests != null) updates['interests'] = interests;
 
     if (updates.isEmpty) return;
 

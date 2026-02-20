@@ -14,10 +14,13 @@ class Trip {
   final Map<String, String>? budgetOptions;
   final Map<String, String>? budgetVotes; // {userId: 'low'|'mid'|'high'}
   final String? coverImageUrl;
+  final String visibility; // 'public', 'private'
+  final String? joinCode;
 
   // Computed Status
   String get status {
     final now = DateTime.now();
+    if (isDead) return 'dead'; // Explicitly mark it dead if dead
     if (endDate != null && now.isAfter(endDate!)) {
       return 'completed';
     }
@@ -28,6 +31,10 @@ class Trip {
     return 'planning';
   }
 
+  // DEAD STATE getter
+  bool get isDead =>
+      (metadata != null && metadata!['is_dead'] == true);
+
   // Polls getter
   List<Map<String, dynamic>> get polls => 
       (metadata != null && metadata!['polls'] != null)
@@ -37,6 +44,12 @@ class Trip {
   List<String> get pendingMembers =>
       (metadata != null && metadata!['pending_members'] != null)
       ? List<String>.from(metadata!['pending_members'])
+      : [];
+
+  // REJECTED MEMBERS getter (New)
+  List<String> get rejectedMembers =>
+      (metadata != null && metadata!['rejected_members'] != null)
+      ? List<String>.from(metadata!['rejected_members'])
       : [];
 
   // REVIEWS getter
@@ -72,6 +85,8 @@ class Trip {
     this.budgetOptions,
     this.budgetVotes,
     this.coverImageUrl,
+    this.visibility = 'public',
+    this.joinCode,
   }) : adminIds = adminIds ?? [createdBy];
 
   Map<String, dynamic> toMap() {
@@ -90,6 +105,8 @@ class Trip {
       'budget_options': budgetOptions,
       'budget_votes': budgetVotes,
       'cover_image_url': coverImageUrl,
+      'visibility': visibility,
+      'join_code': joinCode,
     };
   }
 
@@ -120,6 +137,8 @@ class Trip {
           ? Map<String, String>.from(get('budgetVotes', 'budget_votes')) 
           : null,
       coverImageUrl: map['cover_image_url'],
+      visibility: map['visibility'] ?? 'public',
+      joinCode: map['join_code'],
     );
   }
 }

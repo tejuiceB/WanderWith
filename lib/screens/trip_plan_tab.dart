@@ -36,7 +36,7 @@ class _TripPlanTabState extends State<TripPlanTab> {
   Widget build(BuildContext context) {
     // Determine Permissions
     final uid = Supabase.instance.client.auth.currentUser?.id;
-    final bool canEdit = uid != null && (widget.trip.adminIds.contains(uid) || widget.trip.createdBy == uid);
+    final bool canEdit = uid != null && (widget.trip.adminIds.contains(uid) || widget.trip.createdBy == uid) && !widget.trip.isDead;
 
     return Consumer<PlanProvider>(
       builder: (context, provider, child) {

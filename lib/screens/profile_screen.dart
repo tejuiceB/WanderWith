@@ -236,8 +236,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     final String? requestStatus = _requestStatus;
     
     // Visibility logic
-    final bool canSeeContent = isCurrentUser || !isPrivate || isFollowing;
-    final bool canSeeMetadata = isCurrentUser || !isPrivate || isFollowing || isFollowedBy;
+    final bool canSeeContent = isCurrentUser || !isPrivate || isFollowing || profile.role == 'agency';
+    final bool canSeeMetadata = isCurrentUser || !isPrivate || isFollowing || isFollowedBy || profile.role == 'agency';
 
     if (user == null && !isLoading) return const Center(child: CircularProgressIndicator());
 
@@ -359,7 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                          const SizedBox(height: 32),
-                         _buildHeader(context, authService, profile, isFollowedBy),
+                         _buildProfileHeader(context, authService, profile, isFollowedBy),
                          const SizedBox(height: 24),
                           _buildActionButtons(context, isCurrentUser, profile, isFollowing, isFollowedBy),
                           const SizedBox(height: 32),
@@ -395,16 +395,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               controller: _tabController,
               children: [
                  // POSTS TAB
-                 (!isCurrentUser && !isProfileLoading && profile.isPrivate == true && !isFollowing)
-                     ? _buildPrivacyLock()
-                     : _buildPostsTab(isProfileLoading),
+                 (profile.role == 'agency')
+                     ? _buildPostsTab(isProfileLoading)
+                     : (!isCurrentUser && !isProfileLoading && profile.isPrivate == true && !isFollowing)
+                         ? _buildPrivacyLock()
+                         : _buildPostsTab(isProfileLoading),
 
                  // TRIPS TAB
-                 (!isCurrentUser && !isProfileLoading && profile.isPrivate == true && !isFollowing)
-                     ? _buildPrivacyLock()
-                     : (isPrivate && !isCurrentUser && !isFollowing)
-                        ? _buildPrivacyLock()
-                        : _buildTripsTab(profile.uid, isProfileLoading),
+                 (profile.role == 'agency')
+                     ? _buildTripsTab(profile.uid, isProfileLoading)
+                     : (!isCurrentUser && !isProfileLoading && profile.isPrivate == true && !isFollowing)
+                         ? _buildPrivacyLock()
+                         : _buildTripsTab(profile.uid, isProfileLoading),
               ],
             ),
           ),
@@ -492,10 +494,104 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   // 1. IDENTITY SECTION
-  Widget _buildHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
-     final avatarUrl = profile?.avatarUrl;
-     final isAgency = profile?.role == 'agency';
+  Widget _buildProfileHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
+    if (profile?.role == 'agency') {
+       return _buildAgencyHeader(context, auth, profile, isFollowedBy);
+    }
+    return _buildStandardHeader(context, auth, profile, isFollowedBy);
+  }
 
+  Widget _buildAgencyHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
+     final coverUrl = profile?.coverImageUrl;
+     final avatarUrl = profile?.avatarUrl;
+
+     return Column(
+       children: [
+         Stack(
+           clipBehavior: Clip.none,
+           children: [
+             // Cover Photo
+             Container(
+               height: 180,
+               width: double.infinity,
+               decoration: BoxDecoration(
+                 color: Colors.grey.shade200,
+                 image: (coverUrl != null && coverUrl.isNotEmpty)
+                    ? DecorationImage(image: CachedNetworkImageProvider(coverUrl), fit: BoxFit.cover)
+                    : null,
+               ),
+               child: (coverUrl == null || coverUrl.isEmpty)
+                  ? Center(child: Icon(Icons.business_rounded, color: Colors.grey.shade400, size: 48))
+                  : null,
+             ),
+             // Avatar
+             Positioned(
+               bottom: -50,
+               left: 20,
+               child: GestureDetector(
+                 onTap: isCurrentUser ? () => _showAvatarOptions(context, auth) : null,
+                 child: Container(
+                   decoration: BoxDecoration(
+                     shape: BoxShape.circle,
+                     border: Border.all(color: Colors.white, width: 4),
+                     boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+                   ),
+                   child: CircleAvatar(
+                     radius: 50,
+                     backgroundColor: Colors.grey.shade100,
+                     backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? CachedNetworkImageProvider(avatarUrl) : null,
+                     child: (avatarUrl == null || avatarUrl.isEmpty) ? Text(profile?.displayName?[0] ?? 'A') : null,
+                   ),
+                 ),
+               ),
+             ),
+           ],
+         ),
+         const SizedBox(height: 60),
+         Padding(
+           padding: const EdgeInsets.symmetric(horizontal: 24),
+           child: Column(
+             crossAxisAlignment: CrossAxisAlignment.start,
+             children: [
+               Row(
+                 children: [
+                   Text(profile?.displayName ?? "Agency", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
+                   const SizedBox(width: 8),
+                   const Icon(Icons.verified, color: Colors.blueAccent, size: 20),
+                 ],
+               ),
+               Text("@${profile?.username ?? ''}", style: GoogleFonts.inter(color: Colors.grey.shade600)),
+               if (isFollowedBy && !isCurrentUser) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text("Follows You", style: GoogleFonts.inter(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                  ),
+               ],
+               if (profile?.bio != null && profile!.bio!.isNotEmpty) ...[
+                 const SizedBox(height: 16),
+                 Text(profile.bio!, style: GoogleFonts.inter(fontSize: 15, height: 1.4)),
+               ],
+               if (profile?.city != null) ...[
+                 const SizedBox(height: 12),
+                 Row(
+                   children: [
+                     Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade600),
+                     const SizedBox(width: 4),
+                     Text(profile!.city!, style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13)),
+                   ],
+                 ),
+               ],
+             ],
+           ),
+         ),
+       ],
+     );
+  }
+
+  Widget _buildStandardHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
+     final avatarUrl = profile?.avatarUrl;
      return Column(
        children: [
          Stack(
@@ -536,18 +632,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-               Text(
-                 profile?.displayName ?? "Traveler", 
-                 style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)
-               ),
-               if (isAgency) ...[
-                  const SizedBox(width: 6),
-                  const Icon(Icons.verified, color: Colors.blueAccent, size: 20),
-               ]
-            ],
+          Text(
+            profile?.displayName ?? "Traveler", 
+            style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)
           ),
           const SizedBox(height: 4),
           Text(
@@ -894,6 +981,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
        return const Center(child: CircularProgressIndicator());
     }
 
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final isPrivateAgency = _targetProfile?.role == 'agency' && (_targetProfile?.isPrivate ?? false);
+    final isFollowingAgency = _isFollowing || isCurrentUser;
+
+    if (!isCurrentUser && isPrivateAgency && !isFollowingAgency) {
+       return _buildPrivacyLock(); // Re-use the lock view INSIDE the tab for private agencies
+    }
+
     if (_userPosts.isEmpty) {
       return SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -964,12 +1059,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  ),
                );
             }
+                        final allTrips = snapshot.data ?? [];
             
-            final allTrips = snapshot.data ?? [];
-            final hosted = allTrips.where((t) => t.createdBy == userUid).toList();
-            final joined = allTrips.where((t) => t.createdBy != userUid).toList();
+            // Filter trips for agency privacy
+            final filteredTrips = allTrips.where((t) {
+              if (t.visibility == 'public') return true;
+              return t.memberIds.contains(Supabase.instance.client.auth.currentUser?.id);
+            }).toList();
+
+            final hosted = filteredTrips.where((t) => t.createdBy == userUid).toList();
+            final joined = filteredTrips.where((t) => t.createdBy != userUid).toList();
             
-            if (allTrips.isEmpty) {
+            if (filteredTrips.isEmpty) {
                return SingleChildScrollView(
                  physics: const AlwaysScrollableScrollPhysics(),
                  child: Container(
@@ -1063,6 +1164,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      final cName = TextEditingController(text: profile?.displayName);
      final cUsername = TextEditingController(text: profile?.username);
      final cBio = TextEditingController(text: profile?.bio);
+     final cInterests = TextEditingController();
+     List<String> selectedInterests = List.from(profile?.interests ?? []);
       
      bool isSaving = false;
 
@@ -1095,6 +1198,96 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     const SizedBox(height: 16),
                     TextField(controller: cBio, decoration: InputDecoration(labelText: "Bio", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), maxLines: 3),
                     const SizedBox(height: 16),
+                    TextField(
+                      controller: cInterests,
+                      decoration: InputDecoration(
+                        labelText: "Interests / Travel Style",
+                        hintText: "e.g. Photography, Food (Press Enter)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () {
+                            final text = cInterests.text.trim();
+                            if (text.isNotEmpty && !selectedInterests.contains(text)) {
+                              setSheetState(() {
+                                selectedInterests.add(text);
+                                cInterests.clear();
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      onSubmitted: (text) {
+                        if (text.trim().isNotEmpty && !selectedInterests.contains(text.trim())) {
+                          setSheetState(() {
+                            selectedInterests.add(text.trim());
+                            cInterests.clear();
+                          });
+                        }
+                      },
+                    ),
+                    if (selectedInterests.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: selectedInterests.map((interest) {
+                            return Chip(
+                              label: Text(interest, style: GoogleFonts.inter(fontSize: 12)),
+                              backgroundColor: Colors.blue.shade50,
+                              side: BorderSide.none,
+                              deleteIcon: const Icon(Icons.close, size: 14),
+                              onDeleted: () {
+                                setSheetState(() => selectedInterests.remove(interest));
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showAvatarOptions(context, Provider.of<AuthService>(context, listen: false));
+                      },
+                      icon: const Icon(Icons.add_a_photo_rounded),
+                      label: const Text("Change Profile Photo"),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        side: BorderSide(color: Colors.grey.shade400),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (profile?.role == 'agency') ...[
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                          if (image != null) {
+                             // Show loading and call updateAgencyCover
+                             setSheetState(() => isSaving = true);
+                             try {
+                               await Provider.of<AuthService>(context, listen: false).updateAgencyCover(File(image.path));
+                               if (ctx.mounted) Navigator.pop(ctx);
+                             } catch (e) {
+                               ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Error: $e")));
+                             } finally {
+                               setSheetState(() => isSaving = false);
+                             }
+                          }
+                        },
+                        icon: const Icon(Icons.add_photo_alternate_rounded),
+                        label: const Text("Change Cover Photo"),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -1146,6 +1339,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                  longitude: lng,
                                  city: city,
                                  country: country,
+                                 interests: selectedInterests,
                               );
                               
                               if (ctx.mounted) Navigator.pop(ctx);

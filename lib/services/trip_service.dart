@@ -17,6 +17,9 @@ class TripService {
   final Uuid _uuid = const Uuid();
   final NotificationService _notificationService = NotificationService();
   final AnalyticsService _analyticsService = AnalyticsService();
+  
+  // Optimistically hide trips the user just left so they don't linger on UI
+  static final Set<String> _hiddenTripIds = {};
 
   // Create a new trip
   Future<String> createTrip({
@@ -29,6 +32,8 @@ class TripService {
     String budgetCurrency = 'USD',
     double estimatedCost = 0.0,
     String? coverImageUrl,
+    String visibility = 'public',
+    String? joinCode,
   }) async {
     // Client-side ID generation
     final String tripId = _uuid.v4();
@@ -57,6 +62,8 @@ class TripService {
         'days': durationDays,
       },
       'cover_image_url': coverImageUrl,
+      'visibility': visibility,
+      'join_code': joinCode,
     };
 
     try {
@@ -118,9 +125,11 @@ class TripService {
            // and RLS provides the base visibility, we filter for the specific user's membership.
            return data
                .where((map) {
+                 final docId = map['id']?.toString();
+                 if (docId != null && _hiddenTripIds.contains(docId)) return false;
+                 
                  final members = List<String>.from(map['member_ids'] ?? []);
-                 final creator = map['created_by'];
-                 return members.contains(uid) || creator == uid;
+                 return members.contains(uid);
                })
                .map((map) => _mapToTrip(map))
                .toList();
@@ -177,6 +186,8 @@ class TripService {
           ? Map<String, String>.from(map['metadata']['budgetVotes']) 
           : null,
        coverImageUrl: map['cover_image_url'],
+       visibility: map['visibility'] ?? 'public',
+       joinCode: map['join_code'],
      );
   }
 
@@ -374,6 +385,9 @@ class TripService {
     final uid = _supabase.auth.currentUser?.id;
     if (uid == null) throw Exception("User not logged in");
     
+    // Instantly hide trip from MyTripsScreen
+    _hiddenTripIds.add(tripId);
+    
     try {
       // 1. Fetch Trip Data to determine role
       // Note: 'admin_ids' is NOT a column, it is in metadata. We only select verified columns.
@@ -388,21 +402,15 @@ class TripService {
             await _supabase.from('trips').delete().eq('id', tripId);
             return;
          } else {
-            // Transfer Ownership to the next available member
-            // (Simpler logic: just pick the first person who isn't me)
-            final newCreator = memberIds.firstWhere((id) => id != uid, orElse: () => "");
-            
-            if (newCreator.isEmpty) {
-               await _supabase.from('trips').delete().eq('id', tripId);
-               return;
-            }
-
-            // Update Trip: Set new creator, remove me from members
+            // Mark trip as dead, remove creator from members
             memberIds.remove(uid);
+            final metadataResp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
+            final metadata = Map<String, dynamic>.from(metadataResp['metadata'] ?? {});
+            metadata['is_dead'] = true;
             
             await _supabase.from('trips').update({
-              'created_by': newCreator,
               'member_ids': memberIds,
+              'metadata': metadata,
             }).eq('id', tripId);
             return;
          }
@@ -421,7 +429,12 @@ class TripService {
 
       if (memberIds.contains(uid)) {
         memberIds.remove(uid);
-        await _supabase.from('trips').update({'member_ids': memberIds}).eq('id', tripId);
+        
+        if (memberIds.isEmpty) {
+           await _supabase.from('trips').delete().eq('id', tripId);
+        } else {
+           await _supabase.from('trips').update({'member_ids': memberIds}).eq('id', tripId);
+        }
       }
     } catch (e) {
       _handleException(e);
@@ -1115,6 +1128,84 @@ class TripService {
     } catch (e) {
       _handleException(e);
       rethrow;
+    }
+  }
+
+  // Submit Join Request
+  Future<void> submitJoinRequest({
+    required String tripId,
+    required String userId,
+    required String fullName,
+    required String email,
+    required String phone,
+  }) async {
+    try {
+      await _supabase.from('trip_join_requests').insert({
+        'trip_id': tripId,
+        'user_id': userId,
+        'full_name': fullName,
+        'email': email,
+        'phone': phone,
+      });
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        // Unique constraint violation (duplicate join request)
+        print("Join request already exists. Ignoring.");
+        return;
+      }
+      print("Error submitting join request: $e");
+      _handleException(e);
+      rethrow;
+    } catch (e) {
+      print("Error submitting join request: $e");
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  // Manual Join via Code
+  Future<void> respondToJoinRequestManual(String tripId, String userId) async {
+    try {
+       await _supabase.rpc('respond_to_join_request', params: {
+          'trip_uuid': tripId,
+          'target_user_id': userId,
+          'approve': true,
+        });
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
+  // Get Join Requests
+  Future<List<Map<String, dynamic>>> getJoinRequests(String tripId) async {
+    try {
+      final List<dynamic> data = await _supabase
+          .from('trip_join_requests')
+          .select()
+          .eq('trip_id', tripId)
+          .eq('status', 'pending');
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      print("Error fetching join requests: $e");
+      return [];
+    }
+  }
+
+  // Check if a specific user has a pending join request
+  Future<bool> hasPendingJoinRequest(String tripId, String userId) async {
+    try {
+      final data = await _supabase
+          .from('trip_join_requests')
+          .select()
+          .eq('trip_id', tripId)
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .maybeSingle();
+      return data != null;
+    } catch (e) {
+      print("Error checking pending request: $e");
+      return false;
     }
   }
 }

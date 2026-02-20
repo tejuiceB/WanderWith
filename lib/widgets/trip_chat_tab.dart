@@ -625,6 +625,7 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                                   },
                                   currentUserId: user.id,
                                   optimisticReactions: _optimisticReactions[msg.id] ?? {},
+                                  isDead: widget.trip.isDead,
                                 );
                             },
                           ),
@@ -656,7 +657,7 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
               ],
             ),
           ),
-        if (_editingMessageId != null)
+        if (_editingMessageId != null && !widget.trip.isDead)
           _buildActionIndicator(
             icon: Icons.edit,
             label: "Editing message...",
@@ -665,13 +666,14 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
               _msgController.clear();
             }),
           ),
-        if (_replyingToMessage != null)
+        if (_replyingToMessage != null && !widget.trip.isDead)
           _buildActionIndicator(
             icon: Icons.reply,
             label: "Replying to ${_replyingToMessage!.senderName}...",
             onClose: () => setState(() => _replyingToMessage = null),
           ),
-        _buildInputBar(user.id, userProfile?.displayName ?? 'User'),
+        if (!widget.trip.isDead)
+          _buildInputBar(user.id, userProfile?.displayName ?? 'User'),
       ],
     );
   }
@@ -847,6 +849,7 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback onDeleteForEveryone;
   final String currentUserId;
   final Set<String> optimisticReactions;
+  final bool isDead;
 
   const _MessageBubble({
     required this.message, 
@@ -860,6 +863,7 @@ class _MessageBubble extends StatelessWidget {
     required this.onDeleteForEveryone,
     required this.currentUserId,
     required this.optimisticReactions,
+    this.isDead = false,
   });
 
   void _showOptions(BuildContext context) {

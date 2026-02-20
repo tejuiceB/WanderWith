@@ -5,6 +5,7 @@ import '../models/post.dart';
 import '../models/user_profile.dart';
 import '../services/notification_service.dart';
 import '../models/notification.dart';
+import '../models/trip.dart';
 
 class PostService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -544,6 +545,38 @@ class PostService {
       }).toList();
     } catch (e) {
       print("Error searching posts by hashtag: $e");
+      return [];
+    }
+  }
+  /// Get Suggested Agency Profiles
+  Future<List<UserProfile>> getSuggestedAgencies({int limit = 5}) async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .eq('role', 'agency')
+          .order('followers_count', ascending: false)
+          .limit(limit);
+      
+      return (response as List).map((map) => UserProfile.fromMap(map)).toList();
+    } catch (e) {
+      print("Error fetching suggested agencies: $e");
+      return [];
+    }
+  }
+
+  /// Get Trending Agency Trips
+  Future<List<Trip>> getSuggestedTrips({int limit = 5}) async {
+    try {
+       final response = await _supabase
+          .from('searchable_agency_trips')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(limit);
+       
+       return (response as List).map((map) => Trip.fromMap(map)).toList();
+    } catch (e) {
+      print("Error fetching suggested trips: $e");
       return [];
     }
   }

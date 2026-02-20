@@ -7,6 +7,7 @@ class UserProfile {
   final String? budgetStyle; // Budget, Mid, Luxury
   final String? tripVibe; // Chill, Adventure, Party
   final String? avatarUrl;
+  final String? coverImageUrl;
 
   // New Onboarding Fields
   final String role; // 'traveler' or 'agency'
@@ -46,6 +47,7 @@ class UserProfile {
     this.budgetStyle,
     this.tripVibe,
     this.avatarUrl,
+    this.coverImageUrl,
     this.role = 'traveler',
     this.bio,
     this.city,
@@ -81,6 +83,7 @@ class UserProfile {
       'budget_style': budgetStyle,
       'trip_vibe': tripVibe,
       'avatar_url': avatarUrl,
+      'cover_image_url': coverImageUrl,
       'role': role,
       'bio': bio,
       'city': city,
@@ -118,6 +121,7 @@ class UserProfile {
       budgetStyle: map['budget_style'] ?? map['budgetStyle'],
       tripVibe: map['trip_vibe'] ?? map['tripVibe'],
       avatarUrl: map['avatar_url'] ?? map['avatarUrl'],
+      coverImageUrl: map['cover_image_url'] ?? map['coverImageUrl'],
       role: map['role'] ?? 'traveler',
       bio: map['bio'],
       city: map['city'],

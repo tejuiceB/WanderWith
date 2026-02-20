@@ -49,6 +49,7 @@ class TripDashboardScreen extends StatefulWidget {
 class _TripDashboardScreenState extends State<TripDashboardScreen> {
   late Stream<Trip> _tripStream;
   final NotificationService _notificationService = NotificationService();
+  bool _localJoinRequested = false;
 
   @override
   void initState() {
@@ -107,27 +108,17 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
 
-    if (trip.createdBy == uid) {
-      await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-                title: const Text("Cannot Leave Trip"),
-                content: const Text(
-                    "You are the owner of this trip. You cannot leave unless you delete the trip or transfer ownership."),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text("OK"))
-                ],
-              ));
-      return;
-    }
-
     final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
               title: const Text("Leave Trip?"),
-              content: const Text("Are you sure you want to leave this trip?"),
+              content: Text(
+                trip.memberIds.length <= 1 
+                  ? "Are you sure you want to leave this trip? Since you're the only member, this will delete the trip."
+                  : (trip.createdBy == uid 
+                      ? "Are you sure you want to leave this trip? Since you're the creator, the trip will be frozen for remaining members (Read-Only)."
+                      : "Are you sure you want to leave this trip?")
+              ),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
@@ -140,14 +131,12 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
             ));
 
     if (confirm == true) {
+      if (mounted) Navigator.of(context).pop(); // INSTANT POP
       try {
         await TripService().leaveTrip(trip.id);
-        if (mounted) Navigator.of(context).pop();
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text("Error: $e")));
-        }
+        // Can't show SnackBar on same context anymore if popped, but fire-and-forget is fine here.
+        // It's removed from DB instantly.
       }
     }
   }
@@ -161,7 +150,10 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
       stream: _tripStream,
       initialData: widget.trip,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
+        final currentTrip = snapshot.data ?? widget.trip;
+
+        // If there's an error AND we somehow don't even have fallback data (though we should via widget.trip)
+        if (snapshot.hasError && snapshot.data == null && currentTrip.id.isEmpty) {
              final err = snapshot.error.toString().toLowerCase();
              final isNetworkError = err.contains('socket') || err.contains('host lookup') || err.contains('realtime');
 
@@ -194,32 +186,27 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                 )
              );
         }
-
-        final currentTrip = snapshot.data ?? widget.trip;
         final isAdmin = uid != null && currentTrip.adminIds.contains(uid);
+        final isMember = uid != null && currentTrip.memberIds.contains(uid);
 
-        // CHECK PENDING STATUS
-        if (uid != null && currentTrip.pendingMembers.contains(uid)) {
-           return Scaffold(
-             appBar: AppBar(title: const Text("Access Pending")),
-             body: Padding(
-               padding: const EdgeInsets.all(32.0),
-               child: Column(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   const Icon(Icons.lock_clock, size: 80, color: Colors.orange),
-                   const SizedBox(height: 24),
-                   const Text("Your join request is pending.", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                   const SizedBox(height: 12),
-                   const Text("An admin must approve your request before you can access trip details.", textAlign: TextAlign.center),
-                   const SizedBox(height: 32),
-                   OutlinedButton(
-                     onPressed: () => Navigator.pop(context),
-                     child: const Text("Go Back")
-                   )
-                 ],
-               ),
-             ),
+        final isRejected = uid != null && currentTrip.rejectedMembers.contains(uid);
+
+        if (!isMember && uid != null) {
+           return FutureBuilder<bool>(
+              future: TripService().hasPendingJoinRequest(currentTrip.id, uid),
+              builder: (context, pendingSnapshot) {
+                 if (pendingSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                 }
+                 
+                 final isPending = pendingSnapshot.data ?? false;
+                 
+                 if (currentTrip.visibility == 'public' || isPending || _localJoinRequested) {
+                    return _buildRestrictedPublicView(currentTrip, uid, isPending: isPending || _localJoinRequested, isRejected: isRejected);
+                 } else {
+                    return _buildPrivateBarrier(currentTrip, uid);
+                 }
+              }
            );
         }
 
@@ -230,6 +217,25 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
             body: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
+                  if (currentTrip.isDead)
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        color: Colors.red.shade50,
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.red.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "This trip is dead (creator left). It is now read-only.",
+                                style: GoogleFonts.inter(color: Colors.red.shade900, fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   SliverAppBar(
                     pinned: true,
                     elevation: 0,
@@ -260,16 +266,17 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                             }
                           },
                           itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'refresh',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.refresh, size: 20, color: Colors.blue),
-                                  SizedBox(width: 12),
-                                  Text("Refresh Data"),
-                                ],
+                            if (!currentTrip.isDead)
+                              const PopupMenuItem(
+                                value: 'refresh',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.refresh, size: 20, color: Colors.blue),
+                                    SizedBox(width: 12),
+                                    Text("Refresh Data"),
+                                  ],
+                                ),
                               ),
-                            ),
                             const PopupMenuItem(
                               value: 'leave',
                               child: Row(
@@ -350,6 +357,194 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
       }
     );
   }
+
+  Widget _buildRestrictedPublicView(Trip trip, String uid, {bool isPending = false, bool isRejected = false}) {
+     final publicTrip = Trip(
+        id: trip.id,
+        name: trip.name,
+        location: trip.location,
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        isDateDecided: trip.isDateDecided,
+        createdBy: trip.createdBy,
+        memberIds: trip.memberIds,
+        adminIds: trip.adminIds,
+        metadata: {...?trip.metadata, 'is_dead': true},
+        budgetCurrency: trip.budgetCurrency,
+        budgetOptions: trip.budgetOptions,
+        budgetVotes: trip.budgetVotes,
+        coverImageUrl: trip.coverImageUrl,
+        visibility: trip.visibility,
+        joinCode: trip.joinCode,
+     );
+
+     return DefaultTabController(
+       length: 5,
+       child: Scaffold(
+          appBar: AppBar(title: Text(trip.name), leading: const BackButton()),
+          floatingActionButton: isRejected ? null : FloatingActionButton.extended(
+            onPressed: isPending ? null : () => _showJoinRequestForm(trip, uid),
+            label: Text(isPending ? "Request Pending" : "Request to Join", style: const TextStyle(fontWeight: FontWeight.bold)),
+            icon: Icon(isPending ? Icons.access_time : Icons.person_add),
+            backgroundColor: isPending ? Colors.grey : Colors.blueAccent,
+            foregroundColor: Colors.white,
+          ),
+          body: Column(
+             children: [
+                Padding(
+                   padding: const EdgeInsets.all(16.0),
+                   child: Column(
+                      children: [
+                         Text("🌍 ${trip.location}", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
+                         const SizedBox(height: 8),
+                         Text(
+                           isRejected
+                             ? "You can view the read-only plan below." 
+                             : isPending 
+                               ? "Your join request is pending approval. You can still view the basic plan below."
+                               : "This is a public agency-led trip. You can view the basic plan below, but you must join the trip to interact with the crew.", 
+                           textAlign: TextAlign.center, 
+                           style: const TextStyle(fontSize: 13, color: Colors.black54)
+                         ),
+                      ],
+                   ),
+                ),
+                const Divider(height: 1, thickness: 1),
+                Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    isScrollable: true,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    dividerColor: Colors.transparent,
+                    indicator: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.blueAccent,
+                    ),
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.grey.shade500,
+                    labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+                    unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                    tabs: const [
+                      Tab(text: "Overview"),
+                      Tab(text: "Dates"),
+                      Tab(text: "Budget"),
+                      Tab(text: "Plan"),
+                      Tab(text: "Links"),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _OverviewTab(trip: publicTrip, onRefresh: () async {}),
+                      _DateTab(trip: publicTrip, onRefresh: () async {}),
+                      _BudgetTab(trip: publicTrip, onRefresh: () async {}),
+                      TripPlanTab(trip: publicTrip),
+                      _LinksTab(trip: publicTrip, onRefresh: () async {}),
+                    ],
+                  ),
+                ),
+             ],
+          ),
+       ),
+     );
+  }
+
+  Widget _buildPrivateBarrier(Trip trip, String uid) {
+     final codeController = TextEditingController();
+     return Scaffold(
+        body: Center(
+           child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                    const Icon(Icons.lock_rounded, size: 64, color: Colors.blueAccent),
+                    const SizedBox(height: 24),
+                    Text("Private Trip", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    const Text("This trip is private. Please enter the join code provided by the agency to gain access.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 32),
+                    TextField(
+                       controller: codeController,
+                       decoration: InputDecoration(
+                          hintText: "Enter Join Code",
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                       ),
+                       textAlign: TextAlign.center,
+                       textCapitalization: TextCapitalization.characters,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                       onPressed: () async {
+                          if (codeController.text.trim().toUpperCase() == trip.joinCode) {
+                             await TripService().respondToJoinRequestManual(trip.id, uid);
+                             _refreshData();
+                          } else {
+                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Join Code")));
+                          }
+                       },
+                       child: const Text("Verify & Access"),
+                    ),
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Go Back")),
+                 ],
+              ),
+           ),
+        ),
+     );
+  }
+
+  void _showJoinRequestForm(Trip trip, String uid) {
+     final name = TextEditingController();
+     final email = TextEditingController();
+     final phone = TextEditingController();
+
+     showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) => Padding(
+           padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+           child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                    Text("Join Request", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 24),
+                    TextField(controller: name, decoration: const InputDecoration(labelText: "Full Name")),
+                    const SizedBox(height: 12),
+                    TextField(controller: email, decoration: const InputDecoration(labelText: "Email Address")),
+                    const SizedBox(height: 12),
+                    TextField(controller: phone, decoration: const InputDecoration(labelText: "Phone Number")),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                       onPressed: () async {
+                          await TripService().submitJoinRequest(
+                             tripId: trip.id,
+                             userId: uid,
+                             fullName: name.text.trim(),
+                             email: email.text.trim(),
+                             phone: phone.text.trim(),
+                          );
+                          if (mounted) {
+                            setState(() {
+                              _localJoinRequested = true;
+                            });
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request submitted!")));
+                       },
+                       child: const Text("Submit Request"),
+                    ),
+                 ],
+              ),
+           ),
+        ),
+     );
+  }
 }
 
 
@@ -369,7 +564,7 @@ class _OverviewTab extends StatelessWidget {
     
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: trip.isDead ? null : FloatingActionButton.extended(
         onPressed: () => _showAIAssistant(context),
         label: const Text("Plan with AI"),
         icon: const Icon(Icons.auto_awesome),
@@ -393,10 +588,20 @@ class _OverviewTab extends StatelessWidget {
                   children: [
                     if (isPast) _buildPastTripBanner(),
                     
-                    // Join Requests for Admins
-                    if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && trip.pendingMembers.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      _buildPendingRequests(context, trip.pendingMembers),
+                    // Join Requests for Admins (Relational Table)
+                    if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id)) ...[
+                       FutureBuilder<List<Map<String, dynamic>>>(
+                         future: TripService().getJoinRequests(trip.id),
+                         builder: (context, snapshot) {
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                               return const SizedBox.shrink();
+                            }
+                            return Padding(
+                               padding: const EdgeInsets.only(top: 20),
+                               child: _buildPendingRequests(context, snapshot.data!),
+                            );
+                         }
+                       )
                     ],
 
                     const SizedBox(height: 12),
@@ -407,7 +612,7 @@ class _OverviewTab extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildSectionHeader("The Travel Crew"),
-                        if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id))
+                        if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !trip.isDead)
                           IconButton(
                             onPressed: () {
                               Clipboard.setData(ClipboardData(text: trip.id));
@@ -672,7 +877,116 @@ class _OverviewTab extends StatelessWidget {
   }
 
 
-  Widget _buildPendingRequests(BuildContext context, List<String> pending) {
+  void _showPendingRequestDetails(BuildContext context, Map<String, dynamic> req, String uid) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        final name = req['full_name'] as String? ?? 'New User';
+        final email = req['email'] as String? ?? 'N/A';
+        final phone = req['phone'] as String? ?? 'N/A';
+        
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 24),
+              FutureBuilder<UserProfile?>(
+                future: AuthService.instance.getOtherUserProfile(uid),
+                builder: (context, snapshot) {
+                  final profile = snapshot.data;
+                  final hasAvatar = profile?.avatarUrl != null && profile!.avatarUrl!.isNotEmpty;
+                  return Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 28, 
+                        backgroundColor: Colors.orange.shade100, 
+                        backgroundImage: hasAvatar ? CachedNetworkImageProvider(profile.avatarUrl!) : null,
+                        child: hasAvatar ? null : Text(name.isNotEmpty ? name[0].toUpperCase() : "?", style: const TextStyle(fontSize: 24, color: Colors.orange, fontWeight: FontWeight.bold))
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
+                          Text("Pending Request", style: TextStyle(color: Colors.orange.shade700, fontWeight: FontWeight.w500)),
+                        ],
+                      )),
+                    ],
+                  );
+                }
+              ),
+              const SizedBox(height: 24),
+              _buildInfoRow(Icons.email_outlined, "Email", email),
+              const SizedBox(height: 16),
+              _buildInfoRow(Icons.phone_outlined, "Phone", phone),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid)));
+                  },
+                  icon: const Icon(Icons.person),
+                  label: const Text("View User Profile"),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await TripService().rejectMember(trip.id, uid);
+                      await onRefresh();
+                    },
+                    icon: const Icon(Icons.cancel),
+                    label: const Text("Decline"),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade50, foregroundColor: Colors.red, padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
+                  )),
+                  const SizedBox(width: 12),
+                  Expanded(child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await TripService().acceptMember(trip.id, uid);
+                      await onRefresh();
+                    },
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text("Approve"),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  )),
+                ],
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: Colors.grey.shade700, size: 20)),
+        const SizedBox(width: 16),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildPendingRequests(BuildContext context, List<Map<String, dynamic>> requests) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -688,59 +1002,37 @@ class _OverviewTab extends StatelessWidget {
                const Icon(Icons.person_add, color: Colors.orange, size: 20),
                const SizedBox(width: 12),
                Text(
-                 "Join Requests (${pending.length})",
+                 "Join Requests (${requests.length})",
                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)
                ),
             ],
           ),
           const SizedBox(height: 16),
-          FutureBuilder<List<UserProfile>>(
-            future: TripService().getTripMembersProfilesByTripId(trip.id),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-              
-              final allProfiles = snapshot.data!;
-              // Filter only pending users from the allProfiles list (RPC returns all)
-              final pendingProfiles = allProfiles.where((p) => pending.contains(p.uid)).toList();
+          Column(
+            children: requests.map((req) {
+              final name = req['full_name'] as String? ?? 'New User';
+              final uid = req['user_id'] as String;
 
-              if (pendingProfiles.isEmpty) return const SizedBox.shrink();
-
-              return Column(
-                children: pendingProfiles.map((profile) {
-                  final name = profile.displayName ?? 'New User';
-                  final uid = profile.uid;
-
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
+              return ListTile(
+                onTap: () => _showPendingRequestDetails(context, req, uid),
+                contentPadding: EdgeInsets.zero,
+                leading: FutureBuilder<UserProfile?>(
+                  future: AuthService.instance.getOtherUserProfile(uid),
+                  builder: (context, snapshot) {
+                    final profile = snapshot.data;
+                    final hasAvatar = profile?.avatarUrl != null && profile!.avatarUrl!.isNotEmpty;
+                    return CircleAvatar(
                       backgroundColor: Colors.white,
-                      backgroundImage: profile.avatarUrl != null ? CachedNetworkImageProvider(profile.avatarUrl!) : null,
-                      child: profile.avatarUrl == null ? Text(name[0]) : null,
-                    ),
-                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.check_circle, color: Colors.green),
-                          onPressed: () async {
-                            await TripService().acceptMember(trip.id, uid);
-                            await onRefresh();
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.cancel, color: Colors.red),
-                          onPressed: () async {
-                            await TripService().rejectMember(trip.id, uid);
-                            await onRefresh();
-                          },
-                        )
-                      ],
-                    ),
-                  );
-                }).toList(),
+                      backgroundImage: hasAvatar ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
+                      child: hasAvatar ? null : Text(name.isNotEmpty ? name[0].toUpperCase() : "?", style: const TextStyle(color: Colors.orange)),
+                    );
+                  }
+                ),
+                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text("Tap to view details", style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right, color: Colors.orange),
               );
-            },
+            }).toList(),
           ),
         ],
       ),
@@ -1354,7 +1646,7 @@ class _DateTabState extends State<_DateTab> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Timeline", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                if (isAdmin)
+                if (isAdmin && !widget.trip.isDead)
                   TextButton.icon(
                     onPressed: _showCalendarModal,
                     icon: const Icon(Icons.edit_calendar, size: 18),
@@ -1447,7 +1739,7 @@ class _DateTabState extends State<_DateTab> {
                       Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey.shade300),
                       const SizedBox(height: 16),
                       const Text("No dates set yet", style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
-                      if (isAdmin) ...[
+                      if (isAdmin && !widget.trip.isDead) ...[
                         const SizedBox(height: 8),
                         const Text("Set dates to start planning the timeline.", style: TextStyle(color: Colors.grey)),
                         const SizedBox(height: 24),
@@ -1547,7 +1839,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                           ],
                         ),
                       ),
-                      if (isAdmin)
+                      if (isAdmin && !widget.trip.isDead)
                         IconButton(
                           onPressed: _showEditBudgetDialog,
                           icon: const Icon(Icons.edit_note, color: Colors.white, size: 28),
@@ -1610,7 +1902,7 @@ class _BudgetTabState extends State<_BudgetTab> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Breakdown", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                if (isAdmin && widget.trip.budgetAllocations.isNotEmpty)
+                if (isAdmin && widget.trip.budgetAllocations.isNotEmpty && !widget.trip.isDead)
                   TextButton.icon(
                     onPressed: _showEditBudgetDialog,
                     icon: const Icon(Icons.add, size: 18),
@@ -2103,7 +2395,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
     final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: widget.trip.isDead ? null : FloatingActionButton.extended(
         onPressed: _showCreatePollBottomSheet,
         icon: const Icon(Icons.add),
         label: const Text("New Poll"),
@@ -2152,6 +2444,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
               itemBuilder: (context, index) => _RelationalPollCard(
                 poll: polls[index],
                 isAdmin: isAdmin,
+                isDead: widget.trip.isDead,
               ),
             ),
           );
@@ -2164,8 +2457,9 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
 class _RelationalPollCard extends StatefulWidget {
   final TripPoll poll;
   final bool isAdmin;
+  final bool isDead;
 
-  const _RelationalPollCard({required this.poll, required this.isAdmin});
+  const _RelationalPollCard({required this.poll, required this.isAdmin, this.isDead = false});
 
   @override
   State<_RelationalPollCard> createState() => _RelationalPollCardState();
@@ -2251,7 +2545,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
               final isSelected = myVoteOptionIds.contains(option.id);
 
               return GestureDetector(
-                onTap: isExpired ? null : () => _handleVote(option.id),
+                onTap: (isExpired || widget.isDead) ? null : () => _handleVote(option.id),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   height: 52,
@@ -2564,7 +2858,7 @@ class _GalleryTabState extends State<_GalleryTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: _isSelectionMode 
+      floatingActionButton: (_isSelectionMode || widget.trip.isDead)
           ? null 
           : FloatingActionButton.extended(
               onPressed: _isUploading ? null : _pickAndUploadPhotos,
@@ -3337,7 +3631,7 @@ class _LinksTabState extends State<_LinksTab> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: widget.trip.isDead ? null : FloatingActionButton.extended(
         onPressed: () => _showAddResourceSheet(context),
         icon: const Icon(Icons.add_link),
         backgroundColor: Colors.blueAccent,
@@ -3375,8 +3669,10 @@ class _LinksTabState extends State<_LinksTab> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               children: [
                 // Quick Actions Header
-                _buildQuickActions(context),
-                const SizedBox(height: 20),
+                if (!widget.trip.isDead)
+                  _buildQuickActions(context),
+                if (!widget.trip.isDead)
+                  const SizedBox(height: 20),
                 
                 ...categories.expand((cat) => [
                   Padding(
@@ -3395,6 +3691,7 @@ class _LinksTabState extends State<_LinksTab> {
                     link: link,
                     isAdmin: isAdmin,
                     isOwner: link.addedBy == currentUser,
+                    isDead: widget.trip.isDead,
                     onTap: () => _launchUrl(context, link.url),
                     onDelete: () => _confirmDelete(context, link),
                     onPin: (val) => _handlePin(link, val),
@@ -3512,6 +3809,7 @@ class _LinkCard extends StatelessWidget {
   final TripLink link;
   final bool isAdmin;
   final bool isOwner;
+  final bool isDead;
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final Function(bool) onPin;
@@ -3520,6 +3818,7 @@ class _LinkCard extends StatelessWidget {
     required this.link,
     required this.isAdmin,
     required this.isOwner,
+    this.isDead = false,
     required this.onTap,
     required this.onDelete,
     required this.onPin,
@@ -3598,7 +3897,7 @@ class _LinkCard extends StatelessWidget {
                             ),
                             Row(
                               children: [
-                                if (isAdmin || isOwner)
+                                if (!isDead && (isAdmin || isOwner))
                                   IconButton(
                                     icon: Icon(link.isPinned ? Icons.push_pin : Icons.push_pin_outlined, 
                                         size: 18, color: link.isPinned ? Colors.orange : Colors.grey),
@@ -3606,7 +3905,7 @@ class _LinkCard extends StatelessWidget {
                                     constraints: const BoxConstraints(),
                                     padding: const EdgeInsets.all(4),
                                   ),
-                                if (isAdmin || isOwner)
+                                if (!isDead && (isAdmin || isOwner))
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
                                     onPressed: onDelete,

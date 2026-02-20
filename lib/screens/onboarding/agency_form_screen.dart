@@ -83,6 +83,7 @@ class _AgencyFormScreenState extends State<AgencyFormScreen> {
         role: 'agency',
         displayName: _agencyNameController.text.trim(),
         username: _usernameController.text.trim(),
+        bio: _descriptionController.text.trim(), // Use description as bio
         agencyName: _agencyNameController.text.trim(),
         contactPerson: _contactPersonController.text.trim(),
         officeLocation: geoData?['city'] ?? locationString,

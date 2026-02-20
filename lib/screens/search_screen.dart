@@ -8,6 +8,8 @@ import '../models/post.dart';
 import '../models/user_profile.dart';
 import 'profile_screen.dart';
 import 'post_detail_screen.dart';
+import 'trip_dashboard_screen.dart';
+import '../models/trip.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -25,10 +27,14 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Map<String, dynamic>> _trendingTags = [];
   List<UserProfile> _userResults = [];
   List<Post> _tagResults = [];
+  List<Trip> _tripResults = [];
+  List<UserProfile> _suggestedAgencies = [];
+  List<Trip> _suggestedTrips = [];
   
   bool _isLoadingDiscover = true;
+  bool _isLoadingSuggestions = true;
   bool _isSearching = false;
-  String _searchType = 'users'; // 'users' or 'tags'
+  String _searchType = 'users'; // 'users', 'tags', or 'trips'
 
   @override
   void initState() {
@@ -48,22 +54,35 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _loadDiscoverData() async {
-    setState(() => _isLoadingDiscover = true);
+    setState(() {
+      _isLoadingDiscover = true;
+      _isLoadingSuggestions = true;
+    });
     try {
       final results = await Future.wait([
         _postService.getDiscoverFeed(limit: 20),
         _postService.getTrendingHashtags(),
+        _postService.getSuggestedAgencies(),
+        _postService.getSuggestedTrips(),
       ]);
       
       if (mounted) {
         setState(() {
           _discoverPosts = results[0] as List<Post>;
           _trendingTags = results[1] as List<Map<String, dynamic>>;
+          _suggestedAgencies = results[2] as List<UserProfile>;
+          _suggestedTrips = results[3] as List<Trip>;
           _isLoadingDiscover = false;
+          _isLoadingSuggestions = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingDiscover = false);
+      if (mounted) {
+         setState(() {
+           _isLoadingDiscover = false;
+           _isLoadingSuggestions = false;
+         });
+      }
     }
   }
 
@@ -83,9 +102,16 @@ class _SearchScreenState extends State<SearchScreen> {
       if (_searchType == 'users') {
         final results = await _postService.searchUsers(query);
         if (mounted) setState(() => _userResults = results);
-      } else {
+      } else if (_searchType == 'tags') {
         final results = await _postService.searchPostsByHashtag(query.replaceAll('#', ''));
         if (mounted) setState(() => _tagResults = results);
+      } else {
+        // Search Agency Trips
+        final data = await _postService.supabase
+            .from('searchable_agency_trips')
+            .select()
+            .ilike('name', '%$query%');
+        if (mounted) setState(() => _tripResults = (data as List).map((t) => Trip.fromMap(t)).toList());
       }
     } catch (e) {
       print("Search error: $e");
@@ -106,7 +132,7 @@ class _SearchScreenState extends State<SearchScreen> {
             controller: _searchController,
             onChanged: _handleSearch,
             decoration: InputDecoration(
-              hintText: _searchType == 'users' ? "Search travelers..." : "Search #hashtags...",
+              hintText: _searchType == 'users' ? "Search travelers..." : _searchType == 'tags' ? "Search #hashtags..." : "Search trip plans...",
               hintStyle: GoogleFonts.inter(color: Colors.grey, fontSize: 14),
               prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey, size: 20),
               border: InputBorder.none,
@@ -127,6 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'users', child: Text("Search Users")),
               const PopupMenuItem(value: 'tags', child: Text("Search Tags")),
+              const PopupMenuItem(value: 'trips', child: Text("Search Agency Trips")),
             ],
           ),
           const SizedBox(width: 8),
@@ -144,10 +171,127 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Suggested Agencies
+            if (_isLoadingSuggestions || _suggestedAgencies.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Suggested Agencies", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.verified_rounded, color: Colors.blueAccent, size: 20),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 100,
+                child: _isLoadingSuggestions 
+                  ? _buildSuggestedAgenciesSkeleton()
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(left: 20),
+                      itemCount: _suggestedAgencies.length,
+                      itemBuilder: (context, index) {
+                        final agency = _suggestedAgencies[index];
+                        return GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: agency.uid))),
+                          child: Container(
+                            width: 80,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundImage: agency.avatarUrl != null ? CachedNetworkImageProvider(agency.avatarUrl!) : null,
+                                  child: agency.avatarUrl == null ? const Icon(Icons.business_rounded) : null,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  agency.displayName ?? 'Agency',
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+              ),
+            ],
+
+            // Trending Trips
+            if (_isLoadingSuggestions || _suggestedTrips.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                child: Text("Trending Trips", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              SizedBox(
+                height: 140,
+                child: _isLoadingSuggestions
+                  ? _buildSuggestedTripsSkeleton()
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(left: 20),
+                      itemCount: _suggestedTrips.length,
+                      itemBuilder: (context, index) {
+                        final trip = _suggestedTrips[index];
+                        return GestureDetector(
+                          onTap: () {
+                             Navigator.push(
+                               context, 
+                               MaterialPageRoute(builder: (_) => TripDashboardScreen(trip: trip))
+                             );
+                          },
+                          child: Container(
+                            width: 140,
+                            margin: const EdgeInsets.only(right: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              image: trip.coverImageUrl != null 
+                                ? DecorationImage(image: CachedNetworkImageProvider(trip.coverImageUrl!), fit: BoxFit.cover)
+                                : null,
+                              color: Colors.blue.shade50,
+                            ),
+                            child: Stack(
+                              children: [
+                                if (trip.coverImageUrl != null)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                                      ),
+                                    ),
+                                  ),
+                                Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(trip.name, style: GoogleFonts.outfit(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      Text(trip.location, style: GoogleFonts.inter(color: Colors.white70, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+              ),
+            ],
+
             // Trending Tags
             if (_trendingTags.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
                 child: Text("Trending Tags", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               SizedBox(
@@ -193,6 +337,32 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  Widget _buildSuggestedAgenciesSkeleton() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 20),
+      itemCount: 5,
+      itemBuilder: (context, index) => Container(
+        width: 60, height: 60,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: const BoxDecoration(color: Colors.grey, shape: BoxShape.circle),
+      ),
+    );
+  }
+
+  Widget _buildSuggestedTripsSkeleton() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 20),
+      itemCount: 3,
+      itemBuilder: (context, index) => Container(
+        width: 140, height: 140,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+
   Widget _buildSearchResults() {
     if (_searchType == 'users') {
       if (_userResults.isEmpty) return _buildNoResults();
@@ -211,10 +381,40 @@ class _SearchScreenState extends State<SearchScreen> {
           );
         },
       );
-    } else {
+    } else if (_searchType == 'tags') {
       if (_tagResults.isEmpty) return _buildNoResults();
       return _buildPostGrid(_tagResults);
+    } else {
+      if (_tripResults.isEmpty) return _buildNoResults();
+      return _buildTripList(_tripResults);
     }
+  }
+
+  Widget _buildTripList(List<Trip> trips) {
+    return ListView.builder(
+      itemCount: trips.length,
+      itemBuilder: (context, index) {
+        final trip = trips[index];
+        return ListTile(
+          leading: Container(
+            width: 50, height: 50,
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              image: trip.coverImageUrl != null ? DecorationImage(image: CachedNetworkImageProvider(trip.coverImageUrl!), fit: BoxFit.cover) : null,
+            ),
+            child: trip.coverImageUrl == null ? const Icon(Icons.map_rounded, color: Colors.blueAccent) : null,
+          ),
+          title: Text(trip.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          subtitle: Text(trip.location, style: GoogleFonts.inter(color: Colors.grey)),
+          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+          onTap: () {
+             // Navigate to Trip Dashboard in View-Only mode if not a member
+             // This will be handled in TripDashboardScreen logic
+          },
+        );
+      },
+    );
   }
 
   Widget _buildPostGrid(List<Post> posts) {

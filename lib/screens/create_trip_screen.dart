@@ -41,6 +41,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool _isLoading = false;
   bool _isDatesDecided = true; // Default to needing dates
   bool _isBudgetExpanded = false;
+  String _visibility = 'public';
 
   void _pickDateRange() async {
     final now = DateTime.now();
@@ -146,6 +147,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         budgetCurrency: _selectedCurrency,
         estimatedCost: totalBudget,
         coverImageUrl: finalCoverUrl,
+        visibility: _visibility,
+        joinCode: _visibility == 'private' ? uuid.v4().substring(0, 8).toUpperCase() : null,
       );
       
       // Construct local Trip object for immediate navigation
@@ -167,6 +170,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           'days': startDate != null && endDate != null ? endDate.difference(startDate).inDays + 1 : 3,
         },
         coverImageUrl: finalCoverUrl,
+        visibility: _visibility,
+        joinCode: _visibility == 'private' ? uuid.v4().substring(0, 8).toUpperCase() : null,
       );
 
       if (mounted) setState(() => _isLoading = false);
@@ -206,6 +211,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     _buildLocationSection(),
                     const SizedBox(height: 32),
                     _buildDatesSection(),
+                    const SizedBox(height: 32),
+                    _buildVisibilitySection(),
                     const SizedBox(height: 32),
                     _buildBudgetSection(),
                   ]),
@@ -521,6 +528,49 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           const Text("You can edit details anytime.", style: TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
+    );
+  }
+
+  Widget _buildVisibilitySection() {
+    final userProfile = Provider.of<AuthService>(context, listen: false).userProfile;
+    if (userProfile?.role != 'agency') return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "TRIP VISIBILITY",
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              RadioListTile<String>(
+                title: const Text("Public"),
+                subtitle: const Text("Searchable and open for join requests"),
+                value: 'public',
+                groupValue: _visibility,
+                onChanged: (val) => setState(() => _visibility = val!),
+                activeColor: Colors.blueAccent,
+              ),
+              RadioListTile<String>(
+                title: const Text("Private"),
+                subtitle: const Text("Invite only via join code"),
+                value: 'private',
+                groupValue: _visibility,
+                onChanged: (val) => setState(() => _visibility = val!),
+                activeColor: Colors.blueAccent,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
