@@ -201,15 +201,44 @@ class TripService {
     return asString;
   }
 
-  // Join Trip using ID
-  Future<void> joinTrip(String tripId, String uid) async {
+  // Join Trip using ID or Code
+  Future<void> joinTrip(String codeOrId, String uid) async {
     try {
-      // 1. Add to pending_members via RPC (SECURITY DEFINER)
-      // This RPC handles duplicate checks and appends to metadata->'pending_members'
-      await _supabase.rpc('join_trip', params: {
-        'trip_uuid': tripId, 
-        'user_id': uid
-      });
+      final codeOrIdTrimmed = codeOrId.trim();
+      final tripsQuery = _supabase.from('trips').select('id, member_ids');
+      
+      Map<String, dynamic>? tripData;
+      if (codeOrIdTrimmed.length == 8) {
+         tripData = await tripsQuery.eq('join_code', codeOrIdTrimmed.toUpperCase()).maybeSingle();
+      } else {
+         tripData = await tripsQuery.eq('id', codeOrIdTrimmed).maybeSingle();
+      }
+
+      if (tripData == null) {
+         throw Exception("Trip not found with this ID or Code.");
+      }
+
+      String actualTripId = tripData['id'];
+      List<dynamic> members = tripData['member_ids'] ?? [];
+      
+      if (members.contains(uid)) {
+         throw Exception("You are already a member of this trip.");
+      }
+
+      // Fetch user profile
+      final userData = await _supabase.from('profiles').select('display_name, email, phone').eq('id', uid).maybeSingle();
+      String fullName = userData?['display_name'] ?? 'User';
+      String email = userData?['email'] ?? '';
+      String phone = userData?['phone'] ?? '';
+
+      // Submit request to the new table
+      await submitJoinRequest(
+         tripId: actualTripId, 
+         userId: uid, 
+         fullName: fullName, 
+         email: email, 
+         phone: phone
+      );
     } catch (e) {
       print("Error joining trip: $e");
       _handleException(e);

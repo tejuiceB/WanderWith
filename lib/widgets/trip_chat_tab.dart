@@ -581,9 +581,11 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                               if (isLoading) return _buildSkeletonBubble();
                               final msg = messages[index];
                               final isMe = msg.senderId == user.id;
+                              final isAgency = _memberProfiles[msg.senderId]?.role == 'agency';
                                 return _MessageBubble(
                                   message: msg, 
                                   isMe: isMe,
+                                  isAgency: isAgency,
                                   onReact: (emoji) => _toggleReaction(msg.id, user.id, emoji),
                                   onReply: () => _startReplying(msg),
                                   onEdit: () => _startEditing(msg),
@@ -726,9 +728,9 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                       child: profile?.avatarUrl == null ? const Icon(Icons.person, color: Colors.blue) : null,
                     ),
                     title: Text(profile?.displayName ?? "Member ${mid.substring(0, 5)}..."),
-                    subtitle: Text(mid == widget.trip.createdBy ? "Trip Owner" : "Member"),
-                    trailing: mid == widget.trip.createdBy 
-                      ? const Icon(Icons.verified, color: Colors.amber, size: 16)
+                    subtitle: Text(profile?.role == 'agency' ? "Travel Agency" : mid == widget.trip.createdBy ? "Trip Owner" : "Member"),
+                    trailing: profile?.role == 'agency'
+                      ? const Icon(Icons.verified, color: Colors.blueAccent, size: 16)
                       : null,
                   );
                 },
@@ -840,6 +842,7 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
+  final bool isAgency;
   final Function(String) onReact;
   final VoidCallback onReply;
   final VoidCallback onEdit;
@@ -863,6 +866,7 @@ class _MessageBubble extends StatelessWidget {
     required this.onDeleteForEveryone,
     required this.currentUserId,
     required this.optimisticReactions,
+    this.isAgency = false,
     this.isDead = false,
   });
 
@@ -983,7 +987,16 @@ class _MessageBubble extends StatelessWidget {
           if (!isMe && !isBot)
             Padding(
               padding: const EdgeInsets.only(left: 12, bottom: 2),
-              child: Text(message.senderName ?? 'User', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(message.senderName ?? 'User', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  if (isAgency) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.verified, color: Colors.blueAccent, size: 10),
+                  ]
+                ],
+              )
             ),
           Row(
             mainAxisAlignment: isMe ? MainAxisAlignment.end : isBot ? MainAxisAlignment.center : MainAxisAlignment.start,

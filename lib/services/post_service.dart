@@ -350,7 +350,7 @@ class PostService {
     try {
       var query = _supabase
           .from('comments')
-          .select('*, profiles(id, display_name, avatar_url, username)')
+          .select('*, profiles(id, display_name, avatar_url, username, role)')
           .eq('post_id', postId);
 
       if (beforeTimestamp != null) {

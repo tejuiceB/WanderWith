@@ -816,7 +816,7 @@ class _OverviewTab extends StatelessWidget {
 
   Widget _buildMembersGrid(BuildContext context) {
     return FutureBuilder<List<UserProfile>>(
-      future: TripService().getTripMembersProfilesByTripId(trip.id),
+      future: TripService().getTripMembersProfiles(trip.memberIds),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator()));
           final allProfiles = snapshot.data!;
@@ -914,7 +914,23 @@ class _OverviewTab extends StatelessWidget {
                       Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                        children: [
                           Text(name, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
+                          FutureBuilder<UserProfile?>(
+                            future: AuthService.instance.getOtherUserProfile(uid),
+                            builder: (context, snapshot) {
+                              if (snapshot.data?.role == 'agency') {
+                                return const Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: Icon(Icons.verified, color: Colors.blueAccent, size: 18),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ],
+                      ),
                           Text("Pending Request", style: TextStyle(color: Colors.orange.shade700, fontWeight: FontWeight.w500)),
                         ],
                       )),
@@ -1028,7 +1044,23 @@ class _OverviewTab extends StatelessWidget {
                     );
                   }
                 ),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                title: Row(
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    FutureBuilder<UserProfile?>(
+                      future: AuthService.instance.getOtherUserProfile(uid),
+                      builder: (context, snapshot) {
+                        if (snapshot.data?.role == 'agency') {
+                          return const Padding(
+                            padding: EdgeInsets.only(left: 4),
+                            child: Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ],
+                ),
                 subtitle: const Text("Tap to view details", style: TextStyle(fontSize: 12)),
                 trailing: const Icon(Icons.chevron_right, color: Colors.orange),
               );
@@ -1088,6 +1120,7 @@ class _OverviewTab extends StatelessWidget {
                    if (!snap.hasData) return const ListTile(title: Text("Loading..."));
                    final name = snap.data!['display_name'] ?? 'User';
                    final avatarUrl = snap.data!['avatar_url'];
+                   final role = snap.data!['role'];
 
                    final currentUid = Supabase.instance.client.auth.currentUser?.id;
                    final iAmAdmin = trip.adminIds.contains(currentUid);
@@ -1111,6 +1144,10 @@ class _OverviewTab extends StatelessWidget {
                              overflow: TextOverflow.ellipsis,
                            ),
                          ),
+                         if (role == 'agency') ...[
+                           const SizedBox(width: 4),
+                           const Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                         ],
                          if (targetIsOwner || targetIsAdmin) ...[
                            const SizedBox(width: 8),
                            Container(
@@ -1264,6 +1301,10 @@ class _MemberChipV2 extends StatelessWidget {
             profile.displayName ?? "User",
             style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
           ),
+          if (profile.role == 'agency') ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.verified, color: Colors.blueAccent, size: 12),
+          ],
         ],
       ),
     );
@@ -1361,7 +1402,7 @@ class _MemberAvatar extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.verified,
-                        size: 14, color: Colors.green),
+                        size: 14, color: Colors.blueAccent),
                   ),
                 ),
             ],
@@ -1369,11 +1410,22 @@ class _MemberAvatar extends StatelessWidget {
           const SizedBox(height: 8),
           SizedBox(
             width: 70,
-            child: Text(
-              profile.displayName?.split(' ').first ?? 'User',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    profile.displayName?.split(' ').first ?? 'User',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (profile.role == 'agency') ...[
+                  const SizedBox(width: 2),
+                  const Icon(Icons.verified, color: Colors.blueAccent, size: 10),
+                ]
+              ],
             ),
           ),
         ],

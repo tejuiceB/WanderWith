@@ -344,7 +344,15 @@ class _PostCardState extends State<PostCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(authorName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Row(
+                        children: [
+                          Text(authorName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                          if (widget.post.author?.role == 'agency') ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                          ],
+                        ]
+                      ),
                       if (widget.post.location != null && widget.post.location!.isNotEmpty)
                         Row(
                           children: [

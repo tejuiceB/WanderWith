@@ -209,7 +209,16 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                       children: [
                         GestureDetector(
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: comment['user_id']))),
-                          child: Text(displayName, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(displayName, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                              if (profile?['role'] == 'agency') ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.verified, color: Colors.blueAccent, size: 12),
+                              ],
+                            ]
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Text(

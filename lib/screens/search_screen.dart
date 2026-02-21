@@ -206,12 +206,23 @@ class _SearchScreenState extends State<SearchScreen> {
                                   child: agency.avatarUrl == null ? const Icon(Icons.business_rounded) : null,
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  agency.displayName ?? 'Agency',
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        agency.displayName ?? 'Agency',
+                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (agency.role == 'agency') ...[
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.verified, color: Colors.blueAccent, size: 12),
+                                    ]
+                                  ],
                                 ),
                               ],
                             ),
@@ -375,7 +386,15 @@ class _SearchScreenState extends State<SearchScreen> {
               backgroundImage: user.avatarUrl != null ? CachedNetworkImageProvider(user.avatarUrl!) : null,
               child: user.avatarUrl == null ? Text(user.displayName?[0] ?? 'U') : null,
             ),
-            title: Text(user.displayName ?? 'Traveler', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            title: Row(
+              children: [
+                Text(user.displayName ?? 'Traveler', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                if (user.role == 'agency') ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                ]
+              ],
+            ),
             subtitle: Text("@${user.username ?? ''}", style: GoogleFonts.inter(color: Colors.grey)),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: user.uid))),
           );
