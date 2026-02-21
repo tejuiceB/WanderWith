@@ -20,6 +20,7 @@ import 'screens/onboarding/traveler_form_screen.dart';
 import 'screens/onboarding/agency_form_screen.dart';
 import 'screens/splash_screen.dart'; 
 import 'screens/post_detail_screen.dart';
+import 'screens/follow_requests_screen.dart'; // Added
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/app_env.dart';
 import 'providers/plan_provider.dart';
@@ -39,12 +40,28 @@ Future<void> main() async {
   NotificationService().init((type, data) async {
       final String? tripId = data['tripId'];
       final String? postId = data['postId'];
+      final String? senderId = data['senderId']; // We need to ensure senderId is in the metadata
 
       if (type == 'like' || type == 'comment') {
          if (postId != null && postId.isNotEmpty) {
             navigatorKey.currentState?.push(
                MaterialPageRoute(builder: (_) => PostDetailScreen(postId: postId))
             );
+         }
+      } else if (type == 'follow_request') {
+         navigatorKey.currentState?.push(
+            MaterialPageRoute(builder: (_) => const FollowRequestsScreen())
+         );
+      } else if (type == 'follow_accepted') {
+         // Optionally route to sender's profile if we pass senderId in metadata
+         if (senderId != null && senderId.isNotEmpty) {
+             navigatorKey.currentState?.push(
+                MaterialPageRoute(builder: (_) => ProfileScreen(userId: senderId))
+             );
+         } else {
+             navigatorKey.currentState?.push(
+                MaterialPageRoute(builder: (_) => const ProfileScreen())
+             );
          }
       } else if (tripId != null && tripId.isNotEmpty) {
          try {

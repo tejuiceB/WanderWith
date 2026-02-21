@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notification_service.dart';
+import '../models/notification.dart';
 
 enum FollowStatus {
   none,
@@ -56,6 +58,22 @@ class FollowService {
       'following_id': targetUserId,
       'status': status,
     }, onConflict: 'follower_id,following_id');
+
+    // 3. Send Notification
+    try {
+       final currentUserProfile = await _supabase.from('profiles').select('display_name').eq('id', currentUserId).single();
+       final senderName = currentUserProfile['display_name'] ?? 'Someone';
+       
+       await NotificationService().sendNotification(
+         toUserId: targetUserId,
+         title: isPrivate ? "New Follow Request" : "New Follower",
+         body: isPrivate ? "$senderName requested to follow you." : "$senderName started following you.",
+         type: isPrivate ? NotificationType.followRequest : NotificationType.followAccepted,
+         metadata: {'senderId': currentUserId},
+       );
+    } catch (e) {
+       print("Failed to send follow push notification: $e");
+    }
   }
 
   /// Unfollows a user or cancels a pending request
@@ -92,6 +110,22 @@ class FollowService {
         .update({'status': 'accepted'})
         .eq('follower_id', followerId)
         .eq('following_id', currentUserId);
+
+    // Send Notification back to follower
+    try {
+       final currentUserProfile = await _supabase.from('profiles').select('display_name').eq('id', currentUserId).single();
+       final accepterName = currentUserProfile['display_name'] ?? 'Someone';
+       
+       await NotificationService().sendNotification(
+         toUserId: followerId, // Tell the person who sent the request!
+         title: "Request Accepted",
+         body: "$accepterName accepted your follow request.",
+         type: NotificationType.followAccepted,
+         metadata: {'senderId': currentUserId},
+       );
+    } catch (e) {
+       print("Failed to send accept push notification: $e");
+    }
   }
 
   /// Reject is same as remove/delete

@@ -21,7 +21,7 @@ class NotificationService {
   Future<void> init(Function(String type, Map<String, dynamic> data) onNotificationClick) async {
     _onNotificationClick = onNotificationClick;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher'); // Ensure app icon exists
+    const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon'); // Ensure app icon exists
     const iosSettings = DarwinInitializationSettings();
     const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
 
