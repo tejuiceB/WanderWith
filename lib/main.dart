@@ -112,8 +112,15 @@ final GoRouter _router = GoRouter(
     }
 
     // 5. Logged in and complete -> Redirection from Auth Screens to Content
-    if (isAuthenticated && authService.hasCompletedOnboarding && (isLoggingIn || isOnboarding)) {
-      return '/';
+    if (isAuthenticated && authService.hasCompletedOnboarding) {
+       if (isLoggingIn || isOnboarding) {
+          // Check if there was an intended destination saved during login
+          final target = state.uri.queryParameters['from'];
+          if (target != null && target.isNotEmpty && target != '/' && target != '/login' && target != '/splash') {
+             return Uri.decodeComponent(target);
+          }
+          return '/';
+       }
     }
 
     return null; 
@@ -126,7 +133,7 @@ final GoRouter _router = GoRouter(
         return SplashScreen(
           onFinish: () {
             AuthService.instance.markSplashShown();
-            context.go(from);
+            context.go(Uri.decodeComponent(from));
           },
         );
       },
@@ -152,20 +159,22 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const MainScreen(),
-    ),
-    GoRoute(
-      path: '/u/:username',
-      builder: (context, state) {
-        final username = state.pathParameters['username'];
-        return ProfileScreen(username: username);
-      },
-    ),
-    GoRoute(
-      path: '/p/:id',
-      builder: (context, state) {
-        final postId = state.pathParameters['id'];
-        return PostDetailScreen(postId: postId ?? '');
-      },
+      routes: [
+        GoRoute(
+          path: 'u/:username',
+          builder: (context, state) {
+            final username = state.pathParameters['username'];
+            return ProfileScreen(username: username);
+          },
+        ),
+        GoRoute(
+          path: 'p/:id',
+          builder: (context, state) {
+            final postId = state.pathParameters['id'];
+            return PostDetailScreen(postId: postId ?? '');
+          },
+        ),
+      ],
     ),
   ],
 );

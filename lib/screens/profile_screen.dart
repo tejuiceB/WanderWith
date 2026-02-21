@@ -56,7 +56,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   bool _isCheckingFollow = false;
   
   
-  bool get isCurrentUser => widget.userId == null || widget.userId == Supabase.instance.client.auth.currentUser?.id;
+  bool get isCurrentUser {
+    final authId = Supabase.instance.client.auth.currentUser?.id;
+    if (widget.userId == authId) return true;
+    if (widget.userId == null && widget.username == null) return true;
+    if (_targetProfile != null && _targetProfile!.uid == authId) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -1373,12 +1379,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   void _handleShareProfile(UserProfile profile) {
      final username = profile.username ?? profile.displayName?.replaceAll(' ', '_').toLowerCase() ?? profile.uid;
      final webUrl = "https://tejuice.fun/u/$username";
-     final appUrl = "wanderwith://u/$username";
      
-     Share.share(
-       "Check out ${profile.displayName}'s profile on WanderWith! 🌍✨\n\nLink: $webUrl\nApp Link: $appUrl",
-       subject: "WanderWith Profile",
-     );
+     Share.share(webUrl);
   }
 }
 

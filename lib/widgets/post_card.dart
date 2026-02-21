@@ -67,14 +67,8 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _handleShare() {
-    final String authorName = widget.post.author?.displayName ?? 'a traveler';
     final String webUrl = "https://tejuice.fun/p/${widget.post.id}";
-    final String appUrl = "wanderwith://p/${widget.post.id}";
-    
-    Share.share(
-      "Check out this travel post by $authorName on WanderWith! 🌍✨\n\nLink: $webUrl\nApp Link: $appUrl",
-      subject: "WanderWith Post",
-    );
+    Share.share(webUrl);
   }
 
   void _showComments() {
