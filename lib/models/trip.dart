@@ -59,6 +59,12 @@ class Trip {
       ? Map<String, dynamic>.from(metadata!['reviews'])
       : {};
 
+  // ABOUT getter (New)
+  String? get about =>
+      (metadata != null && metadata!['about'] != null)
+      ? metadata!['about'] as String
+      : null;
+
   // BUDGET getters (New single-budget + allocations model)
   double get estimatedCost =>
       (metadata != null && metadata!['estimated_cost'] != null)

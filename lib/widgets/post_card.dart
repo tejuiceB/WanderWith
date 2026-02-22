@@ -27,6 +27,7 @@ class _PostCardState extends State<PostCard> {
   late int _likeCount;
   late int _commentCount;
   late String? _caption;
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -374,35 +375,99 @@ class _PostCardState extends State<PostCard> {
             ),
           ),
 
-          // 2. Image with immersive styling
-          Stack(
-            children: [
-              ClipRRect(
+          // 2. Image Carousel with immersive styling and dynamic sizing
+          Builder(
+            builder: (context) {
+              final List<String> displayUrls = [];
+              if (widget.post.imageUrls != null && widget.post.imageUrls.isNotEmpty) {
+                 displayUrls.addAll(widget.post.imageUrls);
+              } else if (widget.post.imageUrl != null && widget.post.imageUrl.isNotEmpty) {
+                 displayUrls.add(widget.post.imageUrl);
+              }
+                
+              if (displayUrls.isEmpty) return const SizedBox.shrink();
+
+              return ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: CachedNetworkImage(
-                  imageUrl: widget.post.imageUrl,
-                  width: double.infinity,
-                  height: 350,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.grey.shade100),
-                  errorWidget: (context, url, error) => Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image)),
-                ),
-              ),
-              // Gradient Overlay
-              Positioned.fill(
                 child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withOpacity(0.2)],
-                      stops: const [0.7, 1.0],
-                    ),
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.65, // Max 65% of screen height
+                    minHeight: 200,
+                  ),
+                  child: Stack(
+                    children: [
+                      // Invisible first image to dictate the height of the Stack
+                      Opacity(
+                        opacity: 0.0,
+                        child: CachedNetworkImage(
+                          imageUrl: displayUrls[0],
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      // The actual carousel filling the defined height
+                      Positioned.fill(
+                        child: PageView.builder(
+                          itemCount: displayUrls.length,
+                          onPageChanged: (index) {
+                            setState(() => _currentImageIndex = index);
+                          },
+                          itemBuilder: (context, index) {
+                            return GestureDetector(
+                              onTap: () => _openFullScreen(context, displayUrls, index),
+                              child: CachedNetworkImage(
+                                imageUrl: displayUrls[index],
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(color: Colors.grey.shade100),
+                                errorWidget: (context, url, error) => Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image)),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      // Gradient Overlay
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Colors.black.withOpacity(0.2)],
+                                stops: const [0.7, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Dots Indicator
+                      if (displayUrls.length > 1)
+                        Positioned(
+                          bottom: 12,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(
+                              displayUrls.length,
+                              (index) => AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin: const EdgeInsets.symmetric(horizontal: 3),
+                                height: 6,
+                                width: _currentImageIndex == index ? 16 : 6,
+                                decoration: BoxDecoration(
+                                  color: _currentImageIndex == index ? Colors.white : Colors.white.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+              );
+            }
           ),
 
           // 3. Interactions
@@ -440,6 +505,38 @@ class _PostCardState extends State<PostCard> {
         ],
       ),
     );
+  }
+
+  void _openFullScreen(BuildContext context, List<String> urls, int initialIndex) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        extendBodyBehindAppBar: true,
+        body: PageView.builder(
+          itemCount: urls.length,
+          controller: PageController(initialPage: initialIndex),
+          itemBuilder: (context, index) {
+            return InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: urls[index],
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white),
+                  errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.white),
+                ),
+              ),
+            );
+          },
+        ),
+      )
+    ));
   }
 }
 

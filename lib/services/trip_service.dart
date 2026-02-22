@@ -503,6 +503,19 @@ class TripService {
     }
   }
 
+  // Update Trip About
+  Future<void> updateTripAbout(String tripId, String aboutText) async {
+    try {
+      final resp = await _supabase.from('trips').select('metadata').eq('id', tripId).single();
+      final metadata = Map<String, dynamic>.from(resp['metadata'] ?? {});
+      metadata['about'] = aboutText;
+      await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
+    } catch (e) {
+      _handleException(e);
+      rethrow;
+    }
+  }
+
   // AI Summary: Save into metadata
   Future<void> saveAiSummary(String tripId, String summary) async {
     try {

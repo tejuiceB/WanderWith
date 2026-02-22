@@ -18,8 +18,7 @@ class PostService {
 
   /// Create a new travel post
   Future<void> createPost({
-    required File imageFile,
-    required String fileName,
+    required List<File> imageFiles,
     String? caption,
     String? location,
     String visibility = 'followers',
@@ -27,11 +26,20 @@ class PostService {
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception("User not authenticated");
+    if (imageFiles.isEmpty) throw Exception("At least one image is required");
 
     try {
-      final String path = 'posts/${user.id}/$fileName';
-      await _supabase.storage.from('posts').upload(path, imageFile);
-      final String imageUrl = _supabase.storage.from('posts').getPublicUrl(path);
+      final List<String> imageUrls = [];
+      for (int i = 0; i < imageFiles.length; i++) {
+        final file = imageFiles[i];
+        final String fileName = "${DateTime.now().millisecondsSinceEpoch}_$i.jpg";
+        final String path = 'posts/${user.id}/$fileName';
+        await _supabase.storage.from('posts').upload(path, file);
+        final String url = _supabase.storage.from('posts').getPublicUrl(path);
+        imageUrls.add(url);
+      }
+      
+      final String primaryImageUrl = imageUrls.first;
 
       // Extract Hashtags & Mentions
       final socialData = (caption != null && caption.isNotEmpty) 
@@ -41,7 +49,8 @@ class PostService {
       await _supabase.from('posts').insert({
         'user_id': user.id,
         'trip_id': tripId,
-        'image_url': imageUrl,
+        'image_url': primaryImageUrl,
+        'image_urls': imageUrls,
         'caption': caption,
         'location': location,
         'visibility': visibility,
@@ -94,18 +103,23 @@ class PostService {
     if (user == null) throw Exception("User not authenticated");
 
     try {
-      // 1. Delete image from storage if it exists
-      if (post.imageUrl.isNotEmpty) {
-        // Extract the path from the public URL
-        // Example URL: https://ixrxxiyvxxoxoxox.supabase.co/storage/v1/object/public/posts/posts/USER_ID/FILENAME.jpg
-        // We need the part after '/posts/' (the bucket name)
-        final uri = Uri.parse(post.imageUrl);
-        final pathSegments = uri.pathSegments;
-        final postsIndex = pathSegments.indexOf('posts');
-        if (postsIndex != -1 && postsIndex + 1 < pathSegments.length) {
-          final storagePath = pathSegments.sublist(postsIndex + 1).join('/');
-          await _supabase.storage.from('posts').remove([storagePath]);
+      // 1. Delete images from storage
+      final List<String> urlsToDelete = post.imageUrls.isNotEmpty ? post.imageUrls : [post.imageUrl];
+      final List<String> storagePaths = [];
+      
+      for (final url in urlsToDelete) {
+        if (url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          final pathSegments = uri.pathSegments;
+          final postsIndex = pathSegments.indexOf('posts');
+          if (postsIndex != -1 && postsIndex + 1 < pathSegments.length) {
+            storagePaths.add(pathSegments.sublist(postsIndex + 1).join('/'));
+          }
         }
+      }
+      
+      if (storagePaths.isNotEmpty) {
+        await _supabase.storage.from('posts').remove(storagePaths);
       }
 
       // 2. Hard delete from DB with user_id check for extra safety

@@ -4,6 +4,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -35,7 +36,9 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   final TripService _tripService = TripService();
   final FollowService _followService = FollowService();
   final PostService _postService = PostService();
@@ -222,6 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final authService = Provider.of<AuthService>(context);
     final user = authService.user;
     final currentUserProfile = authService.userProfile;
@@ -409,10 +413,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
                  // TRIPS TAB
                  (profile.role == 'agency')
-                     ? _buildTripsTab(profile.uid, isProfileLoading)
+                     ? _ProfileTripsTab(key: ValueKey('trips_${profile.uid}'), userUid: profile.uid, tripService: _tripService, buildTripCard: _buildTripCard)
                      : (!isCurrentUser && !isProfileLoading && profile.isPrivate == true && !isFollowing)
                          ? _buildPrivacyLock()
-                         : _buildTripsTab(profile.uid, isProfileLoading),
+                         : _ProfileTripsTab(key: ValueKey('trips_${profile.uid}'), userUid: profile.uid, tripService: _tripService, buildTripCard: _buildTripCard),
               ],
             ),
           ),
@@ -499,6 +503,135 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildSocialLinksSection(BuildContext context, UserProfile? profile) {
+    if (profile == null) return const SizedBox.shrink();
+
+    final List<Map<String, String>> allLinks = [];
+    if (profile.instagramUrl != null && profile.instagramUrl!.isNotEmpty) {
+      allLinks.add({'title': 'Instagram', 'url': profile.instagramUrl!});
+    }
+    if (profile.twitterUrl != null && profile.twitterUrl!.isNotEmpty) {
+      allLinks.add({'title': 'Twitter/X', 'url': profile.twitterUrl!});
+    }
+    if (profile.youtubeUrl != null && profile.youtubeUrl!.isNotEmpty) {
+      allLinks.add({'title': 'YouTube', 'url': profile.youtubeUrl!});
+    }
+    for (var url in profile.otherUrls) {
+      if (url.isNotEmpty) {
+        final uri = Uri.tryParse(url);
+        final title = uri?.host.replaceAll('www.', '') ?? url;
+        allLinks.add({'title': title, 'url': url});
+      }
+    }
+
+    if (allLinks.isEmpty) return const SizedBox.shrink();
+
+    final primaryLink = allLinks.first;
+    final int extraCount = allLinks.length - 1;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: GestureDetector(
+            onTap: () => _launchUrl(primaryLink['url']!),
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.link, size: 14, color: Colors.blueAccent),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      primaryLink['url']!.replaceFirst(RegExp(r'^https?://(www\.)?'), ''),
+                      style: GoogleFonts.inter(fontSize: 13, color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (extraCount > 0)
+          GestureDetector(
+            onTap: () => _showAllLinksSheet(context, allLinks),
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                "+ $extraCount more",
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showAllLinksSheet(BuildContext context, List<Map<String, String>> links) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Links", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                ...links.map((link) {
+                  IconData iconData = Icons.link;
+                  if (link['title'] == 'Instagram') iconData = Icons.camera_alt_outlined;
+                  else if (link['title'] == 'Twitter/X') iconData = Icons.alternate_email;
+                  else if (link['title'] == 'YouTube') iconData = Icons.play_circle_outline;
+                  
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.grey.shade100,
+                      child: Icon(iconData, color: Colors.black87, size: 20),
+                    ),
+                    title: Text(link['title']!, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15)),
+                    subtitle: Text(link['url']!, style: GoogleFonts.inter(color: Colors.grey.shade500, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _launchUrl(link['url']!);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not launch $url')));
+      }
+    }
+  }
+
   // 1. IDENTITY SECTION
   Widget _buildProfileHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
     if (profile?.role == 'agency') {
@@ -517,18 +650,32 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
            clipBehavior: Clip.none,
            children: [
              // Cover Photo
-             Container(
-               height: 180,
-               width: double.infinity,
-               decoration: BoxDecoration(
-                 color: Colors.grey.shade200,
-                 image: (coverUrl != null && coverUrl.isNotEmpty)
-                    ? DecorationImage(image: CachedNetworkImageProvider(coverUrl), fit: BoxFit.cover)
+             GestureDetector(
+               onTap: isCurrentUser ? () async {
+                 final picker = ImagePicker();
+                 final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                 if (image != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Updating cover photo...'), duration: Duration(seconds: 1)));
+                    try {
+                      await auth.updateAgencyCover(File(image.path));
+                    } catch (e) {
+                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                    }
+                 }
+               } : null,
+               child: Container(
+                 height: 180,
+                 width: double.infinity,
+                 decoration: BoxDecoration(
+                   color: Colors.grey.shade200,
+                   image: (coverUrl != null && coverUrl.isNotEmpty)
+                      ? DecorationImage(image: CachedNetworkImageProvider(coverUrl), fit: BoxFit.cover)
+                      : null,
+                 ),
+                 child: (coverUrl == null || coverUrl.isEmpty)
+                    ? Center(child: Icon(Icons.business_rounded, color: Colors.grey.shade400, size: 48))
                     : null,
                ),
-               child: (coverUrl == null || coverUrl.isEmpty)
-                  ? Center(child: Icon(Icons.business_rounded, color: Colors.grey.shade400, size: 48))
-                  : null,
              ),
              // Avatar
              Positioned(
@@ -589,6 +736,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                    ],
                  ),
                ],
+               _buildSocialLinksSection(context, profile),
              ],
            ),
          ),
@@ -677,17 +825,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ],
           const SizedBox(height: 8),
           if (profile?.country != null || profile?.city != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                 Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
-                 const SizedBox(width: 4),
-                 Text(
-                   [profile?.city, profile?.country].where((s) => s != null && s.isNotEmpty).join(", "),
-                   style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13),
-                 ),
-              ],
-            ),
+             Row(
+               mainAxisAlignment: MainAxisAlignment.center,
+               children: [
+                  Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    [profile?.city, profile?.country].where((s) => s != null && s.isNotEmpty).join(", "),
+                    style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+               ],
+             ),
+          _buildSocialLinksSection(context, profile),
        ],
      );
   }
@@ -1172,6 +1321,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      final cBio = TextEditingController(text: profile?.bio);
      final cInterests = TextEditingController();
      List<String> selectedInterests = List.from(profile?.interests ?? []);
+     
+     final cInstagram = TextEditingController(text: profile?.instagramUrl);
+     final cTwitter = TextEditingController(text: profile?.twitterUrl);
+     final cYoutube = TextEditingController(text: profile?.youtubeUrl);
+     final cOtherLinks = TextEditingController(text: (profile?.otherUrls != null && profile!.otherUrls!.isNotEmpty) ? profile.otherUrls!.first : null);
       
      bool isSaving = false;
 
@@ -1251,6 +1405,26 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           }).toList(),
                         ),
                       ),
+                    
+                    const SizedBox(height: 24),
+                    Text("Social Links", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cInstagram, decoration: InputDecoration(labelText: "Instagram Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                    const SizedBox(height: 12),
+                    TextField(controller: cTwitter, decoration: InputDecoration(labelText: "Twitter/X Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                    const SizedBox(height: 12),
+                    TextField(controller: cYoutube, decoration: InputDecoration(labelText: "YouTube Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: cOtherLinks,
+                      decoration: InputDecoration(
+                        labelText: "Other Link / Website",
+                        hintText: "https://example.com/",
+                        prefixIcon: const Icon(Icons.link),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+
                     const SizedBox(height: 20),
                     OutlinedButton.icon(
                       onPressed: () {
@@ -1344,8 +1518,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                  latitude: lat,
                                  longitude: lng,
                                  city: city,
-                                 country: country,
+                                  country: country,
                                  interests: selectedInterests,
+                                 instagramUrl: cInstagram.text.trim().isEmpty ? null : cInstagram.text.trim(),
+                                 twitterUrl: cTwitter.text.trim().isEmpty ? null : cTwitter.text.trim(),
+                                 youtubeUrl: cYoutube.text.trim().isEmpty ? null : cYoutube.text.trim(),
+                                 otherUrls: cOtherLinks.text.trim().isNotEmpty ? [
+                                    cOtherLinks.text.trim().startsWith('http') ? cOtherLinks.text.trim() : 'https://${cOtherLinks.text.trim()}'
+                                 ] : [],
                               );
                               
                               if (ctx.mounted) Navigator.pop(ctx);
@@ -1381,6 +1561,96 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      final webUrl = "https://tejuice.fun/u/$username";
      
      Share.share(webUrl);
+  }
+}
+
+class _ProfileTripsTab extends StatefulWidget {
+  final String userUid;
+  final TripService tripService;
+  final Widget Function(BuildContext, Trip) buildTripCard;
+  const _ProfileTripsTab({super.key, required this.userUid, required this.tripService, required this.buildTripCard});
+
+  @override
+  State<_ProfileTripsTab> createState() => _ProfileTripsTabState();
+}
+
+class _ProfileTripsTabState extends State<_ProfileTripsTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  late Stream<List<Trip>> _tripsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _tripsStream = widget.tripService.getUserTrips(widget.userUid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return StreamBuilder<List<Trip>>(
+      stream: _tripsStream,
+      builder: (context, snapshot) {
+        final isWaiting = snapshot.connectionState == ConnectionState.waiting;
+
+        if (isWaiting) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: List.generate(3, (index) =>
+                Skeletonizer(
+                  enabled: true,
+                  child: widget.buildTripCard(context, Trip(id: '1', name: 'Loading Trip', location: 'Location', createdBy: '', memberIds: []))
+                )
+              )
+            ),
+          );
+        }
+
+        final allTrips = snapshot.data ?? [];
+        final filteredTrips = allTrips.where((t) {
+          if (t.visibility == 'public') return true;
+          return t.memberIds.contains(Supabase.instance.client.auth.currentUser?.id);
+        }).toList();
+
+        final hosted = filteredTrips.where((t) => t.createdBy == widget.userUid).toList();
+        final joined = filteredTrips.where((t) => t.createdBy != widget.userUid).toList();
+
+        if (filteredTrips.isEmpty) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Container(
+              height: 300,
+              alignment: Alignment.center,
+              child: Text("No trips yet", style: GoogleFonts.inter(color: Colors.grey)),
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hosted.isNotEmpty) ...[
+                Text("HOSTED BY YOU", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                const SizedBox(height: 12),
+                ...hosted.map((t) => widget.buildTripCard(context, t)),
+                const SizedBox(height: 24),
+              ],
+              if (joined.isNotEmpty) ...[
+                Text("JOINED TRIPS", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                const SizedBox(height: 12),
+                ...joined.map((t) => widget.buildTripCard(context, t)),
+              ]
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

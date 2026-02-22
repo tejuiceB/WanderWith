@@ -120,6 +120,10 @@ class AuthService with ChangeNotifier {
           licenseNumber: data['license_number'],
           website: data['website'],
           coverImageUrl: data['cover_image_url'],
+          instagramUrl: data['instagram_url'],
+          twitterUrl: data['twitter_url'],
+          youtubeUrl: data['youtube_url'],
+          otherUrls: (data['other_urls'] is List) ? List<String>.from(data['other_urls']) : [],
           onboardingCompleted: data['onboarding_completed'] == true,
           latitude: (data['latitude'] as num?)?.toDouble(),
           longitude: (data['longitude'] as num?)?.toDouble(),
@@ -488,6 +492,10 @@ class AuthService with ChangeNotifier {
     double? longitude,
     String? coverImageUrl,
     List<String>? interests,
+    String? instagramUrl,
+    String? twitterUrl,
+    String? youtubeUrl,
+    List<String>? otherUrls,
   }) async {
     if (_user == null) return;
     
@@ -501,6 +509,10 @@ class AuthService with ChangeNotifier {
     if (longitude != null) updates['longitude'] = longitude;
     if (coverImageUrl != null) updates['cover_image_url'] = coverImageUrl;
     if (interests != null) updates['interests'] = interests;
+    if (instagramUrl != null) updates['instagram_url'] = instagramUrl;
+    if (twitterUrl != null) updates['twitter_url'] = twitterUrl;
+    if (youtubeUrl != null) updates['youtube_url'] = youtubeUrl;
+    if (otherUrls != null) updates['other_urls'] = otherUrls;
 
     if (updates.isEmpty) return;
 

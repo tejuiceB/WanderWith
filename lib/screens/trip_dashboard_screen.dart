@@ -570,20 +570,29 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
 // -----------------------------------------------------------------------------
 // 1. OVERVIEW TAB
 // -----------------------------------------------------------------------------
-class _OverviewTab extends StatelessWidget {
+class _OverviewTab extends StatefulWidget {
   final Trip trip;
   final Future<void> Function() onRefresh;
   const _OverviewTab({required this.trip, required this.onRefresh});
 
   @override
+  State<_OverviewTab> createState() => _OverviewTabState();
+}
+
+class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for KeepAlive
     // Determine trip status
     final now = DateTime.now();
-    final isPast = trip.endDate != null && trip.endDate!.isBefore(now);
+    final isPast = widget.trip.endDate != null && widget.trip.endDate!.isBefore(now);
     
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: trip.isDead ? null : FloatingActionButton.extended(
+      floatingActionButton: widget.trip.isDead ? null : FloatingActionButton.extended(
         onPressed: () => _showAIAssistant(context),
         label: const Text("Plan with AI"),
         icon: const Icon(Icons.auto_awesome),
@@ -591,7 +600,7 @@ class _OverviewTab extends StatelessWidget {
         foregroundColor: Colors.purple,
       ),
       body: RefreshIndicator(
-        onRefresh: onRefresh,
+        onRefresh: widget.onRefresh,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
@@ -608,9 +617,9 @@ class _OverviewTab extends StatelessWidget {
                     if (isPast) _buildPastTripBanner(),
                     
                     // Join Requests for Admins (Relational Table)
-                    if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id)) ...[
+                    if (widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id)) ...[
                        FutureBuilder<List<Map<String, dynamic>>>(
-                         future: TripService().getJoinRequests(trip.id),
+                         future: TripService().getJoinRequests(widget.trip.id),
                          builder: (context, snapshot) {
                             if (!snapshot.hasData || snapshot.data!.isEmpty) {
                                return const SizedBox.shrink();
@@ -627,11 +636,66 @@ class _OverviewTab extends StatelessWidget {
                     _buildOverviewStats(context),
                     
                     const SizedBox(height: 32),
+                    // ABOUT THIS TRIP SECTION
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildSectionHeader("About this Trip"),
+                        if (widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !widget.trip.isDead)
+                          IconButton(
+                            onPressed: () => _showEditAboutDialog(context),
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20),
+                            tooltip: "Edit Description",
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (widget.trip.about != null && widget.trip.about!.isNotEmpty)
+                      Text(
+                        widget.trip.about!,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade800,
+                          height: 1.6,
+                        ),
+                      )
+                    else if (widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !widget.trip.isDead)
+                      InkWell(
+                        onTap: () => _showEditAboutDialog(context),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade100, style: BorderStyle.solid),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.edit_note, color: Colors.blue.shade400, size: 32),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Add a description to tell your crew what this trip is all about.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.blue.shade800),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        "No description provided for this trip yet.",
+                        style: TextStyle(fontSize: 15, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                      ),
+                    
+                    const SizedBox(height: 32),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildSectionHeader("The Travel Crew"),
-                        if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !trip.isDead)
+                        if ((widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) || widget.trip.createdBy == Supabase.instance.client.auth.currentUser?.id) && !widget.trip.isDead)
                           IconButton(
                              onPressed: () {
                                showModalBottomSheet(
@@ -663,8 +727,8 @@ class _OverviewTab extends StatelessWidget {
                                          subtitle: const Text("Send a direct link that opens the app."),
                                          onTap: () {
                                            Navigator.pop(ctx);
-                                           final String webUrl = "https://www.tejuice.fun/join/${trip.id}";
-                                           final String appUrl = "wanderwith://tejuice.fun/join/${trip.id}";
+                                           final String webUrl = "https://www.tejuice.fun/join/${widget.trip.id}";
+                                           final String appUrl = "wanderwith://tejuice.fun/join/${widget.trip.id}";
                                            Share.share(
                                              "Join my trip on WanderWith! 🎒\n\n"
                                              "Tap to join instantly: $appUrl\n\n"
@@ -679,7 +743,7 @@ class _OverviewTab extends StatelessWidget {
                                          subtitle: const Text("Just copy the raw ID text."),
                                          onTap: () {
                                            Navigator.pop(ctx);
-                                           Clipboard.setData(ClipboardData(text: trip.id));
+                                           Clipboard.setData(ClipboardData(text: widget.trip.id));
                                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trip Code copied to clipboard!")));
                                          },
                                        ),
@@ -717,9 +781,9 @@ class _OverviewTab extends StatelessWidget {
           // Curved Image
           ClipPath(
             clipper: _HeaderClipper(),
-            child: trip.coverImageUrl != null
+            child: widget.trip.coverImageUrl != null
               ? CachedNetworkImage(
-                  imageUrl: trip.coverImageUrl!,
+                  imageUrl: widget.trip.coverImageUrl!,
                   fit: BoxFit.cover,
                   placeholder: (c, u) => Container(color: Colors.grey.shade200),
                 )
@@ -786,7 +850,7 @@ class _OverviewTab extends StatelessWidget {
             bottom: 80,
             left: 20,
             child: Text(
-              trip.location,
+              widget.trip.location,
               style: GoogleFonts.outfit(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -852,8 +916,8 @@ class _OverviewTab extends StatelessWidget {
   }
 
   Widget _buildOverviewStats(BuildContext context) {
-    final days = trip.endDate != null && trip.startDate != null
-        ? trip.endDate!.difference(trip.startDate!).inDays + 1
+    final days = widget.trip.endDate != null && widget.trip.startDate != null
+        ? widget.trip.endDate!.difference(widget.trip.startDate!).inDays + 1
         : 0;
 
     return Row(
@@ -868,15 +932,15 @@ class _OverviewTab extends StatelessWidget {
         _StatCardV2(
           icon: Icons.people_outline,
           label: "Crew",
-          value: "${trip.memberIds.length}",
+          value: "${widget.trip.memberIds.length}",
           color: Colors.deepPurple,
         ),
         const SizedBox(width: 12),
         _StatCardV2(
           icon: Icons.account_balance_wallet_outlined,
           label: "Budget",
-          value: trip.estimatedCost > 0 
-              ? "${trip.budgetCurrency}${trip.estimatedCost.toInt()}"
+          value: widget.trip.estimatedCost > 0 
+              ? "${widget.trip.budgetCurrency}${widget.trip.estimatedCost.toInt()}"
               : "TBD",
           color: Colors.teal,
         ),
@@ -884,17 +948,98 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
+  void _showEditAboutDialog(BuildContext context) {
+    final controller = TextEditingController(text: widget.trip.about ?? "");
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("About this Trip", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
+                      if (isSaving)
+                        const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        TextButton(
+                          onPressed: () async {
+                            final text = controller.text.trim();
+                            setState(() => isSaving = true);
+                            try {
+                              await TripService().updateTripAbout(widget.trip.id, text);
+                              if (ctx.mounted) {
+                                Navigator.pop(ctx);
+                                widget.onRefresh(); // Trigger UI reload to show new text
+                              }
+                            } catch (e) {
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Failed to save: $e"), backgroundColor: Colors.red));
+                              }
+                            } finally {
+                              if (ctx.mounted) setState(() => isSaving = false);
+                            }
+                          },
+                          child: const Text("Save", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    maxLines: 6,
+                    minLines: 3,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: "Write a short paragraph about the goals, vibe, or important info for this trip...",
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.blue.shade400)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildMembersGrid(BuildContext context) {
     return FutureBuilder<List<UserProfile>>(
-      future: TripService().getTripMembersProfiles(trip.memberIds),
+      future: TripService().getTripMembersProfiles(widget.trip.memberIds),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator()));
           final allProfiles = snapshot.data!;
           
           // Filter: only show members who are actually accepted or the owner
           final profiles = allProfiles.where((p) => 
-            trip.memberIds.contains(p.uid) || 
-            p.uid == trip.createdBy
+            widget.trip.memberIds.contains(p.uid) || 
+            p.uid == widget.trip.createdBy
           ).toList();
 
           final showProfiles = profiles.take(5).toList();
@@ -1031,8 +1176,8 @@ class _OverviewTab extends StatelessWidget {
                   Expanded(child: ElevatedButton.icon(
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      await TripService().rejectMember(trip.id, uid);
-                      await onRefresh();
+                      await TripService().rejectMember(widget.trip.id, uid);
+                      await widget.onRefresh();
                     },
                     icon: const Icon(Icons.cancel),
                     label: const Text("Decline"),
@@ -1042,8 +1187,8 @@ class _OverviewTab extends StatelessWidget {
                   Expanded(child: ElevatedButton.icon(
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      await TripService().acceptMember(trip.id, uid);
-                      await onRefresh();
+                      await TripService().acceptMember(widget.trip.id, uid);
+                      await widget.onRefresh();
                     },
                     icon: const Icon(Icons.check_circle),
                     label: const Text("Approve"),
@@ -1151,7 +1296,7 @@ class _OverviewTab extends StatelessWidget {
 
     try {
       // 1. Fetch Plan Data
-      final plan = await PlanService().fetchTripPlan(trip.id);
+      final plan = await PlanService().fetchTripPlan(widget.trip.id);
 
       if (context.mounted) {
         Navigator.pop(context); // Close Loader
@@ -1160,7 +1305,7 @@ class _OverviewTab extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AIGuideScreen(trip: trip, plan: plan),
+            builder: (_) => AIGuideScreen(trip: widget.trip, plan: plan),
           ),
         );
       }
@@ -1181,9 +1326,9 @@ class _OverviewTab extends StatelessWidget {
           width: double.maxFinite,
           child: ListView.builder(
             shrinkWrap: true,
-            itemCount: trip.memberIds.length,
+            itemCount: widget.trip.memberIds.length,
             itemBuilder: (ctx, i) {
-              final uid = trip.memberIds[i];
+              final uid = widget.trip.memberIds[i];
               return FutureBuilder(
                  future: Supabase.instance.client.from('profiles').select().eq('id', uid).maybeSingle(),
                  builder: (ctx, snap) {
@@ -1193,13 +1338,17 @@ class _OverviewTab extends StatelessWidget {
                    final role = snap.data!['role'];
 
                    final currentUid = Supabase.instance.client.auth.currentUser?.id;
-                   final iAmAdmin = trip.adminIds.contains(currentUid);
-                   final iAmOwner = trip.createdBy == currentUid;
+                   final iAmAdmin = widget.trip.adminIds.contains(currentUid);
+                   final iAmOwner = widget.trip.createdBy == currentUid;
                    
-                   final targetIsAdmin = trip.adminIds.contains(uid);
-                   final targetIsOwner = trip.createdBy == uid;
+                   final targetIsAdmin = widget.trip.adminIds.contains(uid);
+                   final targetIsOwner = widget.trip.createdBy == uid;
 
                    return ListTile(
+                     onTap: () {
+                       Navigator.pop(ctx);
+                       Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid)));
+                     },
                      leading: CircleAvatar(
                        backgroundColor: Colors.blue.shade50,
                        backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
@@ -1247,10 +1396,10 @@ class _OverviewTab extends StatelessWidget {
                                 onSelected: (value) async {
                                    Navigator.pop(ctx);
                                    if (value == 'promote') {
-                                      await TripService().promoteToAdmin(trip.id, uid);
+                                      await TripService().promoteToAdmin(widget.trip.id, uid);
                                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name is now an Admin")));
                                    } else if (value == 'demote') {
-                                      await TripService().demoteFromAdmin(trip.id, uid);
+                                      await TripService().demoteFromAdmin(widget.trip.id, uid);
                                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name is no longer an Admin")));
                                    } else if (value == 'remove') {
                                       final confirm = await showDialog<bool>(
@@ -1265,11 +1414,11 @@ class _OverviewTab extends StatelessWidget {
                                          )
                                       );
                                       if (confirm == true) {
-                                         await TripService().removeMember(trip.id, uid);
+                                         await TripService().removeMember(widget.trip.id, uid);
                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name removed.")));
                                       }
                                    }
-                                   await onRefresh();
+                                   await widget.onRefresh();
                                 },
                                 itemBuilder: (BuildContext context) {
                                    List<PopupMenuEntry<String>> choices = [];
@@ -1516,7 +1665,10 @@ class _DateTab extends StatefulWidget {
   State<_DateTab> createState() => _DateTabState();
 }
 
-class _DateTabState extends State<_DateTab> {
+class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -1751,6 +1903,7 @@ class _DateTabState extends State<_DateTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
 
     return RefreshIndicator(
@@ -1894,10 +2047,13 @@ class _BudgetTab extends StatefulWidget {
   State<_BudgetTab> createState() => _BudgetTabState();
 }
 
-class _BudgetTabState extends State<_BudgetTab> {
+class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final currency = widget.trip.budgetCurrency;
     final currentUser = Supabase.instance.client.auth.currentUser?.id;
     final isAdmin = currentUser != null && widget.trip.adminIds.contains(currentUser);
@@ -2284,8 +2440,11 @@ class _PollsTab extends StatefulWidget {
   State<_PollsTab> createState() => _PollsTabState();
 }
 
-class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
+class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late Stream<List<TripPoll>> _pollsStream;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -2514,6 +2673,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
 
     return Scaffold(
@@ -2864,7 +3024,10 @@ class _GalleryTab extends StatefulWidget {
   State<_GalleryTab> createState() => _GalleryTabState();
 }
 
-class _GalleryTabState extends State<_GalleryTab> {
+class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
   int _uploadingCount = 0;
@@ -2979,6 +3142,7 @@ class _GalleryTabState extends State<_GalleryTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       floatingActionButton: (_isSelectionMode || widget.trip.isDead)
           ? null 
@@ -3469,13 +3633,17 @@ class _ReviewsTab extends StatefulWidget {
   State<_ReviewsTab> createState() => _ReviewsTabState();
 }
 
-class _ReviewsTabState extends State<_ReviewsTab> {
+class _ReviewsTabState extends State<_ReviewsTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final _commentController = TextEditingController();
   int _selectedRating = 0;
   bool _isSubmitting = false;
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // 1. Check if trip is done
     final isTripDone = widget.trip.endDate != null &&
                        widget.trip.endDate!.isBefore(DateTime.now());
@@ -3691,8 +3859,11 @@ class _LinksTab extends StatefulWidget {
   State<_LinksTab> createState() => _LinksTabState();
 }
 
-class _LinksTabState extends State<_LinksTab> {
+class _LinksTabState extends State<_LinksTab> with AutomaticKeepAliveClientMixin {
   late Stream<List<TripLink>> _linksStream;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -3748,6 +3919,7 @@ class _LinksTabState extends State<_LinksTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final currentUser = Supabase.instance.client.auth.currentUser?.id;
     final isAdmin = currentUser != null && widget.trip.adminIds.contains(currentUser);
 

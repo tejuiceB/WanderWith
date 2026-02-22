@@ -16,7 +16,9 @@ class MyTripsScreen extends StatefulWidget {
   State<MyTripsScreen> createState() => _MyTripsScreenState();
 }
 
-class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProviderStateMixin {
+class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   late TabController _tabController;
   final TripService _tripService = TripService();
 
@@ -34,6 +36,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final user = Provider.of<AuthService>(context).user;
     if (user == null) return const Center(child: CircularProgressIndicator());
 

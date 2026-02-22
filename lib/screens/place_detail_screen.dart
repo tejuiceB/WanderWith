@@ -15,6 +15,31 @@ class PlaceDetailScreen extends StatelessWidget {
     }
   }
 
+  String get _basicInfo {
+    if (place.description == null) return "";
+    var desc = place.description!;
+    if (desc.contains("✨ AI Insight:")) {
+       var endOfInsight = desc.indexOf("\n\n");
+       if (endOfInsight != -1) {
+          return desc.substring(endOfInsight + 2).trim();
+       }
+    }
+    return desc.trim();
+  }
+
+  String? get _communityNotes {
+    if (place.aiInsight != null && place.aiInsight!.isNotEmpty) return place.aiInsight;
+    if (place.description == null) return null;
+    var desc = place.description!;
+    if (desc.contains("✨ AI Insight:")) {
+       var start = desc.indexOf("✨ AI Insight:") + "✨ AI Insight:".length;
+       var end = desc.indexOf("\n\n", start);
+       if (end == -1) end = desc.length;
+       return desc.substring(start, end).trim();
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -132,7 +157,7 @@ class PlaceDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -144,9 +169,9 @@ class PlaceDetailScreen extends StatelessWidget {
                           child: ElevatedButton.icon(
                             onPressed: _launchMaps,
                             icon: const Icon(Icons.directions_outlined, size: 20),
-                            label: const Text("Get Directions"),
+                            label: const Text("Get Directions", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade600,
+                              backgroundColor: Colors.black87,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -157,12 +182,13 @@ class PlaceDetailScreen extends StatelessWidget {
                         const SizedBox(width: 12),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: IconButton(
                             onPressed: () {},
-                            icon: Icon(Icons.add_circle_outline, color: Colors.blue.shade700),
+                            icon: const Icon(Icons.add_circle_outline, color: Colors.black87),
                             padding: const EdgeInsets.all(16),
                           ),
                         ),
@@ -171,6 +197,7 @@ class PlaceDetailScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: IconButton(
                             onPressed: () {},
@@ -182,44 +209,59 @@ class PlaceDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
 
-                    // AI Travel Insight Section
-                    if (place.aiInsight != null && place.aiInsight!.isNotEmpty) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.blue.shade50, Colors.white],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.blue.shade100.withOpacity(0.5)),
+                    // Beautiful Info Overview
+                    if (_basicInfo.isNotEmpty) ...[
+                      Text(
+                        "Basic Info",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade900,
                         ),
-                        child: Column(
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _basicInfo,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    if (_communityNotes != null && _communityNotes!.isNotEmpty) ...[
+                      Text(
+                        "Community Notes",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  "✨ AI TRAVEL INSIGHT",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade800,
-                                    letterSpacing: 1.5,
-                                  ),
+                            Icon(Icons.lightbulb_outline, color: Colors.amber.shade800, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _communityNotes!,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.amber.shade900,
+                                  height: 1.5,
+                                  fontStyle: FontStyle.italic,
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              place.aiInsight!,
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey.shade800,
-                                height: 1.6,
-                                fontStyle: FontStyle.italic,
                               ),
                             ),
                           ],
@@ -228,42 +270,31 @@ class PlaceDetailScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                     ],
 
+                    Text(
+                      "Details",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     // Info Grid
                     GridView.count(
                       crossAxisCount: 2,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
                       childAspectRatio: 2.5,
                       children: [
-                        _infoTile(Icons.star_outline, "Rating", "${place.rating ?? 'N/A'}/5.0"),
-                        _infoTile(Icons.access_time, "Best Time", "Morning"),
-                        _infoTile(Icons.timer_outlined, "Duration", "1.5 - 2h"),
-                        _infoTile(Icons.payments_outlined, "Price", "Moderate"),
+                        _infoTile(Icons.star_rounded, "Rating", "${place.rating ?? 'N/A'}/5.0"),
+                        _infoTile(Icons.access_time_filled_rounded, "Best Time", "Morning"),
+                        _infoTile(Icons.timer_rounded, "Duration", "1.5 - 2h"),
+                        _infoTile(Icons.payments_rounded, "Price", "Moderate"),
                       ],
                     ),
-                    const SizedBox(height: 32),
-
-                    // About Section
-                    const Text(
-                      "About this place",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      place.description ?? "Explore this amazing location and discover its unique highlights.",
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.6,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -276,22 +307,15 @@ class PlaceDetailScreen extends StatelessWidget {
 
   Widget _infoTile(IconData icon, String label, String value) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 16, color: Colors.blue.shade600),
-          ),
+          Icon(icon, size: 24, color: Colors.black87),
           const SizedBox(width: 12),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -299,11 +323,11 @@ class PlaceDetailScreen extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
               ),
               Text(
                 value,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
             ],
           ),

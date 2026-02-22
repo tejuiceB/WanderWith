@@ -9,6 +9,12 @@ class UserProfile {
   final String? avatarUrl;
   final String? coverImageUrl;
 
+  // Social Links
+  final String? instagramUrl;
+  final String? twitterUrl;
+  final String? youtubeUrl;
+  final List<String> otherUrls;
+
   // New Onboarding Fields
   final String role; // 'traveler' or 'agency'
   final String? bio;
@@ -48,6 +54,10 @@ class UserProfile {
     this.tripVibe,
     this.avatarUrl,
     this.coverImageUrl,
+    this.instagramUrl,
+    this.twitterUrl,
+    this.youtubeUrl,
+    this.otherUrls = const [],
     this.role = 'traveler',
     this.bio,
     this.city,
@@ -84,6 +94,10 @@ class UserProfile {
       'trip_vibe': tripVibe,
       'avatar_url': avatarUrl,
       'cover_image_url': coverImageUrl,
+      'instagram_url': instagramUrl,
+      'twitter_url': twitterUrl,
+      'youtube_url': youtubeUrl,
+      'other_urls': otherUrls,
       'role': role,
       'bio': bio,
       'city': city,
@@ -122,6 +136,10 @@ class UserProfile {
       tripVibe: map['trip_vibe'] ?? map['tripVibe'],
       avatarUrl: map['avatar_url'] ?? map['avatarUrl'],
       coverImageUrl: map['cover_image_url'] ?? map['coverImageUrl'],
+      instagramUrl: map['instagram_url'] ?? map['instagramUrl'],
+      twitterUrl: map['twitter_url'] ?? map['twitterUrl'],
+      youtubeUrl: map['youtube_url'] ?? map['youtubeUrl'],
+      otherUrls: (map['other_urls'] is List) ? List<String>.from(map['other_urls']) : [],
       role: map['role'] ?? 'traveler',
       bio: map['bio'],
       city: map['city'],

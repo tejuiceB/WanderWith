@@ -5,6 +5,7 @@ class Post {
   final String userId;
   final String? tripId;
   final String imageUrl;
+  final List<String> imageUrls;
   final String? caption;
   final String? location;
   final String visibility;
@@ -25,6 +26,7 @@ class Post {
     required this.userId,
     this.tripId,
     required this.imageUrl,
+    this.imageUrls = const [],
     this.caption,
     this.location,
     required this.visibility,
@@ -45,6 +47,7 @@ class Post {
       userId: json['user_id'],
       tripId: json['trip_id'],
       imageUrl: json['image_url'],
+      imageUrls: (json['image_urls'] is List) ? List<String>.from(json['image_urls']) : [],
       caption: json['caption'],
       location: json['location'],
       visibility: json['visibility'] ?? 'public',

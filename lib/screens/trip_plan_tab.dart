@@ -21,8 +21,11 @@ class TripPlanTab extends StatefulWidget {
   State<TripPlanTab> createState() => _TripPlanTabState();
 }
 
-class _TripPlanTabState extends State<TripPlanTab> {
+class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClientMixin {
   late GoogleMapController _mapController;
+  
+  @override
+  bool get wantKeepAlive => true;
   
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _TripPlanTabState extends State<TripPlanTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // Determine Permissions
     final uid = Supabase.instance.client.auth.currentUser?.id;
     final bool canEdit = uid != null && (widget.trip.adminIds.contains(uid) || widget.trip.createdBy == uid) && !widget.trip.isDead;
@@ -311,17 +315,14 @@ class _TripPlanTabState extends State<TripPlanTab> {
                                       context: context,
                                       isScrollControlled: true,
                                       useRootNavigator: true,
+                                      useSafeArea: true,
                                       enableDrag: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => Container(
-                                         height: MediaQuery.of(context).size.height * 0.9,
-                                         decoration: const BoxDecoration(
-                                           color: Colors.white,
-                                           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                                         ),
-                                         clipBehavior: Clip.antiAlias,
-                                         child: PlaceDetailScreen(place: place),
-                                      )
+                                      backgroundColor: Colors.white,
+                                      clipBehavior: Clip.antiAlias,
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                      ),
+                                      builder: (_) => PlaceDetailScreen(place: place),
                                     );
                                   },
                                 ),

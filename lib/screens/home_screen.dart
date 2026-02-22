@@ -23,7 +23,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   final FeedService _feedService = FeedService();
   final ScrollController _scrollController = ScrollController();
   StreamSubscription? _postRefreshSub;
@@ -119,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     // We don't really use authService directly here anymore if using FeedService
     // but we might need it for profile or connectivity checks later.
     final authService = Provider.of<AuthService>(context, listen: false);

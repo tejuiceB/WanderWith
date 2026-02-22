@@ -24,7 +24,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final TextEditingController _captionController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
 
-  File? _selectedImage;
+  List<File> _selectedImages = [];
   List<Trip> _userTrips = [];
   Trip? _selectedTrip;
   String _visibility = 'followers';
@@ -45,7 +45,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   void initState() {
     super.initState();
     _loadUserTrips();
-    _pickImage(); 
+    _pickImages(); 
     _captionController.addListener(_onCaptionChanged);
     _locationController.addListener(_onLocationChanged);
   }
@@ -158,60 +158,66 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImages() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
+    final List<XFile> images = await picker.pickMultiImage(
       imageQuality: 70, // Built-in compression as requested
     );
 
-    if (image != null) {
-      setState(() => _selectedImage = File(image.path));
+    if (images.isNotEmpty) {
+      if (mounted) {
+        setState(() => _selectedImages.addAll(images.map((x) => File(x.path)).toList()));
+      }
     }
   }
 
-  Future<File?> _compressImage(File file) async {
+  Future<List<File>> _compressImages(List<File> files) async {
     // 1. Get user profile to check HD preference
     final profile = await _postService.getCurrentUserProfile();
     final bool isHD = profile?.uploadHdPosts ?? false;
 
-    if (isHD) return file; // Skip compression if HD is ON
+    if (isHD) return files; // Skip compression if HD is ON
 
-    // 2. Compress the image
-    final filePath = file.absolute.path;
-    final lastIndex = filePath.lastIndexOf(RegExp(r'.jp'));
-    final outPath = "${filePath.substring(0, lastIndex)}_compressed.jpg";
+    List<File> compressedFiles = [];
+    for (var file in files) {
+      final filePath = file.absolute.path;
+      final lastIndex = filePath.lastIndexOf(RegExp(r'\.jp|\.png'));
+      final extensionIndex = lastIndex != -1 ? lastIndex : filePath.length;
+      final outPath = "${filePath.substring(0, extensionIndex)}_compressed_${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-    final compressedXFile = await FlutterImageCompress.compressAndGetFile(
-      filePath, 
-      outPath,
-      quality: 70,
-      minWidth: 1080,
-      minHeight: 1080,
-    );
+      final compressedXFile = await FlutterImageCompress.compressAndGetFile(
+        filePath, 
+        outPath,
+        quality: 70,
+        minWidth: 1080,
+        minHeight: 1080,
+      );
+      
+      if (compressedXFile != null) {
+        compressedFiles.add(File(compressedXFile.path));
+      } else {
+        compressedFiles.add(file);
+      }
+    }
 
-    return compressedXFile != null ? File(compressedXFile.path) : null;
+    return compressedFiles;
   }
 
   Future<void> _handlePost() async {
-    if (_selectedImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select an image")));
+    if (_selectedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select at least one image")));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final String fileName = "${DateTime.now().millisecondsSinceEpoch}.jpg";
-      
-      // 1. Compress Image
-      final File? optimizedImage = await _compressImage(_selectedImage!);
-      if (optimizedImage == null) throw Exception("Image processing failed");
+      // 1. Compress Images
+      final List<File> optimizedImages = await _compressImages(_selectedImages);
 
       // 2. Create Post
       await _postService.createPost(
-        imageFile: optimizedImage,
-        fileName: fileName,
+        imageFiles: optimizedImages,
         caption: _captionController.text.trim(),
         location: _locationController.text.trim(),
         visibility: _visibility,
@@ -265,30 +271,74 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // IMAGE PREVIEW
-            GestureDetector(
-              onTap: _pickImage,
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(16),
-                    image: _selectedImage != null 
-                        ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
-                        : null,
-                  ),
-                  child: _selectedImage == null 
-                      ? Column(
+            SizedBox(
+              height: MediaQuery.of(context).size.width - 40,
+              child: _selectedImages.isEmpty
+                  ? GestureDetector(
+                      onTap: _pickImages,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.add_photo_alternate_outlined, size: 48, color: Colors.grey),
                             const SizedBox(height: 8),
-                            Text("Tap to select image", style: GoogleFonts.inter(color: Colors.grey)),
+                            Text("Tap to select images", style: GoogleFonts.inter(color: Colors.grey)),
                           ],
-                        )
-                      : null,
-                ),
-              ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _selectedImages.length + 1,
+                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        if (index == _selectedImages.length) {
+                          return GestureDetector(
+                            onTap: _pickImages,
+                            child: AspectRatio(
+                              aspectRatio: 1,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.grey.shade300, width: 2),
+                                ),
+                                child: const Center(child: Icon(Icons.add, size: 32, color: Colors.grey)),
+                              ),
+                            ),
+                          );
+                        }
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: Image.file(_selectedImages[index], fit: BoxFit.cover),
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() => _selectedImages.removeAt(index));
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            )
+                          ],
+                        );
+                      },
+                    ),
             ),
             
             const SizedBox(height: 24),
