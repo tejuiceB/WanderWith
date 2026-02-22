@@ -21,6 +21,7 @@ import 'screens/onboarding/agency_form_screen.dart';
 import 'screens/splash_screen.dart'; 
 import 'screens/post_detail_screen.dart';
 import 'screens/follow_requests_screen.dart'; // Added
+import 'screens/join_trip_screen.dart'; // Added
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/app_env.dart';
 import 'providers/plan_provider.dart';
@@ -189,6 +190,13 @@ final GoRouter _router = GoRouter(
           builder: (context, state) {
             final postId = state.pathParameters['id'];
             return PostDetailScreen(postId: postId ?? '');
+          },
+        ),
+        GoRoute(
+          path: 'join/:code',
+          builder: (context, state) {
+            final code = state.pathParameters['code'];
+            return JoinTripScreen(initialCode: code ?? '');
           },
         ),
       ],

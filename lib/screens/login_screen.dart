@@ -113,17 +113,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.network(
-                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_\"G\"_logo.svg/1200px-Google_\"G\"_logo.svg.png',
-                              height: 24,
-                            ),
-                            const SizedBox(width: 12),
                             Text(
                               "Continue with Google",
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
+                            ),
+                            const SizedBox(width: 12),
+                            Image.asset(
+                              'android/assets/google.png',
+                              height: 24,
+                              width: 24,
                             ),
                           ],
                         ),
@@ -146,3 +147,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

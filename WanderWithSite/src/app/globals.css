@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand-primary: #1F3D36;
+  /* Deep Forest */
+  --color-brand-bg: #F6F4EF;
+  /* Warm Sand */
+  --color-brand-text: #374151;
+  /* Charcoal */
+  --color-brand-card: #ECE8DF;
+  /* Soft Stone */
+  --color-brand-accent: #D97706;
+  /* Saffron Pulse */
+  --color-brand-teal: #2F7F73;
+  /* Muted Teal - Saved */
+  --color-brand-terracotta: #C46A3D;
+  /* Soft Terracotta */
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-playfair);
+}
+
+:root {
+  --background: var(--brand-bg);
+  --foreground: var(--brand-text);
+}
+
+body {
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-text);
+  font-family: var(--font-sans);
+}

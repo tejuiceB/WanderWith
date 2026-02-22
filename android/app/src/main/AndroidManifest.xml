@@ -31,13 +31,35 @@
             
             <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
             
-            <!-- Verified App Links for tejuice.fun -->
+            <!-- Verified App Links (HTTPS) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="tejuice.fun" android:pathPrefix="/u" />
-                <data android:scheme="https" android:host="tejuice.fun" android:pathPrefix="/p" />
+                
+                <data android:scheme="https" android:host="tejuice.fun" />
+                <data android:scheme="https" android:host="www.tejuice.fun" />
+                
+                <data android:pathPrefix="/u" />
+                <data android:pathPrefix="/p" />
+                <data android:pathPrefix="/join" />
+            </intent-filter>
+
+            <!-- Standard Deep Linking Fallback (No Auto-Verify) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                
+                <data android:host="tejuice.fun" />
+                <data android:host="www.tejuice.fun" />
+                
+                <data android:pathPrefix="/u" />
+                <data android:pathPrefix="/p" />
+                <data android:pathPrefix="/join" />
             </intent-filter>
 
             <!-- Deep linking for Profile Sharing (Legacy) -->
@@ -47,6 +69,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="wanderwith.app" android:pathPrefix="/u" />
                 <data android:scheme="https" android:host="wanderwith.app" android:pathPrefix="/p" />
+                <data android:scheme="https" android:host="wanderwith.app" android:pathPrefix="/join" />
             </intent-filter>
 
             <!-- Deep linking for Custom Scheme (Reliable for Testing) -->
@@ -54,7 +77,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="wanderwith" />
+                <data android:scheme="wanderwith" android:host="tejuice.fun" />
             </intent-filter>
 
             <!-- Deep linking for Supabase Auth -->

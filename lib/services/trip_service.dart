@@ -205,19 +205,17 @@ class TripService {
   Future<void> joinTrip(String codeOrId, String uid) async {
     try {
       final codeOrIdTrimmed = codeOrId.trim();
-      final tripsQuery = _supabase.from('trips').select('id, member_ids');
       
-      Map<String, dynamic>? tripData;
-      if (codeOrIdTrimmed.length == 8) {
-         tripData = await tripsQuery.eq('join_code', codeOrIdTrimmed.toUpperCase()).maybeSingle();
-      } else {
-         tripData = await tripsQuery.eq('id', codeOrIdTrimmed).maybeSingle();
-      }
+      // Use RPC to bypass RLS and fetch basic info needed for joining
+      final response = await _supabase.rpc('get_trip_info_for_join', params: {
+        'code_or_id': codeOrIdTrimmed,
+      });
 
-      if (tripData == null) {
+      if (response == null || (response as List).isEmpty) {
          throw Exception("Trip not found with this ID or Code.");
       }
 
+      final tripData = response[0];
       String actualTripId = tripData['id'];
       List<dynamic> members = tripData['member_ids'] ?? [];
       
@@ -237,7 +235,9 @@ class TripService {
          userId: uid, 
          fullName: fullName, 
          email: email, 
-         phone: phone
+         phone: phone,
+         tripName: tripData['name'],
+         creatorId: tripData['created_by'],
       );
     } catch (e) {
       print("Error joining trip: $e");
@@ -254,6 +254,26 @@ class TripService {
         'target_user_id': userId,
         'approve': approve,
       });
+
+      // Notify the requester
+      try {
+        final tripData = await _supabase.from('trips').select('name').eq('id', tripId).single();
+        final String tripName = tripData['name'] ?? 'Trip';
+
+        await NotificationService().sendNotification(
+          toUserId: userId,
+          tripId: tripId,
+          title: approve ? "Join Request Approved! 🎉" : "Join Request Update",
+          body: approve 
+            ? "You've been accepted to the trip: $tripName" 
+            : "Your request to join $tripName was not accepted at this time.",
+          type: NotificationType.joinResponse,
+          metadata: {'approved': approve},
+        );
+      } catch (e) {
+        print("Error sending join response notification: $e");
+      }
+
     } catch (e) {
       print("Error responding to join request: $e");
       _handleException(e);
@@ -414,9 +434,6 @@ class TripService {
     final uid = _supabase.auth.currentUser?.id;
     if (uid == null) throw Exception("User not logged in");
     
-    // Instantly hide trip from MyTripsScreen
-    _hiddenTripIds.add(tripId);
-    
     try {
       // 1. Fetch Trip Data to determine role
       // Note: 'admin_ids' is NOT a column, it is in metadata. We only select verified columns.
@@ -429,7 +446,6 @@ class TripService {
          if (memberIds.length <= 1) {
             // Only creator is left -> Delete Trip
             await _supabase.from('trips').delete().eq('id', tripId);
-            return;
          } else {
             // Mark trip as dead, remove creator from members
             memberIds.remove(uid);
@@ -441,19 +457,21 @@ class TripService {
               'member_ids': memberIds,
               'metadata': metadata,
             }).eq('id', tripId);
-            return;
          }
+         _hiddenTripIds.add(tripId);
+         return;
       }
 
       // 3. Regular Member Leaving (Use RPC to bypass RLS)
       try {
         await _supabase.rpc('leave_trip', params: {
           'trip_uuid': tripId,
-          'user_id': uid,
+          'target_user_id': uid,
         });
+        _hiddenTripIds.add(tripId);
         return;
-      } catch (_) {
-        // Fallback to direct update if RPC not available
+      } catch (e) {
+        print("RPC leave_trip failed: $e. Falling back to manual update.");
       }
 
       if (memberIds.contains(uid)) {
@@ -464,8 +482,10 @@ class TripService {
         } else {
            await _supabase.from('trips').update({'member_ids': memberIds}).eq('id', tripId);
         }
+        _hiddenTripIds.add(tripId);
       }
     } catch (e) {
+      print("Error leaving trip: $e");
       _handleException(e);
       rethrow;
     }
@@ -1167,6 +1187,8 @@ class TripService {
     required String fullName,
     required String email,
     required String phone,
+    String? tripName,
+    String? creatorId,
   }) async {
     try {
       await _supabase.from('trip_join_requests').insert({
@@ -1176,6 +1198,32 @@ class TripService {
         'email': email,
         'phone': phone,
       });
+
+      // Notify Trip Creator
+      try {
+        String finalTripName = tripName ?? 'Trip';
+        String finalCreatorId = creatorId ?? '';
+
+        if (tripName == null || creatorId == null) {
+          final tripData = await _supabase.from('trips').select('name, created_by').eq('id', tripId).single();
+          finalTripName = tripData['name'] ?? 'Trip';
+          finalCreatorId = tripData['created_by'];
+        }
+
+        if (finalCreatorId.isNotEmpty) {
+          await NotificationService().sendNotification(
+            toUserId: finalCreatorId,
+            tripId: tripId,
+            title: "New Join Request! 🎒",
+            body: "$fullName wants to join your trip: $finalTripName",
+            type: NotificationType.joinRequest,
+            metadata: {'requester_id': userId},
+          );
+        }
+      } catch (e) {
+        print("Error sending join request notification: $e");
+      }
+
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
         // Unique constraint violation (duplicate join request)
@@ -1194,16 +1242,7 @@ class TripService {
 
   // Manual Join via Code
   Future<void> respondToJoinRequestManual(String tripId, String userId) async {
-    try {
-       await _supabase.rpc('respond_to_join_request', params: {
-          'trip_uuid': tripId,
-          'target_user_id': userId,
-          'approve': true,
-        });
-    } catch (e) {
-      _handleException(e);
-      rethrow;
-    }
+     return respondToJoinRequest(tripId, userId, true);
   }
 
   // Get Join Requests

@@ -131,12 +131,31 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
             ));
 
     if (confirm == true) {
-      if (mounted) Navigator.of(context).pop(); // INSTANT POP
+      if (!mounted) return;
+      
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      );
+
       try {
         await TripService().leaveTrip(trip.id);
+        if (mounted) {
+          Navigator.of(context).pop(); // Pop loading
+          Navigator.of(context).pop(); // Pop Dashboard
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Successfully left the trip")),
+          );
+        }
       } catch (e) {
-        // Can't show SnackBar on same context anymore if popped, but fire-and-forget is fine here.
-        // It's removed from DB instantly.
+        if (mounted) {
+          Navigator.of(context).pop(); // Pop loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error leaving trip: $e"), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -614,12 +633,63 @@ class _OverviewTab extends StatelessWidget {
                         _buildSectionHeader("The Travel Crew"),
                         if (trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !trip.isDead)
                           IconButton(
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: trip.id));
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trip ID copied! Invite members by sharing this ID.")));
-                            },
-                            icon: const Icon(Icons.person_add_outlined, color: Colors.blueAccent),
-                            tooltip: "Invite Members",
+                             onPressed: () {
+                               showModalBottomSheet(
+                                 context: context,
+                                 shape: const RoundedRectangleBorder(
+                                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                 ),
+                                 builder: (ctx) => Padding(
+                                   padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                                   child: Column(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       Container(
+                                         width: 40,
+                                         height: 5,
+                                         decoration: BoxDecoration(
+                                           color: Colors.grey.shade300,
+                                           borderRadius: BorderRadius.circular(10),
+                                         ),
+                                       ),
+                                       const SizedBox(height: 24),
+                                       Text("Invite Members", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                                       const SizedBox(height: 8),
+                                       Text("How would you like to invite people to this trip?", style: GoogleFonts.inter(color: Colors.grey.shade600), textAlign: TextAlign.center),
+                                       const SizedBox(height: 24),
+                                       ListTile(
+                                         leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.link, color: Colors.white)),
+                                         title: const Text("Share Invite Link", style: TextStyle(fontWeight: FontWeight.bold)),
+                                         subtitle: const Text("Send a direct link that opens the app."),
+                                         onTap: () {
+                                           Navigator.pop(ctx);
+                                           final String webUrl = "https://www.tejuice.fun/join/${trip.id}";
+                                           final String appUrl = "wanderwith://tejuice.fun/join/${trip.id}";
+                                           Share.share(
+                                             "Join my trip on WanderWith! 🎒\n\n"
+                                             "Tap to join instantly: $appUrl\n\n"
+                                             "Or use the web link: $webUrl"
+                                           );
+                                         },
+                                       ),
+                                       const Divider(),
+                                       ListTile(
+                                         leading: CircleAvatar(backgroundColor: Colors.grey.shade200, child: const Icon(Icons.copy, color: Colors.black54)),
+                                         title: const Text("Copy Join Code", style: TextStyle(fontWeight: FontWeight.bold)),
+                                         subtitle: const Text("Just copy the raw ID text."),
+                                         onTap: () {
+                                           Navigator.pop(ctx);
+                                           Clipboard.setData(ClipboardData(text: trip.id));
+                                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trip Code copied to clipboard!")));
+                                         },
+                                       ),
+                                     ],
+                                   ),
+                                 ),
+                               );
+                             },
+                             icon: const Icon(Icons.person_add_outlined, color: Colors.blueAccent),
+                             tooltip: "Invite Members",
                           ),
                       ],
                     ),
