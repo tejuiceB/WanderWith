@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Users, MessageCircle, Calendar, Image as ImageIcon, Vote, DollarSign, Link } from "lucide-react";
+import { Users, MessageCircle, Calendar, Image as ImageIcon, Vote, DollarSign, Link, MapPin } from "lucide-react";
 
 export default function AppFeatures() {
     const features = [
@@ -15,12 +15,28 @@ export default function AppFeatures() {
             iconColor: "text-blue-400"
         },
         {
+            icon: Users,
+            title: "Public & Agency Trips",
+            description: "Discover curated travel packages from top agencies or browse public trips for inspiration. Your next big adventure is just a tap away.",
+            screenshot: "/app_images/Agency andPublicTrips.jpeg",
+            gradient: "from-amber-500/20 to-orange-500/20",
+            iconColor: "text-amber-500"
+        },
+        {
             icon: Calendar,
             title: "Smart Trip Dashboard",
             description: "Manage dates, budgets, links, and itineraries effortlessly. Everything you need for your trip, organized in intuitive tabs.",
             screenshot: "/app_images/trip_dashboard.jpeg",
             gradient: "from-orange-500/20 to-pink-500/20",
             iconColor: "text-orange-400"
+        },
+        {
+            icon: MapPin,
+            title: "Smart Place Suggestions",
+            description: "Easily add the best locations to your trip with intelligent autosuggestions. Finding your next stop has never been smoother.",
+            screenshot: "/app_images/AutosugestionsForAddPlace.jpeg",
+            gradient: "from-indigo-500/20 to-violet-500/20",
+            iconColor: "text-indigo-400"
         },
         {
             icon: DollarSign,
@@ -61,6 +77,14 @@ export default function AppFeatures() {
             screenshot: "/app_images/chats.jpeg",
             gradient: "from-indigo-500/20 to-blue-500/20",
             iconColor: "text-indigo-400"
+        },
+        {
+            icon: Users,
+            title: "Personalized Travel Profile",
+            description: "Showcase your travel history, bucket list, and favorite memories. Your personal travel identity, all in one place.",
+            screenshot: "/app_images/Profile.jpeg",
+            gradient: "from-purple-500/20 to-pink-500/20",
+            iconColor: "text-purple-400"
         }
     ];
 
@@ -207,16 +231,16 @@ export default function AppFeatures() {
                             />
                             Download for Android
                         </a>
-                        <button className="flex items-center gap-3 bg-white/80 backdrop-blur-md border-2 border-gray-200 hover:border-brand-accent text-gray-700 px-8 py-4 rounded-full font-medium transition-all group">
+                        <div className="flex items-center gap-3 bg-white/50 backdrop-blur-md border-2 border-gray-100 text-gray-400 px-8 py-4 rounded-full font-medium cursor-default group">
                             <Image
                                 src="/assets/icons8-app-store-100.png"
                                 alt="App Store"
                                 width={24}
                                 height={24}
-                                className="w-6 h-6 group-hover:scale-110 transition-transform"
+                                className="w-6 h-6 grayscale opacity-50"
                             />
                             Coming to iOS Soon
-                        </button>
+                        </div>
                     </div>
                 </motion.div>
             </div>

@@ -65,19 +65,19 @@ export default function Header() {
                         </a>
                     ))}
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-lg transition-all group">
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg opacity-60 cursor-default">
                             <Image
                                 src="/assets/icons8-app-store-100.png"
                                 alt="App Store"
                                 width={20}
                                 height={20}
-                                className="w-5 h-5 group-hover:scale-110 transition-transform"
+                                className="w-5 h-5 grayscale"
                             />
                             <div className="text-left hidden xl:block">
-                                <p className="text-[8px] uppercase tracking-wider text-white/70 leading-none mb-0.5">Download on</p>
-                                <p className="text-[10px] font-bold text-white leading-none">App Store</p>
+                                <p className="text-[8px] uppercase tracking-wider text-white/50 leading-none mb-0.5">iOS App</p>
+                                <p className="text-[10px] font-bold text-white/70 leading-none">Coming Soon</p>
                             </div>
-                        </button>
+                        </div>
                         <a href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-lg transition-all group">
                             <Image
                                 src="/assets/icons8-google-play-store-100.png"
@@ -125,19 +125,19 @@ export default function Header() {
                             ))}
                             <div className="pt-4 border-t border-white/10 flex justify-center">
                                 <div className="flex flex-col gap-3 w-full">
-                                    <button className="flex items-center justify-center gap-3 bg-white/10 border border-white/20 px-4 py-3 rounded-xl hover:bg-white/20 transition-all w-full">
+                                    <div className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-xl opacity-60 w-full">
                                         <Image
                                             src="/assets/icons8-app-store-100.png"
                                             alt="App Store"
                                             width={24}
                                             height={24}
-                                            className="w-6 h-6"
+                                            className="w-6 h-6 grayscale"
                                         />
                                         <div className="text-left">
-                                            <p className="text-[10px] uppercase tracking-wider text-white/70 leading-none mb-1">Download on</p>
-                                            <p className="text-sm font-bold text-white leading-none">App Store</p>
+                                            <p className="text-[10px] uppercase tracking-wider text-white/50 leading-none mb-1">iOS App</p>
+                                            <p className="text-sm font-bold text-white/70 leading-none">Coming Soon</p>
                                         </div>
-                                    </button>
+                                    </div>
                                     <a href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-white/10 border border-white/20 px-4 py-3 rounded-xl hover:bg-white/20 transition-all w-full">
                                         <Image
                                             src="/assets/icons8-google-play-store-100.png"

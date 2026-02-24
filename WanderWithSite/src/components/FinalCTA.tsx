@@ -27,6 +27,9 @@ export default function FinalCTA() {
                     <p className="mt-6 text-sm text-brand-text/60 font-medium tracking-wide">
                         Currently rolling out to early members.
                     </p>
+                    <p className="mt-4 text-xs text-brand-text/40">
+                        Questions? Reach out at <a href="mailto:wanderwithplan@gmail.com" className="hover:text-brand-accent underline">wanderwithplan@gmail.com</a>
+                    </p>
                 </motion.div>
             </div>
         </section>

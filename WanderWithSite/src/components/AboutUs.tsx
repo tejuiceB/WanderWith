@@ -43,6 +43,7 @@ export default function AboutUs() {
                         <div className="mt-10">
                             <p className="font-serif text-xl text-brand-primary">Tejas Bhurbhure</p>
                             <p className="text-sm text-brand-text/60 uppercase tracking-widest mt-1">Founder</p>
+                            <a href="mailto:wanderwithplan@gmail.com" className="text-sm text-brand-accent hover:underline mt-2 block">wanderwithplan@gmail.com</a>
                         </div>
                     </div>
                 </motion.div>

@@ -10,8 +10,8 @@ export default function Hero() {
             {/* Background Image with Overlay */}
             <div className="absolute inset-0 z-0">
                 <Image
-                    src="/assets/hero-friends.jpg"
-                    alt="Friends traveling in India"
+                    src="/assets/hero.jpg"
+                    alt="WanderWith Hero"
                     fill
                     className="object-cover object-center"
                     priority
@@ -42,17 +42,25 @@ export default function Hero() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10">
-                        <button className="px-8 py-4 bg-brand-accent text-white rounded-full font-medium hover:bg-[#B45309] transition-colors shadow-lg shadow-brand-accent/20 flex items-center gap-2">
-                            Start Planning Privately
-                            <ArrowRight size={18} />
-                        </button>
-                        <button
-                            onClick={() => document.getElementById('agencies')?.scrollIntoView({ behavior: 'smooth' })}
-                            className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/30 text-white rounded-full font-medium hover:bg-white/20 transition-colors flex items-center gap-2"
+                        <a
+                            href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-8 py-4 bg-brand-accent text-white rounded-full font-medium hover:bg-[#B45309] transition-colors shadow-lg shadow-brand-accent/20 flex items-center gap-2"
                         >
-                            Explore Public Trips
+                            Get it on Play Store
                             <ArrowRight size={18} />
-                        </button>
+                        </a>
+                        <div className="px-8 py-4 bg-white/5 backdrop-blur-md border border-white/10 text-white/60 rounded-full font-medium flex items-center gap-2 cursor-default">
+                            <Image
+                                src="/assets/icons8-app-store-100.png"
+                                alt="App Store"
+                                width={20}
+                                height={20}
+                                className="w-5 h-5 grayscale opacity-50"
+                            />
+                            iOS Coming Soon
+                        </div>
                     </div>
 
                     <p className="mt-8 text-sm text-white/70 font-light tracking-wide flex items-center justify-center gap-2">

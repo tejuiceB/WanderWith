@@ -32,13 +32,30 @@ export default function Footer() {
                     </div>
 
                     <div>
-                        <h4 className="text-white font-semibold mb-4">Connect</h4>
-                        <div className="flex gap-4">
-                            <a href="#" className="hover:text-brand-accent transition-colors"><Twitter size={20} /></a>
-                            <a href="#" className="hover:text-brand-accent transition-colors"><Instagram size={20} /></a>
-                            <a href="#" className="hover:text-brand-accent transition-colors"><Linkedin size={20} /></a>
+                        <h4 className="text-white font-semibold mb-4">Download</h4>
+                        <div className="flex items-center gap-3 mb-4">
+                            <a
+                                href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block"
+                            >
+                                <img
+                                    src="/assets/icons8-google-play-store-100.png"
+                                    alt="Get it on Google Play"
+                                    className="h-10 hover:scale-105 transition-transform"
+                                />
+                            </a>
+                            <div className="opacity-40 grayscale flex items-center bg-white/5 rounded-lg px-2 h-10 border border-white/10">
+                                <img
+                                    src="/assets/icons8-app-store-100.png"
+                                    alt="App Store Coming Soon"
+                                    className="h-6"
+                                />
+                                <span className="text-[10px] font-bold ml-1 text-white/70">COMING SOON</span>
+                            </div>
                         </div>
-                        <p className="text-sm mt-4">support@wanderwith.com</p>
+                        <p className="text-sm mt-4">wanderwithplan@gmail.com</p>
                     </div>
                 </div>
 
@@ -46,7 +63,7 @@ export default function Footer() {
                     <p>&copy; {new Date().getFullYear()} WanderWith. All rights reserved.</p>
                     <div className="flex flex-col md:flex-row items-center gap-4 mt-4 md:mt-0">
                         <span>Made with ❤️ in India 🇮🇳</span>
-                        <span>support@wanderwith.com</span>
+                        <span>wanderwithplan@gmail.com</span>
                     </div>
                 </div>
             </div>
