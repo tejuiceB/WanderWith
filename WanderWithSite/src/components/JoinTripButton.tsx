@@ -14,7 +14,7 @@ export default function JoinTripButton({ code }: JoinTripButtonProps) {
         e.preventDefault();
         setIsAttempting(true);
 
-        const appUrl = `wanderwith://tejuice.fun/join/${code}`;
+        const appUrl = `wanderwith://wanderwith.online/join/${code}`;
         const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.tejuice.wanderwith';
 
         // 1. Try to open the app

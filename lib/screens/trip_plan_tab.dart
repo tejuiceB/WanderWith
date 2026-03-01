@@ -324,7 +324,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                       shape: const RoundedRectangleBorder(
                                         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                                       ),
-                                      builder: (_) => PlaceDetailScreen(place: place),
+                                      builder: (_) => PlaceDetailScreen(place: place, tripLocation: widget.trip.location),
                                     );
                                   },
                                 ),

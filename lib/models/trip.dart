@@ -21,8 +21,9 @@ class Trip {
   String get status {
     final now = DateTime.now();
     if (isDead) return 'dead'; // Explicitly mark it dead if dead
-    if (endDate != null && now.isAfter(endDate!)) {
-      return 'completed';
+    if (startDate != null && endDate != null) {
+      if (now.isAfter(endDate!)) return 'completed';
+      if (now.isAfter(startDate!) || now.isAtSameMomentAs(startDate!)) return 'ongoing';
     }
     final hasBudget = estimatedCost > 0 || budgetAllocations.isNotEmpty;
     if (isDateDecided && hasBudget) {

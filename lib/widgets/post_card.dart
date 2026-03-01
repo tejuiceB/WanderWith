@@ -70,7 +70,7 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _handleShare() {
-    final String webUrl = "https://tejuice.fun/p/${widget.post.id}";
+    final String webUrl = "https://www.wanderwith.online/p/${widget.post.id}";
     Share.share(webUrl);
   }
 

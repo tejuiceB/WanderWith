@@ -197,6 +197,134 @@ class NotificationService {
     }
   }
 
+  /// Send smart chat notifications based on message type and context
+  Future<void> sendChatNotification({
+    required String tripId,
+    required String tripName,
+    required String senderId,
+    required String senderName,
+    required String content,
+    required String messageType,
+    List<String> mentionedUserIds = const [],
+    String? replyToUserId,
+  }) async {
+    try {
+      // Fetch trip members
+      final resp = await _supabase
+          .from('trips')
+          .select('member_ids')
+          .eq('id', tripId)
+          .single();
+      final memberIds = List<String>.from(resp['member_ids'] ?? []);
+      final recipients = memberIds.where((id) => id != senderId).toList();
+      if (recipients.isEmpty) return;
+
+      final notifications = <Map<String, dynamic>>[];
+      final now = DateTime.now().toIso8601String();
+
+      // 1. @Mention notifications (HIGH priority)
+      for (final mentionedId in mentionedUserIds) {
+        if (mentionedId == senderId) continue;
+        notifications.add({
+          'user_id': mentionedId,
+          'trip_id': tripId,
+          'title': '$senderName mentioned you in $tripName',
+          'body': content.length > 100 ? '${content.substring(0, 100)}...' : content,
+          'type': 'chat_mention',
+          'created_at': now,
+          'metadata': {'sender_id': senderId, 'message_type': messageType},
+        });
+      }
+
+      // 2. Reply notification (HIGH priority)
+      if (replyToUserId != null && replyToUserId != senderId) {
+        // Don't duplicate if also mentioned
+        if (!mentionedUserIds.contains(replyToUserId)) {
+          notifications.add({
+            'user_id': replyToUserId,
+            'trip_id': tripId,
+            'title': '$senderName replied to you in $tripName',
+            'body': content.length > 100 ? '${content.substring(0, 100)}...' : content,
+            'type': 'chat_reply',
+            'created_at': now,
+            'metadata': {'sender_id': senderId, 'message_type': messageType},
+          });
+        }
+      }
+
+      // 3. General message notification for remaining members (NORMAL priority)
+      final alreadyNotified = <String>{...mentionedUserIds};
+      if (replyToUserId != null) alreadyNotified.add(replyToUserId);
+      final generalRecipients = recipients.where((id) => !alreadyNotified.contains(id)).toList();
+
+      String body;
+      switch (messageType) {
+        case 'image':
+          body = '📷 Photo';
+          break;
+        case 'location':
+          body = '📍 Location';
+          break;
+        case 'document':
+          body = '📎 Document';
+          break;
+        case 'poll':
+          body = '📊 Poll';
+          break;
+        case 'planItem':
+          body = '📋 Plan item';
+          break;
+        case 'expense':
+          body = '💰 Expense';
+          break;
+        default:
+          body = content.length > 100 ? '${content.substring(0, 100)}...' : content;
+      }
+
+      for (final uid in generalRecipients) {
+        notifications.add({
+          'user_id': uid,
+          'trip_id': tripId,
+          'title': '$senderName in $tripName',
+          'body': body,
+          'type': 'message',
+          'created_at': now,
+          'metadata': {'sender_id': senderId, 'message_type': messageType},
+        });
+      }
+
+      if (notifications.isNotEmpty) {
+        await _supabase.from('notifications').insert(notifications);
+      }
+    } catch (e) {
+      print('Error sending chat notification: $e');
+    }
+  }
+
+  /// Send notification when someone reacts to a message
+  Future<void> sendReactionNotification({
+    required String tripId,
+    required String tripName,
+    required String reactorId,
+    required String reactorName,
+    required String messageOwnerId,
+    required String emoji,
+  }) async {
+    if (reactorId == messageOwnerId) return; // Don't notify self
+    try {
+      await sendNotification(
+        toUserId: messageOwnerId,
+        tripId: tripId,
+        title: '$reactorName reacted $emoji',
+        body: 'in $tripName chat',
+        type: NotificationType.chatReaction,
+        metadata: {'reactor_id': reactorId, 'emoji': emoji},
+      );
+    } catch (e) {
+      print('Error sending reaction notification: $e');
+    }
+  }
+
   // Check for trip completion and notify if needed
   Future<void> checkAndNotifyTripFeedback(Trip trip, String uid) async {
       // If trip is done and user hasn't reviewed yet

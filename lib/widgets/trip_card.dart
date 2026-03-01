@@ -16,7 +16,7 @@ class TripCard extends StatelessWidget {
     required this.trip,
     required this.onTap,
     this.trailing,
-    this.showStatus = false,
+    this.showStatus = true,
   });
 
   @override
@@ -102,34 +102,60 @@ class TripCard extends StatelessWidget {
   Widget _buildStatusBadge() {
     Color badgeColor;
     String statusText;
+    IconData icon;
 
     switch (trip.status) {
+      case 'planning':
+        badgeColor = Colors.orange;
+        statusText = 'Planning';
+        icon = Icons.edit_note;
+        break;
       case 'confirmed':
-        badgeColor = Colors.green;
+        badgeColor = Colors.blue;
         statusText = 'Confirmed';
+        icon = Icons.check_circle;
+        break;
+      case 'ongoing':
+        badgeColor = Colors.green;
+        statusText = 'Ongoing';
+        icon = Icons.flight_takeoff;
         break;
       case 'completed':
         badgeColor = Colors.grey;
         statusText = 'Completed';
+        icon = Icons.flag;
+        break;
+      case 'dead':
+        badgeColor = Colors.red;
+        statusText = 'Cancelled';
+        icon = Icons.cancel;
         break;
       default:
         badgeColor = Colors.orange;
         statusText = 'Planning';
+        icon = Icons.edit_note;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: badgeColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        statusText,
-        style: TextStyle(
-          color: badgeColor,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: badgeColor),
+          const SizedBox(width: 4),
+          Text(
+            statusText,
+            style: TextStyle(
+              color: badgeColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

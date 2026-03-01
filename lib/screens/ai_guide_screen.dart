@@ -22,20 +22,79 @@ class AIGuideScreen extends StatefulWidget {
 
 class _AIGuideScreenState extends State<AIGuideScreen> {
   final GeminiService _geminiService = GeminiService();
+  final TripService _tripService = TripService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
   final List<Map<String, String>> _messages = []; // {'role': 'user'|'model', 'text': '...'}
   bool _isTyping = false;
+  bool _historyLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Initial friendly message
-    _messages.add({
-      'role': 'model',
-      'text': "Hi! I'm your personal guide for ${widget.trip.location}. I know your itinerary and budget. Ask me anything!"
-    });
+    _loadConversationHistory();
+  }
+
+  Future<void> _loadConversationHistory() async {
+    try {
+      final history = await _tripService.getAiConversationHistory(widget.trip.id);
+      if (mounted) {
+        setState(() {
+          if (history.isNotEmpty) {
+            _messages.addAll(history);
+          } else {
+            // Initial greeting for new conversations
+            _messages.add({
+              'role': 'model',
+              'text': "Hi! I'm your personal guide for ${widget.trip.location}. I know your itinerary and budget. Ask me anything!"
+            });
+          }
+          _historyLoading = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      debugPrint('Error loading AI memory: $e');
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            'role': 'model',
+            'text': "Hi! I'm your personal guide for ${widget.trip.location}. I know your itinerary and budget. Ask me anything!"
+          });
+          _historyLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearMemory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear AI Memory'),
+        content: const Text('This will erase all conversation history with the AI guide for this trip. Continue?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _tripService.clearAiConversationHistory(widget.trip.id);
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+          _messages.add({
+            'role': 'model',
+            'text': "Hi! I'm your personal guide for ${widget.trip.location}. Memory cleared — let's start fresh! Ask me anything!"
+          });
+        });
+      }
+    }
   }
 
   Future<void> _sendMessage(String text) async {
@@ -68,6 +127,8 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
           _isTyping = false;
         });
         _scrollToBottom();
+        // Persist conversation history
+        _tripService.saveAiConversationHistory(widget.trip.id, _messages);
       }
     } catch (e) {
       if (mounted) {
@@ -206,8 +267,17 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
         backgroundColor: colors.scaffoldBg,
         foregroundColor: colors.textPrimary,
         elevation: 1,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Clear memory',
+            onPressed: _clearMemory,
+          ),
+        ],
       ),
-      body: Column(
+      body: _historyLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
         children: [
           // 1. Chat Area
           Expanded(

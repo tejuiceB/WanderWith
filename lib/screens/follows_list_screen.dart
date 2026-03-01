@@ -205,7 +205,7 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
 
   void _handleInviteFriends() {
     Share.share(
-      "Join me on WanderWith, the most intentional and private travel app! 🌍✨\n\nDownload now: https://tejuice.fun",
+      "Join me on WanderWith, the most intentional and private travel app! 🌍✨\n\nDownload now: https://www.wanderwith.online",
       subject: "Join WanderWith",
     );
   }

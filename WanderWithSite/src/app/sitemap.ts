@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-    const baseUrl = 'https://wanderwith.com' // Replace with actual domain
+    const baseUrl = 'https://www.wanderwith.online'
 
     return [
         {

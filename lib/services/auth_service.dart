@@ -8,6 +8,7 @@ import '../config/app_env.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:app_links/app_links.dart';
+import 'network_service.dart';
 
 class AuthService with ChangeNotifier {
   static final AuthService instance = AuthService();
@@ -75,6 +76,12 @@ class AuthService with ChangeNotifier {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
       _user = session?.user;
+
+      // Prevent false signout when offline — network loss can trigger signedOut
+      if (event == AuthChangeEvent.signedOut && NetworkService.instance.isOffline) {
+        debugPrint('AuthService: Ignoring signedOut event while offline');
+        return;
+      }
       
       // Detect password recovery event — Supabase SDK has established the session
       if (event == AuthChangeEvent.passwordRecovery) {
@@ -134,7 +141,7 @@ class AuthService with ChangeNotifier {
     _linkSub = _appLinks.uriLinkStream.listen(_handleIncomingLink);
   }
 
-  void _handleIncomingLink(Uri uri) {
+  void _handleIncomingLink(Uri uri) async {
     // With PKCE, recovery links come as: io.supabase.wanderwith://login-callback?code=XXXX
     // The Supabase SDK will fire passwordRecovery event, but there's a race condition
     // with signedIn event. Pre-mark recovery if we detect the callback URL.
@@ -147,27 +154,51 @@ class AuthService with ChangeNotifier {
     
     if (isResetHost || isResetPath || isRecoveryFragment) {
       _isPasswordRecovery = true;
+      _pendingDeepLink = uri;
+      
+      // Handle PKCE code in web reset links (e.g., https://www.wanderwith.online/reset-password?code=XXX)
+      final code = uri.queryParameters['code'];
+      if (code != null) {
+        try {
+          debugPrint('Reset link with PKCE code: exchanging...');
+          await _supabase.auth.exchangeCodeForSession(code);
+        } catch (e) {
+          debugPrint('Reset code exchange failed: $e');
+        }
+        notifyListeners();
+        return;
+      }
+      
+      // Legacy: fragment-based or direct token recovery
       Uri effectiveUri = uri;
       if (uri.fragment.isNotEmpty && uri.queryParameters.isEmpty) {
         effectiveUri = Uri.parse('${uri.scheme}://${uri.host}${uri.path}?${uri.fragment}');
       }
-      _pendingDeepLink = effectiveUri;
       setSessionFromUri(effectiveUri).then((_) {
         notifyListeners();
       });
       return;
     }
     
-    // For PKCE callback, we can't know for sure it's recovery yet
-    // but we store the link so the Supabase SDK can process it
+    // For PKCE callback, exchange the code for a session.
+    // The app_links package intercepts the deep link before the Supabase SDK,
+    // so we must explicitly exchange the code. If it's a recovery code,
+    // the SDK will fire the passwordRecovery auth change event automatically.
     if (isCallback) {
       _pendingDeepLink = uri;
-      // Don't set recovery flag here — wait for the SDK passwordRecovery event
-      // The Supabase SDK will process this automatically
+      final code = uri.queryParameters['code'];
+      if (code != null) {
+        try {
+          debugPrint('PKCE callback: exchanging code for session...');
+          await _supabase.auth.exchangeCodeForSession(code);
+        } catch (e) {
+          debugPrint('PKCE code exchange failed: $e');
+        }
+      }
       return;
     }
     
-    // Handle Supabase auth callback
+    // Handle Supabase auth callback (non-PKCE)
     if (uri.host == 'callback' || uri.path.contains('callback')) {
       _pendingDeepLink = uri;
       notifyListeners();

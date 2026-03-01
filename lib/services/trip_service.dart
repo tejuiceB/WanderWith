@@ -1,16 +1,29 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:isar/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/trip.dart';
 import '../models/user_profile.dart';
 import '../models/notification.dart';
 import 'notification_service.dart';
 import 'analytics_service.dart';
+import 'chat_event_service.dart';
 import '../models/trip_extras.dart';
 import '../models/trip_link.dart';
 import 'url_metadata_service.dart';
+import '../models/trip_metadata.dart';
+import '../models/trip_international_info.dart';
+import '../models/place_insights.dart';
+import 'gemini_service.dart';
+import 'network_service.dart';
+import '../local/local_db.dart';
+import '../local/schemas/cached_trip.dart';
 
 class TripService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -34,6 +47,8 @@ class TripService {
     String? coverImageUrl,
     String visibility = 'public',
     String? joinCode,
+    String tripType = 'leisure',
+    int travelerCount = 1,
   }) async {
     // Client-side ID generation
     final String tripId = _uuid.v4();
@@ -60,6 +75,8 @@ class TripService {
         'estimated_cost': estimatedCost,
         'adminIds': [creatorUid],
         'days': durationDays,
+        'trip_type': tripType,
+        'traveler_count': travelerCount,
       },
       'cover_image_url': coverImageUrl,
       'visibility': visibility,
@@ -84,6 +101,116 @@ class TripService {
     }
   }
 
+  // ─── Offline Cache Helpers ────────────────────────────────────────
+
+  /// Write a trip to the local Isar cache
+  Future<void> _cacheTrip(Trip trip) async {
+    try {
+      await LocalDb.instance.writeTxn(() async {
+        // Find existing by trip id or create new
+        final existing = await LocalDb.instance.cachedTrips
+            .filter()
+            .idEqualTo(trip.id)
+            .findFirst();
+        final cached = existing ?? CachedTrip();
+        cached
+          ..id = trip.id
+          ..name = trip.name
+          ..location = trip.location
+          ..startDate = trip.startDate
+          ..endDate = trip.endDate
+          ..isDateDecided = trip.isDateDecided
+          ..createdBy = trip.createdBy
+          ..memberIds = trip.memberIds
+          ..adminIds = trip.adminIds
+          ..metadataJson = trip.metadata != null ? jsonEncode(trip.metadata) : null
+          ..budgetCurrency = trip.budgetCurrency
+          ..budgetOptionsJson = trip.budgetOptions != null ? jsonEncode(trip.budgetOptions) : null
+          ..budgetVotesJson = trip.budgetVotes != null ? jsonEncode(trip.budgetVotes) : null
+          ..coverImageUrl = trip.coverImageUrl
+          ..visibility = trip.visibility
+          ..joinCode = trip.joinCode
+          ..lastSynced = DateTime.now();
+        await LocalDb.instance.cachedTrips.put(cached);
+      });
+    } catch (e) {
+      debugPrint('TripService: Cache write failed: $e');
+    }
+  }
+
+  /// Cache a list of trips
+  Future<void> _cacheTrips(List<Trip> trips) async {
+    for (final trip in trips) {
+      await _cacheTrip(trip);
+    }
+  }
+
+  /// Read a single trip from local cache
+  Future<Trip?> _getCachedTrip(String tripId) async {
+    try {
+      final cached = await LocalDb.instance.cachedTrips
+          .filter()
+          .idEqualTo(tripId)
+          .findFirst();
+      if (cached == null) return null;
+      return _cachedTripToTrip(cached);
+    } catch (e) {
+      debugPrint('TripService: Cache read failed: $e');
+      return null;
+    }
+  }
+
+  /// Read all cached trips for the current user
+  Future<List<Trip>> _getCachedUserTrips() async {
+    try {
+      final uid = _supabase.auth.currentUser?.id;
+      if (uid == null) return [];
+      final all = await LocalDb.instance.cachedTrips.where().findAll();
+      return all
+          .where((c) => c.memberIds.contains(uid))
+          .map(_cachedTripToTrip)
+          .toList();
+    } catch (e) {
+      debugPrint('TripService: Cache read all failed: $e');
+      return [];
+    }
+  }
+
+  Trip _cachedTripToTrip(CachedTrip c) {
+    Map<String, dynamic>? metadata;
+    if (c.metadataJson != null) {
+      try { metadata = jsonDecode(c.metadataJson!) as Map<String, dynamic>; } catch (_) {}
+    }
+    Map<String, String>? budgetOptions;
+    if (c.budgetOptionsJson != null) {
+      try { budgetOptions = Map<String, String>.from(jsonDecode(c.budgetOptionsJson!)); } catch (_) {}
+    }
+    Map<String, String>? budgetVotes;
+    if (c.budgetVotesJson != null) {
+      try { budgetVotes = Map<String, String>.from(jsonDecode(c.budgetVotesJson!)); } catch (_) {}
+    }
+    return Trip(
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      startDate: c.startDate,
+      endDate: c.endDate,
+      isDateDecided: c.isDateDecided,
+      createdBy: c.createdBy,
+      memberIds: c.memberIds,
+      adminIds: c.adminIds,
+      metadata: metadata,
+      budgetCurrency: c.budgetCurrency,
+      budgetOptions: budgetOptions,
+      budgetVotes: budgetVotes,
+      coverImageUrl: c.coverImageUrl,
+      visibility: c.visibility,
+      joinCode: c.joinCode,
+    );
+  }
+
+  // ─── End Cache Helpers ────────────────────────────────────────────
+
   // Helper for error handling
   void _handleException(Object e) {
     final msg = e.toString().toLowerCase();
@@ -103,12 +230,28 @@ class TripService {
 
   // Fetch Single Trip Future (for deep linking or one-time load)
   Future<Trip> getTrip(String tripId) async {
-    try {
-      final data = await _supabase.from('trips').select().eq('id', tripId).single();
-      return _mapToTrip(data);
-    } catch (e) {
-      _handleException(e);
-      rethrow;
+    if (NetworkService.instance.isOnline) {
+      try {
+        final data = await _supabase.from('trips').select().eq('id', tripId).single();
+        final trip = _mapToTrip(data);
+        // Write-through cache
+        _cacheTrip(trip);
+        return trip;
+      } catch (e) {
+        // Fallback to cache on network error
+        final cached = await _getCachedTrip(tripId);
+        if (cached != null) {
+          debugPrint('TripService: getTrip falling back to cache for $tripId');
+          return cached;
+        }
+        _handleException(e);
+        rethrow;
+      }
+    } else {
+      // Pure offline mode
+      final cached = await _getCachedTrip(tripId);
+      if (cached != null) return cached;
+      throw Exception('Trip not available offline. Please connect to the internet.');
     }
   }
 
@@ -123,7 +266,7 @@ class TripService {
            // Post-process filtering for safety and accuracy
            // Since .stream() on array contains might be tricky in some versions, 
            // and RLS provides the base visibility, we filter for the specific user's membership.
-           return data
+           final trips = data
                .where((map) {
                  final docId = map['id']?.toString();
                  if (docId != null && _hiddenTripIds.contains(docId)) return false;
@@ -133,24 +276,34 @@ class TripService {
                })
                .map((map) => _mapToTrip(map))
                .toList();
+           // Write-through cache on every stream emission
+           _cacheTrips(trips);
+           return trips;
         });
   }
 
-  /// Get user's trips as a Future (useful for dropdowns)
+  /// Get user's trips as a Future (useful for dropdowns) — with offline cache
   Future<List<Trip>> getUserTripsFuture() async {
-    try {
-      final uid = _supabase.auth.currentUser?.id;
-      if (uid == null) return [];
-      
-      final data = await _supabase
-          .from('trips')
-          .select()
-          .contains('member_ids', [uid]);
-          
-      return (data as List).map((map) => _mapToTrip(map)).toList();
-    } catch (e) {
-      print("Error fetching trips future: $e");
-      return [];
+    if (NetworkService.instance.isOnline) {
+      try {
+        final uid = _supabase.auth.currentUser?.id;
+        if (uid == null) return [];
+        
+        final data = await _supabase
+            .from('trips')
+            .select()
+            .contains('member_ids', [uid]);
+            
+        final trips = (data as List).map((map) => _mapToTrip(map)).toList();
+        // Write-through cache
+        _cacheTrips(trips);
+        return trips;
+      } catch (e) {
+        debugPrint('TripService: getUserTripsFuture online failed, trying cache: $e');
+        return await _getCachedUserTrips();
+      }
+    } else {
+      return await _getCachedUserTrips();
     }
   }
 
@@ -162,7 +315,10 @@ class TripService {
         .eq('id', tripId)
         .map((data) {
            if (data.isEmpty) throw Exception("Trip not found");
-           return _mapToTrip(data.first);
+           final trip = _mapToTrip(data.first);
+           // Write-through cache on every emission
+           _cacheTrip(trip);
+           return trip;
         });
   }
   
@@ -270,6 +426,15 @@ class TripService {
           type: NotificationType.joinResponse,
           metadata: {'approved': approve},
         );
+
+        // Post system message for approved members
+        if (approve) {
+          try {
+            final userData = await _supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle();
+            final memberName = userData?['display_name'] ?? 'A new member';
+            await ChatEventService.instance.memberJoined(tripId, memberName);
+          } catch (_) {}
+        }
       } catch (e) {
         print("Error sending join response notification: $e");
       }
@@ -414,6 +579,13 @@ class TripService {
         currentMembers.remove(memberUid);
         await _supabase.from('trips').update({'member_ids': currentMembers}).eq('id', tripId);
         
+        // Post system message
+        try {
+          final userData = await _supabase.from('profiles').select('display_name').eq('id', memberUid).maybeSingle();
+          final memberName = userData?['display_name'] ?? 'A member';
+          await ChatEventService.instance.memberRemoved(tripId, memberName);
+        } catch (_) {}
+
         // Notify the Removed User
          await _notificationService.sendNotification(
           toUserId: memberUid,
@@ -463,6 +635,13 @@ class TripService {
       }
 
       // 3. Regular Member Leaving (Use RPC to bypass RLS)
+      // Post system message before leaving
+      try {
+        final userData = await _supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle();
+        final memberName = userData?['display_name'] ?? 'A member';
+        await ChatEventService.instance.memberLeft(tripId, memberName);
+      } catch (_) {}
+
       try {
         await _supabase.rpc('leave_trip', params: {
           'trip_uuid': tripId,
@@ -677,7 +856,7 @@ class TripService {
     }
   }
 
-  Future<void> createPollRelational({
+  Future<String?> createPollRelational({
     required String tripId,
     required String question,
     required List<String> options,
@@ -687,7 +866,7 @@ class TripService {
     bool isPinned = false,
   }) async {
     final uid = _supabase.auth.currentUser?.id;
-    if (uid == null) return;
+    if (uid == null) return null;
 
     try {
       // 1. Create Poll
@@ -726,6 +905,8 @@ class TripService {
         'poll_id': pollId,
         'options_count': options.length
       });
+
+      return pollId;
 
     } catch (e) {
       print("Error creating poll v2: $e");
@@ -852,49 +1033,103 @@ class TripService {
     }
   }
 
+  /// Compress an image to a target max dimension and quality.
+  Future<File> _compressImage(File file, {int maxWidth = 1920, int quality = 80}) async {
+    final dir = await getTemporaryDirectory();
+    final targetPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      minWidth: maxWidth,
+      quality: quality,
+      format: CompressFormat.jpeg,
+    );
+    return result != null ? File(result.path) : file;
+  }
+
+  /// Generate a small thumbnail (400px wide) for grid display.
+  Future<File> _generateThumbnail(File file) async {
+    final dir = await getTemporaryDirectory();
+    final targetPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_thumb.jpg';
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      minWidth: 400,
+      quality: 60,
+      format: CompressFormat.jpeg,
+    );
+    return result != null ? File(result.path) : file;
+  }
+
   Future<void> uploadPhotos(String tripId, List<XFile> images, {Function(int, int)? onProgress}) async {
     final uid = _supabase.auth.currentUser?.id;
     if (uid == null) return;
 
     int completed = 0;
     final total = images.length;
+    const batchSize = 3; // Upload 3 at a time to avoid memory spikes
 
     try {
-      // Parallel uploads with batching to avoid hitting rate limits or memory issues if many images
-      // For now, simple Future.wait
-      await Future.wait(images.map((image) async {
-        try {
-          // 1. Upload to Storage
-          String fileExt = image.path.split('.').last;
-          String fileName = "${uid}/${DateTime.now().millisecondsSinceEpoch}_${image.name}";
-          
-          await _supabase.storage
-              .from('trip_photos')
-              .upload(fileName, File(image.path));
+      for (int i = 0; i < images.length; i += batchSize) {
+        final batch = images.skip(i).take(batchSize).toList();
+        await Future.wait(batch.map((image) async {
+          try {
+            final originalFile = File(image.path);
+            final originalSize = await originalFile.length();
 
-          // 2. Get Public URL
-          final String publicUrl = _supabase.storage
-              .from('trip_photos')
-              .getPublicUrl(fileName);
+            // 1. Compress for full-res view (max 1920px, quality 80)
+            final compressed = await _compressImage(originalFile);
 
-          // 3. Save to Photos Table
-          await _supabase.from('photos').insert({
-            'trip_id': tripId,
-            'url': publicUrl,
-            'uploader_id': uid,
-            'metadata': {
-              'original_name': image.name,
-              'size': await File(image.path).length(),
-            }
-          });
+            // 2. Generate thumbnail for grid view (400px, quality 60)
+            final thumbnail = await _generateThumbnail(originalFile);
 
-          completed++;
-          if (onProgress != null) onProgress(completed, total);
-        } catch (e) {
-          print("Failed to upload individual photo: $e");
-          // Continue with others
-        }
-      }));
+            // 3. Upload full-res
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final fullPath = '$uid/${timestamp}_full_${image.name}';
+            await _supabase.storage
+                .from('trip_photos')
+                .upload(fullPath, compressed);
+            final String fullUrl = _supabase.storage
+                .from('trip_photos')
+                .getPublicUrl(fullPath);
+
+            // 4. Upload thumbnail
+            final thumbPath = '$uid/${timestamp}_thumb_${image.name}';
+            await _supabase.storage
+                .from('trip_photos')
+                .upload(thumbPath, thumbnail);
+            final String thumbUrl = _supabase.storage
+                .from('trip_photos')
+                .getPublicUrl(thumbPath);
+
+            // 5. Save to Photos Table with both URLs
+            await _supabase.from('photos').insert({
+              'trip_id': tripId,
+              'url': fullUrl,
+              'thumbnail_url': thumbUrl,
+              'uploader_id': uid,
+              'metadata': {
+                'original_name': image.name,
+                'original_size': originalSize,
+                'compressed_size': await compressed.length(),
+                'thumbnail_size': await thumbnail.length(),
+              }
+            });
+
+            completed++;
+            if (onProgress != null) onProgress(completed, total);
+
+            // Clean up temp files
+            try {
+              if (compressed.path != originalFile.path) await compressed.delete();
+              if (thumbnail.path != originalFile.path) await thumbnail.delete();
+            } catch (_) {}
+          } catch (e) {
+            debugPrint('Failed to upload individual photo: $e');
+            // Continue with others
+          }
+        }));
+      }
 
       // Log Analytics
       await _analyticsService.logEvent('photos_uploaded', parameters: {
@@ -1288,5 +1523,245 @@ class TripService {
       print("Error checking pending request: $e");
       return false;
     }
+  }
+
+  // ── Trip Metadata (Destination Intelligence) ──
+
+  final GeminiService _geminiService = GeminiService();
+
+  /// Fetch cached trip metadata from DB
+  Future<TripMetadata?> getTripMetadata(String tripId) async {
+    try {
+      final data = await _supabase
+          .from('trip_metadata')
+          .select()
+          .eq('trip_id', tripId)
+          .maybeSingle();
+      if (data != null) return TripMetadata.fromJson(data);
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching trip metadata: $e');
+      return null;
+    }
+  }
+
+  /// Enrich trip metadata via AI and save to DB
+  Future<TripMetadata?> enrichTripMetadata(Trip trip) async {
+    try {
+      final aiResponse = await _geminiService.enrichDestination(trip.location);
+      if (aiResponse == null) return null;
+
+      final metadataJson = {
+        'trip_id': trip.id,
+        'destination_country_code': aiResponse['country_code'],
+        'best_time_to_visit': aiResponse['best_time_to_visit'],
+        'best_time_weather_emoji': aiResponse['best_time_weather_emoji'],
+        'crowd_level': aiResponse['crowd_level'],
+        'avg_temp_range': aiResponse['avg_temp_range'],
+        'visa_required': aiResponse['visa_required'],
+        'currency_code': aiResponse['currency_code'],
+        'currency_name': aiResponse['currency_name'],
+        'timezone': aiResponse['timezone'],
+        'language': aiResponse['language'],
+        'emergency_number': aiResponse['emergency_number'],
+        'raw_ai_response': aiResponse,
+      };
+
+      final saved = await _supabase
+          .from('trip_metadata')
+          .upsert(metadataJson, onConflict: 'trip_id')
+          .select()
+          .single();
+
+      return TripMetadata.fromJson(saved);
+    } catch (e) {
+      debugPrint('Error enriching trip metadata: $e');
+      return null;
+    }
+  }
+
+  // ── International Travel Info ──────────────────────────────────────
+
+  /// Fetch cached international travel info from DB
+  Future<TripInternationalInfo?> getInternationalInfo(
+      String tripId, String userCountry) async {
+    try {
+      final rows = await _supabase
+          .from('trip_international_info')
+          .select()
+          .eq('trip_id', tripId)
+          .eq('user_country', userCountry)
+          .limit(1);
+
+      if (rows.isEmpty) return null;
+      return TripInternationalInfo.fromJson(rows.first);
+    } catch (e) {
+      debugPrint('Error fetching international info: $e');
+      return null;
+    }
+  }
+
+  /// Enrich international travel info via AI and save to DB
+  Future<TripInternationalInfo?> enrichInternationalInfo(
+      Trip trip, String userCountry) async {
+    try {
+      final aiResponse = await _geminiService.getInternationalTravelInfo(
+        userCountry,
+        trip.location,
+      );
+      if (aiResponse == null) return null;
+
+      final infoJson = {
+        'trip_id': trip.id,
+        'user_country': userCountry,
+        'dest_country': trip.location,
+        'visa_required': aiResponse['visa_required'] ?? false,
+        'visa_type': aiResponse['visa_type'],
+        'stay_duration': aiResponse['stay_duration'],
+        'processing_time': aiResponse['processing_time'],
+        'visa_apply_url': aiResponse['visa_apply_url'],
+        'embassy_name': aiResponse['embassy_name'],
+        'embassy_address': aiResponse['embassy_address'],
+        'embassy_phone': aiResponse['embassy_phone'],
+        'embassy_emergency_number': aiResponse['embassy_emergency_number'],
+        'embassy_email': aiResponse['embassy_email'],
+        'local_emergency_number': aiResponse['local_emergency_number'],
+        'local_police_number': aiResponse['local_police_number'],
+        'local_medical_number': aiResponse['local_medical_number'],
+        'plug_type': aiResponse['plug_type'],
+        'tipping_customs': aiResponse['tipping_customs'],
+        'useful_phrases': aiResponse['useful_phrases'],
+        'sim_info': aiResponse['sim_info'],
+        'passport_reminder': aiResponse['passport_reminder'],
+        'travel_insurance_note': aiResponse['travel_insurance_note'],
+      };
+
+      final saved = await _supabase
+          .from('trip_international_info')
+          .upsert(infoJson, onConflict: 'trip_id,user_country')
+          .select()
+          .single();
+
+      return TripInternationalInfo.fromJson(saved);
+    } catch (e) {
+      debugPrint('Error enriching international info: $e');
+      return null;
+    }
+  }
+
+  // ── Domestic Travel Intelligence ──────────────────────────────────
+
+  /// Enrich domestic travel info via AI and save to trip_metadata
+  Future<TripMetadata?> enrichDomesticInfo(String tripId, String destination) async {
+    try {
+      final aiResponse = await _geminiService.getDomesticTravelInfo(destination);
+      if (aiResponse == null) return null;
+
+      final updateData = {
+        'local_transport_tips': aiResponse['local_transport_tips'],
+        'sim_connectivity_info': aiResponse['sim_connectivity_info'],
+        'safety_tips': aiResponse['safety_tips'],
+        'local_customs': aiResponse['local_customs'],
+        'local_food_recommendations': aiResponse['local_food_recommendations'],
+      };
+
+      final saved = await _supabase
+          .from('trip_metadata')
+          .update(updateData)
+          .eq('trip_id', tripId)
+          .select()
+          .single();
+
+      return TripMetadata.fromJson(saved);
+    } catch (e) {
+      debugPrint('Error enriching domestic info: $e');
+      return null;
+    }
+  }
+
+  // ── Place Insights (shared AI cache) ──────────────────────────────
+
+  /// Fetch cached place insights from DB
+  Future<PlaceInsights?> getPlaceInsights(String googlePlaceId) async {
+    try {
+      final rows = await _supabase
+          .from('place_insights')
+          .select()
+          .eq('google_place_id', googlePlaceId)
+          .limit(1);
+
+      if (rows.isEmpty) return null;
+      return PlaceInsights.fromJson(rows.first);
+    } catch (e) {
+      debugPrint('Error fetching place insights: $e');
+      return null;
+    }
+  }
+
+  /// Enrich place insights via AI and save to shared cache
+  Future<PlaceInsights?> enrichPlaceInsights(
+      String googlePlaceId, String placeName, String? tripLocation, {String? placeType}) async {
+    try {
+      final aiResponse = await _geminiService.getPlaceInsights(placeName, tripLocation, placeType: placeType);
+      if (aiResponse == null) return null;
+
+      final saved = await _supabase
+          .from('place_insights')
+          .upsert({
+            'google_place_id': googlePlaceId,
+            'place_name': placeName,
+            'insights': aiResponse,
+          }, onConflict: 'google_place_id')
+          .select()
+          .single();
+
+      return PlaceInsights.fromJson(saved);
+    } catch (e) {
+      debugPrint('Error enriching place insights: $e');
+      return null;
+    }
+  }
+
+  // ──────────────── AI Guide Memory ────────────────
+
+  /// Load conversation history for the current user in a trip
+  Future<List<Map<String, String>>> getAiConversationHistory(String tripId) async {
+    final uid = _supabase.auth.currentUser!.id;
+    final result = await _supabase
+        .from('trip_ai_memory')
+        .select('conversation_history')
+        .eq('trip_id', tripId)
+        .eq('user_id', uid)
+        .maybeSingle();
+
+    if (result == null) return [];
+    return (result['conversation_history'] as List)
+        .map((e) => Map<String, String>.from(e))
+        .toList();
+  }
+
+  /// Save conversation history (keeps last 15 messages to control token cost)
+  Future<void> saveAiConversationHistory(
+      String tripId, List<Map<String, String>> history) async {
+    final uid = _supabase.auth.currentUser!.id;
+    final trimmed =
+        history.length > 15 ? history.sublist(history.length - 15) : history;
+
+    await _supabase.from('trip_ai_memory').upsert({
+      'trip_id': tripId,
+      'user_id': uid,
+      'conversation_history': trimmed,
+      'last_updated': DateTime.now().toIso8601String(),
+    }, onConflict: 'trip_id,user_id');
+  }
+
+  /// Clear conversation history for the current user in a trip
+  Future<void> clearAiConversationHistory(String tripId) async {
+    final uid = _supabase.auth.currentUser!.id;
+    await _supabase
+        .from('trip_ai_memory')
+        .delete()
+        .eq('trip_id', tripId)
+        .eq('user_id', uid);
   }
 }

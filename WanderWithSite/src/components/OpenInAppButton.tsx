@@ -15,7 +15,7 @@ export default function OpenInAppButton({ path, label = 'Open in App' }: OpenInA
         e.preventDefault();
         setIsAttempting(true);
 
-        const appUrl = `wanderwith://tejuice.fun/${path}`;
+        const appUrl = `wanderwith://wanderwith.online/${path}`;
         // Direct link to Play Store for WanderWith
         const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.tejuice.wanderwith';
 

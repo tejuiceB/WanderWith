@@ -308,6 +308,16 @@ class PlanProvider with ChangeNotifier {
         throw Exception("Place location data is missing.");
       }
 
+      // Dedup check: prevent adding a place that already exists in the trip
+      final googlePlaceId = placeData['place_id'] as String?;
+      if (googlePlaceId != null && googlePlaceId.isNotEmpty) {
+        final alreadyExists = _days.any((day) =>
+            day.places.any((p) => p.googlePlaceId == googlePlaceId));
+        if (alreadyExists) {
+          throw Exception('This place is already in your trip plan.');
+        }
+      }
+
       final newPlaceData = {
         'trip_day_id': dayId,
         'name': placeData['name'],
@@ -449,6 +459,39 @@ class PlanProvider with ChangeNotifier {
              summary: summary,
              places: places
         ));
+      }
+
+      // Phase 3.5: Deduplicate places across all days by google_place_id
+      final Set<String> seenPlaceIds = {};
+      for (final day in newDays) {
+        day.places.removeWhere((place) {
+          final gid = place.googlePlaceId;
+          if (gid != null && gid.isNotEmpty && seenPlaceIds.contains(gid)) {
+            debugPrint('Dedup: removed duplicate place "${place.name}" (google_place_id: $gid)');
+            return true;
+          }
+          if (gid != null && gid.isNotEmpty) {
+            seenPlaceIds.add(gid);
+          }
+          return false;
+        });
+        // Re-index order after removal
+        for (int j = 0; j < day.places.length; j++) {
+          day.places[j] = TripPlanPlace(
+            id: day.places[j].id,
+            tripDayId: day.places[j].tripDayId,
+            googlePlaceId: day.places[j].googlePlaceId,
+            name: day.places[j].name,
+            type: day.places[j].type,
+            latitude: day.places[j].latitude,
+            longitude: day.places[j].longitude,
+            imageUrl: day.places[j].imageUrl,
+            arrivalTime: day.places[j].arrivalTime,
+            orderIndex: j,
+            rating: day.places[j].rating,
+            description: day.places[j].description,
+          );
+        }
       }
 
       // Phase 4: Finalizing

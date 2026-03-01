@@ -64,7 +64,7 @@ class GooglePlacesService {
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': _apiKey,
-          'X-Goog-FieldMask': 'id,displayName,location,photos,rating,formattedAddress,primaryType,editorialSummary,reviews,regularOpeningHours,priceLevel,userRatingCount'
+          'X-Goog-FieldMask': 'id,displayName,location,photos,rating,formattedAddress,primaryType,editorialSummary,reviews,regularOpeningHours,currentOpeningHours,priceLevel,userRatingCount,websiteUri,internationalPhoneNumber,accessibilityOptions,parkingOptions'
         },
       );
 
@@ -87,8 +87,12 @@ class GooglePlacesService {
            'type': place['primaryType'] ?? '',
            'summary': place['editorialSummary']?['text'] ?? '',
            'price_level': place['priceLevel'],
-           'opening_hours': place['regularOpeningHours'],
-           'reviews': place['reviews']
+           'opening_hours': place['currentOpeningHours'] ?? place['regularOpeningHours'],
+           'reviews': place['reviews'],
+           'website': place['websiteUri'],
+           'phone': place['internationalPhoneNumber'],
+           'accessibility': place['accessibilityOptions'],
+           'parking': place['parkingOptions'],
         };
       }
     } catch (e) {

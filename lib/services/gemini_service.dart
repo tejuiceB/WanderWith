@@ -375,4 +375,279 @@ OUTPUT FORMAT (STRICT JSON LIST ONLY, NO MARKDOWN):
     }
     return "Great times in $destination! 📸";
   }
+
+  /// Enrich destination with intelligence data (weather, visa, currency, etc.)
+  Future<Map<String, dynamic>?> enrichDestination(String location) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = """
+For the travel destination: "$location"
+
+Return a JSON object with accurate, up-to-date information:
+{
+  "country_code": "ISO 3166-1 alpha-2 code (e.g., 'JP' for Japan)",
+  "best_time_to_visit": "month range (e.g., 'March – May')",
+  "best_time_weather_emoji": "single weather emoji",
+  "crowd_level": "Low or Moderate or High (for current/typical season)",
+  "avg_temp_range": "temperature range with unit (e.g., '24–30°C')",
+  "visa_required": "Yes or No or On Arrival or E-Visa (from most common nationalities perspective)",
+  "currency_code": "ISO 4217 currency code (e.g., 'JPY')",
+  "currency_name": "full currency name (e.g., 'Japanese Yen')",
+  "timezone": "GMT offset (e.g., 'GMT+9')",
+  "language": "primary language (e.g., 'Japanese')",
+  "emergency_number": "local emergency number (e.g., '110')"
+}
+
+IMPORTANT: Return ONLY the JSON object. No markdown, no explanation.
+""";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt}
+              ]
+            }
+          ],
+          "generationConfig": {
+            "response_mime_type": "application/json"
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        if (text != null) {
+          final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+          return jsonDecode(cleanJson) as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      print('AI Destination Enrichment Error: $e');
+    }
+    return null;
+  }
+
+  /// Get international travel info (visa, embassy, emergency) for a user traveling abroad
+  Future<Map<String, dynamic>?> getInternationalTravelInfo(String userCountry, String destination) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = """
+A traveler from "$userCountry" is visiting "$destination".
+
+Provide accurate international travel information as JSON:
+{
+  "visa_required": "Yes or No or On Arrival or E-Visa",
+  "visa_type": "type of visa needed (e.g., Tourist Visa, Visa on Arrival)",
+  "stay_duration": "maximum allowed stay (e.g., 30 Days, 90 Days)",
+  "processing_time": "typical processing time (e.g., 3-7 business days)",
+  "visa_apply_url": "official government visa application URL if applicable, or null",
+  "embassy_name": "name of $userCountry's embassy/consulate in the destination country",
+  "embassy_address": "full address of the embassy",
+  "embassy_phone": "embassy phone number with country code",
+  "embassy_emergency_number": "24/7 emergency helpline for citizens abroad",
+  "embassy_email": "embassy email address",
+  "local_emergency_number": "local general emergency number (e.g., 112)",
+  "local_police_number": "local police number",
+  "local_medical_number": "local medical/ambulance number",
+  "plug_type": "power plug type used at destination (e.g., Type C / Type F, 230V 50Hz). Mention if traveler from $userCountry needs an adapter.",
+  "tipping_customs": "brief tipping customs and norms (e.g., 10-15% at restaurants, not expected at cafés)",
+  "useful_phrases": "5-8 essential phrases in local language with pronunciation (e.g., Hello = Bonjour (bon-ZHOOR), Thank you = Merci (mehr-SEE))",
+  "sim_info": "advice on getting local SIM card or connectivity (e.g., buy at airport, eSIM recommended, free WiFi availability)",
+  "passport_reminder": "passport validity requirement (e.g., Must be valid for 6+ months from date of entry)",
+  "travel_insurance_note": "whether travel insurance is recommended or required, and brief advice"
+}
+
+IMPORTANT: Return ONLY the JSON object. No markdown, no explanation.
+Use null for any field where information is unavailable.
+""";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt}
+              ]
+            }
+          ],
+          "generationConfig": {
+            "response_mime_type": "application/json"
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        if (text != null) {
+          final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+          return jsonDecode(cleanJson) as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      print('AI International Info Error: $e');
+    }
+    return null;
+  }
+
+  /// Get AI-generated domestic travel intelligence for a destination within the user's own country
+  Future<Map<String, dynamic>?> getDomesticTravelInfo(String destination) async {
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+
+    final prompt = """
+For domestic travel to "$destination", provide practical travel intelligence as JSON:
+{
+  "local_transport_tips": "brief guide to getting around — metro, buses, auto-rickshaws, cabs, ride-sharing apps, and any city-specific transport tips",
+  "sim_connectivity_info": "mobile network coverage info, recommended carriers, WiFi availability, and any connectivity tips",
+  "safety_tips": "destination-specific safety advice — areas to avoid, common scams, health precautions, and general travel safety tips",
+  "local_customs": "local customs, etiquette, dress code recommendations, cultural norms, and any dos/don'ts travelers should know",
+  "local_food_recommendations": "5-8 must-try local dishes or street food specialties with brief descriptions"
+}
+
+IMPORTANT: Return ONLY the JSON object. No markdown, no explanation.
+Keep each field to 2-4 concise sentences. Be specific to the destination, not generic.
+""";
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt}
+              ]
+            }
+          ],
+          "generationConfig": {
+            "response_mime_type": "application/json"
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        if (text != null) {
+          final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+          return jsonDecode(cleanJson) as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      print('AI Domestic Info Error: $e');
+    }
+    return null;
+  }
+
+  /// Get AI-generated insights for a specific place
+  Future<Map<String, dynamic>?> getPlaceInsights(String placeName, String? tripLocation, {String? placeType}) async {
+    final locationContext = tripLocation != null ? ' in "$tripLocation"' : '';
+    final typeContext = placeType != null ? '\nPlace type: $placeType.' : '';
+    try {
+      final response = await http.post(
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [
+            {
+              'parts': [
+                {
+                  'text': '''For the place/attraction: "$placeName"$locationContext$typeContext
+
+For natural attractions (beaches, parks, hiking trails, lakes, waterfalls), assume:
+- Entry is typically free unless stated otherwise
+- No ticket required unless it is a national park or protected area
+- Estimate crowd based on rating and popularity
+If specific data is unavailable, make reasonable travel-expert estimates rather than saying "unknown".
+
+Provide a JSON object with the following fields:
+{
+  "best_time_to_visit": "morning/afternoon/evening + brief reason",
+  "crowd_level": "Low|Moderate|High",
+  "peak_hours": "e.g., 10 AM – 2 PM",
+  "avg_visit_duration": "e.g., 1.5 - 2 hours",
+  "ticket_required": true/false,
+  "ticket_price_estimate": "price range in local currency or 'Free'",
+  "online_booking_recommended": true/false,
+  "booking_url": "official booking URL if available, otherwise null",
+  "onsite_booking_available": true/false,
+  "avg_waiting_time": "e.g., 15-30 min on weekends",
+  "insider_tips": ["tip1", "tip2", "tip3"],
+  "is_worth_visiting": "brief 1-2 sentence opinion",
+  "family_friendly": true/false,
+  "budget_friendly": true/false,
+  "safety_rating": "Very Safe|Safe|Exercise Caution",
+  "parking_available": true/false,
+  "nearby_restrooms": true/false,
+  "photography_allowed": true/false,
+  "wheelchair_accessible": true/false,
+  "estimated_cost_per_person": "e.g., ₹500-800 or Free",
+  "recommended_duration_hours": 2.5,
+  "local_tips": "cultural etiquette, dress code, or local customs relevant to this place"
+}
+
+Be accurate with real-world data. If unsure, provide best estimates.'''
+                }
+              ]
+            }
+          ],
+          'generationConfig': {
+            'temperature': 0.3,
+            'maxOutputTokens': 2048,
+            'response_mime_type': 'application/json',
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+        if (text != null) {
+          final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+          try {
+            return jsonDecode(cleanJson) as Map<String, dynamic>;
+          } catch (parseError) {
+            // If JSON is still truncated, try to salvage partial data
+            print('AI Place Insights JSON parse error: $parseError');
+            // Attempt to fix common truncation: add closing braces/brackets
+            String fixedJson = cleanJson;
+            // Count unclosed braces and brackets
+            int openBraces = '{'.allMatches(fixedJson).length - '}'.allMatches(fixedJson).length;
+            int openBrackets = '['.allMatches(fixedJson).length - ']'.allMatches(fixedJson).length;
+            // Remove trailing incomplete key-value (after last comma)
+            final lastComma = fixedJson.lastIndexOf(',');
+            if (lastComma > 0 && openBraces > 0) {
+              fixedJson = fixedJson.substring(0, lastComma);
+            }
+            // Re-count after trim
+            openBraces = '{'.allMatches(fixedJson).length - '}'.allMatches(fixedJson).length;
+            openBrackets = '['.allMatches(fixedJson).length - ']'.allMatches(fixedJson).length;
+            for (int i = 0; i < openBrackets; i++) fixedJson += ']';
+            for (int i = 0; i < openBraces; i++) fixedJson += '}';
+            try {
+              return jsonDecode(fixedJson) as Map<String, dynamic>;
+            } catch (_) {
+              return null;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('AI Place Insights Error: $e');
+    }
+    return null;
+  }
 }

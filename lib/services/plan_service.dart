@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/trip_plan.dart';
+import 'chat_event_service.dart';
 
 class PlanService {
   final supabase = Supabase.instance.client;
@@ -60,7 +61,52 @@ class PlanService {
     await supabase.from('trip_plan_places').delete().eq('id', placeId);
   }
 
+  /// Check if a place with the given google_place_id already exists in the trip.
+  Future<bool> placeExistsInTrip(String tripId, String googlePlaceId) async {
+    final result = await supabase
+        .from('trip_plan_places')
+        .select('id, trip_day_id!inner(trip_id)')
+        .eq('trip_day_id.trip_id', tripId)
+        .eq('google_place_id', googlePlaceId)
+        .maybeSingle();
+    return result != null;
+  }
+
   Future<Map<String, dynamic>> addPlace(Map<String, dynamic> placeJson) async {
-    return await supabase.from('trip_plan_places').insert(placeJson).select().single();
+    // Server-side dedup check for manual add
+    final googlePlaceId = placeJson['google_place_id'] as String?;
+    String? resolvedTripId;
+    int? resolvedDayNumber;
+    if (googlePlaceId != null && googlePlaceId.isNotEmpty) {
+      final dayId = placeJson['trip_day_id'] as String;
+      // Look up trip_id from the day
+      final dayRow = await supabase
+          .from('trip_days')
+          .select('trip_id, day_number')
+          .eq('id', dayId)
+          .single();
+      resolvedTripId = dayRow['trip_id'] as String;
+      resolvedDayNumber = dayRow['day_number'] as int?;
+      final exists = await placeExistsInTrip(resolvedTripId, googlePlaceId);
+      if (exists) {
+        throw Exception('This place is already in your trip plan.');
+      }
+    }
+    final result = await supabase.from('trip_plan_places').insert(placeJson).select().single();
+
+    // Post system message to chat
+    if (resolvedTripId != null) {
+      try {
+        final uid = supabase.auth.currentUser?.id;
+        final userData = uid != null
+            ? await supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle()
+            : null;
+        final userName = userData?['display_name'] ?? 'Someone';
+        final placeName = placeJson['name'] as String? ?? 'a place';
+        await ChatEventService.instance.placeAdded(resolvedTripId, userName, placeName, resolvedDayNumber ?? 1);
+      } catch (_) {}
+    }
+
+    return result;
   }
 }

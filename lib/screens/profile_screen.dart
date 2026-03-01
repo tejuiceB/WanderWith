@@ -1712,7 +1712,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   void _handleShareProfile(UserProfile profile) {
      final username = profile.username ?? profile.displayName?.replaceAll(' ', '_').toLowerCase() ?? profile.uid;
-     final webUrl = "https://tejuice.fun/u/$username";
+     final webUrl = "https://www.wanderwith.online/u/$username";
      
      Share.share(webUrl);
   }

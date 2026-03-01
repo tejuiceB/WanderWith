@@ -5,9 +5,9 @@
         ],
         "target": {
             "namespace": "android_app",
-            "package_name": "com.example.wander_with",
+            "package_name": "com.tejuice.wanderwith",
             "sha256_cert_fingerprints": [
-                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:46:29:0D:99:B0:5B:97:41:92:AF:2D:14:F5:94:AF:51:CC:2B:9F:91:E1"
+                "75:17:DE:95:60:AB:15:1C:51:06:1B:01:F4:63:CD:24:A3:01:4B:C8:71:03:BB:86:5F:8D:CB:F7:DA:1E:5D:74"
             ]
         }
     }

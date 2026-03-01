@@ -274,74 +274,95 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // IMAGE PREVIEW
-            SizedBox(
-              height: MediaQuery.of(context).size.width - 40,
-              child: _selectedImages.isEmpty
-                  ? GestureDetector(
-                      onTap: _pickImages,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: colors.surfaceBg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_photo_alternate_outlined, size: 48, color: colors.textSecondary),
-                            const SizedBox(height: 8),
-                            Text("Tap to select images", style: GoogleFonts.inter(color: colors.textSecondary)),
-                          ],
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _selectedImages.length + 1,
-                      separatorBuilder: (context, index) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        if (index == _selectedImages.length) {
-                          return GestureDetector(
-                            onTap: _pickImages,
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: colors.surfaceBg,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: colors.border, width: 2),
-                                ),
-                                child: Center(child: Icon(Icons.add, size: 32, color: colors.textSecondary)),
-                              ),
-                            ),
-                          );
-                        }
-                        return Stack(
-                          children: [
-                            ClipRRect(
+            Stack(
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.width - 40,
+                  child: _selectedImages.isEmpty
+                      ? GestureDetector(
+                          onTap: _pickImages,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: colors.surfaceBg,
                               borderRadius: BorderRadius.circular(16),
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: Image.file(_selectedImages[index], fit: BoxFit.cover),
-                              ),
                             ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() => _selectedImages.removeAt(index));
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined, size: 48, color: colors.textSecondary),
+                                const SizedBox(height: 8),
+                                Text("Tap to select images", style: GoogleFonts.inter(color: colors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedImages.length + 1,
+                          separatorBuilder: (context, index) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            if (index == _selectedImages.length) {
+                              return GestureDetector(
+                                onTap: _pickImages,
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceBg,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: colors.border, width: 2),
+                                    ),
+                                    child: Center(child: Icon(Icons.add, size: 32, color: colors.textSecondary)),
+                                  ),
                                 ),
-                              ),
-                            )
-                          ],
-                        );
-                      },
+                              );
+                            }
+                            return Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: Image.file(_selectedImages[index], fit: BoxFit.cover),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() => _selectedImages.removeAt(index));
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                )
+                              ],
+                            );
+                          },
+                        ),
+                ),
+                // Image count badge
+                if (_selectedImages.isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        "\ud83d\udcf7 ${_selectedImages.length}/10",
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
                     ),
+                  ),
+              ],
             ),
             
             const SizedBox(height: 24),
@@ -361,6 +382,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                   style: GoogleFonts.inter(fontSize: 15),
                 ),
+                // Quick emoji toolbar
+                _buildEmojiToolbar(colors),
                 if (_showMentions && _mentionSuggestions.isNotEmpty)
                   Container(
                     constraints: const BoxConstraints(maxHeight: 180),
@@ -508,6 +531,40 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmojiToolbar(AppColors colors) {
+    const quickEmojis = ['😍', '🌍', '✈️', '🏖', '⛰️', '🍽', '📸', '🎉', '❤️', '🔥'];
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: quickEmojis.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) => GestureDetector(
+          onTap: () {
+            final text = _captionController.text;
+            final selection = _captionController.selection;
+            final insertAt = selection.isValid ? selection.baseOffset : text.length;
+            final newText = text.replaceRange(insertAt, insertAt, quickEmojis[index]);
+            _captionController.text = newText;
+            _captionController.selection = TextSelection.fromPosition(
+              TextPosition(offset: insertAt + quickEmojis[index].length),
+            );
+          },
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.surfaceBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(quickEmojis[index], style: const TextStyle(fontSize: 18)),
+          ),
         ),
       ),
     );

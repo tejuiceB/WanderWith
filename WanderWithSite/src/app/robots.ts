@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
             allow: '/',
             disallow: '/private/',
         },
-        sitemap: 'https://wanderwith.com/sitemap.xml',
+        sitemap: 'https://www.wanderwith.online/sitemap.xml',
     }
 }

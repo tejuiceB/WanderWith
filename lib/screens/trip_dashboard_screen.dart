@@ -38,6 +38,14 @@ import '../widgets/trip_chat_tab.dart';
 import '../providers/plan_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_extensions.dart';
+import '../models/trip_metadata.dart';
+import '../models/trip_international_info.dart';
+import '../models/expense.dart';
+import '../services/expense_service.dart';
+import '../models/checklist_item.dart';
+import '../services/checklist_service.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'dart:async';
 
 class TripDashboardScreen extends StatefulWidget {
   final Trip trip;
@@ -233,7 +241,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         }
 
         return DefaultTabController(
-          length: 9,
+          length: 10,
           child: Scaffold(
             backgroundColor: colors.scaffoldBg,
             body: NestedScrollView(
@@ -263,13 +271,22 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                     elevation: 0,
                     backgroundColor: colors.scaffoldBg,
                     centerTitle: false,
-                    title: Text(
-                      "${currentTrip.name} ${currentTrip.metadata?['emoji'] ?? '✈️'}",
-                      style: GoogleFonts.outfit(
-                        color: colors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "${currentTrip.name} ${currentTrip.metadata?['emoji'] ?? '✈️'}",
+                            style: GoogleFonts.outfit(
+                              color: colors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildStatusBadge(currentTrip.status, colors),
+                      ],
                     ),
                     leading: IconButton(
                       icon: Icon(Icons.arrow_back, color: colors.textPrimary),
@@ -353,6 +370,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                             Tab(text: "Polls"),
                             Tab(text: "Gallery"),
                             Tab(text: "Reviews"),
+                            Tab(text: "Expenses"),
                           ],
                         ),
                       ),
@@ -371,6 +389,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                   _PollsTab(trip: currentTrip, onRefresh: _refreshData),
                   _GalleryTab(trip: currentTrip, onRefresh: _refreshData),
                   _ReviewsTab(trip: currentTrip, onRefresh: _refreshData),
+                  _ExpensesTab(trip: currentTrip, onRefresh: _refreshData),
                 ],
               ),
             ),
@@ -569,6 +588,61 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         ),
      );
   }
+
+  /// Status badge widget for the dashboard app bar
+  Widget _buildStatusBadge(String status, AppColors colors) {
+    Color color;
+    String label;
+    IconData icon;
+
+    switch (status) {
+      case 'planning':
+        color = Colors.orange;
+        label = 'Planning';
+        icon = Icons.edit_note;
+        break;
+      case 'confirmed':
+        color = Colors.blue;
+        label = 'Confirmed';
+        icon = Icons.check_circle;
+        break;
+      case 'ongoing':
+        color = Colors.green;
+        label = 'Ongoing';
+        icon = Icons.flight_takeoff;
+        break;
+      case 'completed':
+        color = Colors.grey;
+        label = 'Completed';
+        icon = Icons.flag;
+        break;
+      case 'dead':
+        color = Colors.red;
+        label = 'Cancelled';
+        icon = Icons.cancel;
+        break;
+      default:
+        color = Colors.orange;
+        label = 'Planning';
+        icon = Icons.edit_note;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
 }
 
 
@@ -587,6 +661,122 @@ class _OverviewTab extends StatefulWidget {
 class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
+
+  TripMetadata? _metadata;
+  bool _metadataLoading = true;
+  TripInternationalInfo? _internationalInfo;
+  bool _internationalLoading = false;
+  bool _isInternational = false;
+  bool _domesticLoading = false;
+  List<ChecklistItem> _checklistItems = [];
+  bool _checklistLoading = true;
+  final ChecklistService _checklistService = ChecklistService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetadata();
+    _loadChecklist();
+  }
+
+  Future<void> _loadMetadata() async {
+    try {
+      final tripService = TripService();
+      var data = await tripService.getTripMetadata(widget.trip.id);
+      if (data == null) {
+        // First time — enrich via AI
+        data = await tripService.enrichTripMetadata(widget.trip);
+      }
+      if (mounted) setState(() { _metadata = data; _metadataLoading = false; });
+
+      // After metadata loads, check for international travel
+      _loadInternationalInfo(data);
+    } catch (e) {
+      debugPrint('Error loading trip metadata: $e');
+      if (mounted) setState(() => _metadataLoading = false);
+    }
+  }
+
+  Future<void> _loadInternationalInfo(TripMetadata? metadata) async {
+    final userCountry = AuthService.instance.userProfile?.country;
+    if (userCountry == null || userCountry.isEmpty) return;
+
+    // Determine if trip is international by comparing user country to destination
+    final destCountryCode = metadata?.destinationCountryCode;
+    if (destCountryCode == null) return;
+
+    // Check if domestic: compare destination country code with user's country
+    // Common patterns: user country might be "India" and dest code "IN", etc.
+    final userCountryLower = userCountry.toLowerCase().trim();
+    final destLower = destCountryCode.toLowerCase().trim();
+    
+    // Country name to code mapping for common cases
+    final Map<String, String> countryNameToCode = {
+      'india': 'in', 'united states': 'us', 'usa': 'us', 'united kingdom': 'gb', 'uk': 'gb',
+      'australia': 'au', 'canada': 'ca', 'germany': 'de', 'france': 'fr', 'japan': 'jp',
+      'china': 'cn', 'brazil': 'br', 'italy': 'it', 'spain': 'es', 'mexico': 'mx',
+      'south korea': 'kr', 'russia': 'ru', 'indonesia': 'id', 'turkey': 'tr', 'saudi arabia': 'sa',
+      'thailand': 'th', 'singapore': 'sg', 'malaysia': 'my', 'philippines': 'ph', 'vietnam': 'vn',
+      'united arab emirates': 'ae', 'uae': 'ae', 'south africa': 'za', 'nigeria': 'ng',
+      'egypt': 'eg', 'pakistan': 'pk', 'bangladesh': 'bd', 'nepal': 'np', 'sri lanka': 'lk',
+    };
+    
+    final userCode = countryNameToCode[userCountryLower] ?? userCountryLower;
+    final isDomestic = userCode == destLower || userCountryLower == destLower;
+    
+    if (mounted) setState(() => _isInternational = !isDomestic);
+    
+    if (isDomestic) {
+      // Load domestic travel intelligence if not already enriched
+      if (metadata != null && metadata.localTransportTips == null) {
+        if (mounted) setState(() => _domesticLoading = true);
+        try {
+          final tripService = TripService();
+          final enriched = await tripService.enrichDomesticInfo(
+            widget.trip.id, widget.trip.location,
+          );
+          if (enriched != null && mounted) {
+            setState(() { _metadata = enriched; _domesticLoading = false; });
+          } else {
+            if (mounted) setState(() => _domesticLoading = false);
+          }
+        } catch (e) {
+          debugPrint('Error loading domestic info: $e');
+          if (mounted) setState(() => _domesticLoading = false);
+        }
+      }
+      return;
+    }
+
+    if (mounted) setState(() => _internationalLoading = true);
+
+    try {
+      final tripService = TripService();
+      var info = await tripService.getInternationalInfo(widget.trip.id, userCountry);
+      if (info == null) {
+        info = await tripService.enrichInternationalInfo(widget.trip, userCountry);
+      }
+      if (mounted) setState(() { _internationalInfo = info; _internationalLoading = false; });
+    } catch (e) {
+      debugPrint('Error loading international info: $e');
+      if (mounted) setState(() => _internationalLoading = false);
+    }
+  }
+
+  Future<void> _loadChecklist() async {
+    try {
+      // Determine if international based on loaded metadata or user's country vs trip location
+      final isInternational = _internationalInfo != null;
+      final items = await _checklistService.generateDefaults(
+        tripId: widget.trip.id,
+        isInternational: isInternational,
+      );
+      if (mounted) setState(() { _checklistItems = items; _checklistLoading = false; });
+    } catch (e) {
+      debugPrint('Error loading checklist: $e');
+      if (mounted) setState(() => _checklistLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -642,7 +832,27 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                     const SizedBox(height: 12),
                     _buildOverviewStats(context),
                     
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    // Trip Intelligence Card
+                    _buildTripIntelligenceCard(),
+
+                    // International Travel Info Card
+                    _buildInternationalTravelCard(),
+
+                    // Domestic Travel Intelligence Card
+                    if (!_isInternational) _buildDomesticTravelCard(),
+
+                    // Travel Checklist
+                    if (!widget.trip.isDead) ...[
+                      const SizedBox(height: 16),
+                      _buildChecklistCard(colors),
+                    ],
+
+                    // Emergency Info
+                    const SizedBox(height: 16),
+                    _buildEmergencyInfoCard(colors),
+
+                    const SizedBox(height: 20),
                     // ABOUT THIS TRIP SECTION
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -734,8 +944,8 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                                          subtitle: const Text("Send a direct link that opens the app."),
                                          onTap: () {
                                            Navigator.pop(ctx);
-                                           final String webUrl = "https://www.tejuice.fun/join/${widget.trip.id}";
-                                           final String appUrl = "wanderwith://tejuice.fun/join/${widget.trip.id}";
+                                           final String webUrl = "https://www.wanderwith.online/join/${widget.trip.id}";
+                                           final String appUrl = "wanderwith://wanderwith.online/join/${widget.trip.id}";
                                            Share.share(
                                              "Join my trip on WanderWith! 🎒\n\n"
                                              "Tap to join instantly: $appUrl\n\n"
@@ -955,6 +1165,682 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
           color: Colors.teal,
         ),
       ],
+    );
+  }
+
+  Widget _buildTripIntelligenceCard() {
+    final colors = context.appColors;
+
+    if (_metadataLoading) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+            ),
+            const SizedBox(width: 12),
+            Text("Loading destination info...",
+                style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    if (_metadata == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+        boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.travel_explore, color: AppColors.brand, size: 20),
+            const SizedBox(width: 8),
+            Text("Destination Intel",
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: colors.textPrimary)),
+          ]),
+          const SizedBox(height: 14),
+          _intelRow(colors, "🗓 Best Time", "${_metadata!.bestTimeToVisit ?? '-'} ${_metadata!.bestTimeWeatherEmoji ?? ''}"),
+          _intelRow(colors, "👥 Crowds", _metadata!.crowdLevel ?? "-"),
+          _intelRow(colors, "🌡 Avg Temp", _metadata!.avgTempRange ?? "-"),
+          if (_isInternational)
+            _intelRow(colors, "🛂 Visa", _metadata!.visaRequired ?? "-"),
+          if (_isInternational)
+            _intelRow(colors, "💱 Currency", _metadata!.currencyCode != null
+                ? "${_metadata!.currencyCode} (${_metadata!.currencyName ?? ''})"
+                : "-"),
+          _intelRow(colors, "🕐 Timezone", _metadata!.timezone ?? "-"),
+          _intelRow(colors, "🗣 Language", _metadata!.language ?? "-"),
+          if (_metadata!.emergencyNumber != null)
+            _intelRow(colors, "🚨 Emergency", _metadata!.emergencyNumber!),
+        ],
+      ),
+    );
+  }
+
+  Widget _intelRow(AppColors colors, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(value,
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary),
+                textAlign: TextAlign.end),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInternationalTravelCard() {
+    final colors = context.appColors;
+
+    if (_internationalLoading) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+              ),
+              const SizedBox(width: 12),
+              Text("Loading travel requirements...",
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_internationalInfo == null) return const SizedBox.shrink();
+
+    final info = _internationalInfo!;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+          boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(children: [
+              const Icon(Icons.flight_takeoff, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text("International Travel Info",
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: colors.textPrimary)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text("${info.userCountry} → ${info.destCountry}",
+                style: TextStyle(color: colors.textMuted, fontSize: 12)),
+            const SizedBox(height: 14),
+
+            // Visa Section
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: info.visaRequired
+                    ? Colors.red.withOpacity(0.08)
+                    : Colors.green.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(
+                      info.visaRequired ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                      color: info.visaRequired ? Colors.red : Colors.green,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        info.visaRequired ? "Visa Required" : "Visa Free / On Arrival",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: info.visaRequired ? Colors.red : Colors.green,
+                        ),
+                      ),
+                    ),
+                  ]),
+                  if (info.visaType != null) ...[
+                    const SizedBox(height: 6),
+                    _intelRow(colors, "Type", info.visaType!),
+                  ],
+                  if (info.stayDuration != null)
+                    _intelRow(colors, "Stay", info.stayDuration!),
+                  if (info.processingTime != null)
+                    _intelRow(colors, "Processing", info.processingTime!),
+                  if (info.visaApplyUrl != null) ...[
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () async {
+                        final url = Uri.parse(info.visaApplyUrl!);
+                        if (await canLaunchUrl(url)) launchUrl(url, mode: LaunchMode.externalApplication);
+                      },
+                      child: Text("Apply Online →",
+                          style: TextStyle(color: AppColors.brand, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Embassy Section
+            if (info.embassyName != null) ...[
+              const SizedBox(height: 14),
+              Text("🏛 Embassy / Consulate",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              if (info.embassyName != null)
+                _intelRow(colors, "Name", info.embassyName!),
+              if (info.embassyAddress != null)
+                _intelRow(colors, "Address", info.embassyAddress!),
+              if (info.embassyPhone != null)
+                _intelRow(colors, "Phone", info.embassyPhone!),
+              if (info.embassyEmergencyNumber != null)
+                _intelRow(colors, "Emergency", info.embassyEmergencyNumber!),
+              if (info.embassyEmail != null)
+                _intelRow(colors, "Email", info.embassyEmail!),
+            ],
+
+            // Emergency Numbers Section
+            if (info.localEmergencyNumber != null ||
+                info.localPoliceNumber != null ||
+                info.localMedicalNumber != null) ...[
+              const SizedBox(height: 14),
+              Text("🚨 Local Emergency Numbers",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              if (info.localEmergencyNumber != null)
+                _intelRow(colors, "Emergency", info.localEmergencyNumber!),
+              if (info.localPoliceNumber != null)
+                _intelRow(colors, "Police", info.localPoliceNumber!),
+              if (info.localMedicalNumber != null)
+                _intelRow(colors, "Medical", info.localMedicalNumber!),
+            ],
+
+            // K2: Enhanced International Fields
+            if (info.passportReminder != null || info.travelInsuranceNote != null) ...[
+              const SizedBox(height: 14),
+              Text("📋 Before You Go",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              if (info.passportReminder != null)
+                _intelRow(colors, "🛂 Passport", info.passportReminder!),
+              if (info.travelInsuranceNote != null)
+                _intelRow(colors, "🛡 Insurance", info.travelInsuranceNote!),
+            ],
+
+            if (info.plugType != null || info.simInfo != null) ...[
+              const SizedBox(height: 14),
+              Text("🔌 Connectivity & Power",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              if (info.plugType != null)
+                _intelRow(colors, "Plug Type", info.plugType!),
+              if (info.simInfo != null)
+                _intelRow(colors, "SIM / WiFi", info.simInfo!),
+            ],
+
+            if (info.tippingCustoms != null) ...[
+              const SizedBox(height: 14),
+              Text("💰 Tipping Customs",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              Text(info.tippingCustoms!,
+                  style: TextStyle(fontSize: 13, color: colors.textSecondary, height: 1.5)),
+            ],
+
+            if (info.usefulPhrases != null) ...[
+              const SizedBox(height: 14),
+              Text("🗣 Useful Phrases",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+              const SizedBox(height: 6),
+              Text(info.usefulPhrases!,
+                  style: TextStyle(fontSize: 13, color: colors.textSecondary, height: 1.5)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDomesticTravelCard() {
+    final colors = context.appColors;
+
+    if (_domesticLoading) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.teal),
+              ),
+              const SizedBox(width: 12),
+              Text("Loading local travel tips...",
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Check if domestic data has been loaded
+    if (_metadata == null ||
+        (_metadata!.localTransportTips == null &&
+         _metadata!.safetyTips == null &&
+         _metadata!.localCustoms == null &&
+         _metadata!.localFoodRecommendations == null)) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+          boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.explore, color: Colors.teal, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text("Local Travel Tips",
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: colors.textPrimary)),
+              ),
+            ]),
+            const SizedBox(height: 14),
+
+            if (_metadata!.localTransportTips != null) ...[
+              _domesticSection(colors, "🚌 Getting Around", _metadata!.localTransportTips!),
+              const SizedBox(height: 12),
+            ],
+            if (_metadata!.simConnectivityInfo != null) ...[
+              _domesticSection(colors, "📶 Connectivity", _metadata!.simConnectivityInfo!),
+              const SizedBox(height: 12),
+            ],
+            if (_metadata!.safetyTips != null) ...[
+              _domesticSection(colors, "🛡 Safety Tips", _metadata!.safetyTips!),
+              const SizedBox(height: 12),
+            ],
+            if (_metadata!.localCustoms != null) ...[
+              _domesticSection(colors, "🙏 Local Customs", _metadata!.localCustoms!),
+              const SizedBox(height: 12),
+            ],
+            if (_metadata!.localFoodRecommendations != null)
+              _domesticSection(colors, "🍜 Must-Try Food", _metadata!.localFoodRecommendations!),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _domesticSection(AppColors colors, String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
+        const SizedBox(height: 4),
+        Text(content,
+            style: TextStyle(fontSize: 13, color: colors.textSecondary, height: 1.5)),
+      ],
+    );
+  }
+
+  Widget _buildChecklistCard(AppColors colors) {
+    if (_checklistLoading) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text("Loading checklist...", style: TextStyle(color: colors.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    final checked = _checklistItems.where((i) => i.isChecked).length;
+    final total = _checklistItems.length;
+    final progress = total > 0 ? checked / total : 0.0;
+
+    // Group items by category
+    final grouped = <String, List<ChecklistItem>>{};
+    for (final item in _checklistItems) {
+      grouped.putIfAbsent(item.category, () => []).add(item);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Row(
+            children: [
+              const Icon(Icons.checklist_rounded, color: AppColors.brand, size: 22),
+              const SizedBox(width: 10),
+              Text("Travel Checklist", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+              const Spacer(),
+              Text("$checked/$total", style: GoogleFonts.inter(fontSize: 13, color: colors.textSecondary, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: colors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progress >= 1.0 ? Colors.green : AppColors.brand,
+                ),
+                minHeight: 4,
+              ),
+            ),
+          ),
+          children: [
+            ...grouped.entries.map((entry) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  Text(
+                    "${ChecklistItem.categoryIcon(entry.key)} ${ChecklistItem.categoryLabel(entry.key)}",
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textSecondary),
+                  ),
+                  ...entry.value.map((item) => _buildChecklistItemTile(colors, item)),
+                ],
+              );
+            }),
+            const SizedBox(height: 12),
+            // Add custom item button
+            InkWell(
+              onTap: () => _showAddChecklistItemDialog(colors),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.brand.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add, size: 18, color: AppColors.brand),
+                    const SizedBox(width: 6),
+                    Text("Add Item", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.brand)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChecklistItemTile(AppColors colors, ChecklistItem item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: item.isChecked,
+              onChanged: (val) async {
+                if (val == null) return;
+                await _checklistService.toggleItem(item.id, val);
+                // Reload
+                final items = await _checklistService.getChecklist(widget.trip.id);
+                if (mounted) setState(() => _checklistItems = items);
+              },
+              activeColor: AppColors.brand,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item.itemText,
+              style: TextStyle(
+                fontSize: 14,
+                color: item.isChecked ? colors.textMuted : colors.textPrimary,
+                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          if (!item.isAutoGenerated)
+            GestureDetector(
+              onTap: () async {
+                await _checklistService.deleteItem(item.id);
+                final items = await _checklistService.getChecklist(widget.trip.id);
+                if (mounted) setState(() => _checklistItems = items);
+              },
+              child: Icon(Icons.close, size: 16, color: colors.textMuted),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddChecklistItemDialog(AppColors colors) {
+    final controller = TextEditingController();
+    String selectedCategory = 'general';
+    final categories = ['general', 'documents', 'packing', 'bookings', 'health', 'money'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: colors.surfaceBg,
+            title: Text("Add Checklist Item", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: "e.g. Buy sunscreen",
+                    filled: true,
+                    fillColor: colors.cardBg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: categories.map((cat) {
+                    final isSelected = selectedCategory == cat;
+                    return ChoiceChip(
+                      label: Text("${ChecklistItem.categoryIcon(cat)} ${ChecklistItem.categoryLabel(cat)}", style: TextStyle(fontSize: 12)),
+                      selected: isSelected,
+                      selectedColor: AppColors.brand.withOpacity(0.2),
+                      backgroundColor: colors.cardBg,
+                      onSelected: (_) => setDialogState(() => selectedCategory = cat),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
+                onPressed: () async {
+                  final text = controller.text.trim();
+                  if (text.isEmpty) return;
+                  Navigator.pop(ctx);
+                  await _checklistService.addItem(
+                    tripId: widget.trip.id,
+                    itemText: text,
+                    category: selectedCategory,
+                  );
+                  final items = await _checklistService.getChecklist(widget.trip.id);
+                  if (mounted) setState(() => _checklistItems = items);
+                },
+                child: Text("Add", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // ── Emergency Info Card ──
+  Widget _buildEmergencyInfoCard(AppColors colors) {
+    final hasInternational = _internationalInfo != null;
+    
+    // Use destination-specific numbers from metadata/international info,
+    // fall back to metadata emergency number, then generic defaults
+    final policeNumber = hasInternational 
+        ? (_internationalInfo!.localPoliceNumber ?? _metadata?.emergencyNumber ?? '112')
+        : (_metadata?.emergencyNumber ?? '112');
+    final ambulanceNumber = hasInternational 
+        ? (_internationalInfo!.localMedicalNumber ?? '112')
+        : (_metadata?.emergencyNumber ?? '112');
+    final emergencyNumber = hasInternational
+        ? (_internationalInfo!.localEmergencyNumber ?? _metadata?.emergencyNumber ?? '112')
+        : (_metadata?.emergencyNumber ?? '112');
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Row(
+            children: [
+              Icon(Icons.emergency, color: Colors.red.shade400, size: 22),
+              const SizedBox(width: 10),
+              const Text("Emergency Info", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 8, right: 8, bottom: 12),
+              child: Column(
+                children: [
+                  _emergencyRow(colors, "Emergency", emergencyNumber, Icons.sos),
+                  _emergencyRow(colors, "Police", policeNumber, Icons.local_police),
+                  _emergencyRow(colors, "Ambulance", ambulanceNumber, Icons.local_hospital),
+                  if (hasInternational) ...[
+                    Divider(color: colors.border, height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, bottom: 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text("Embassy & Consulate", style: TextStyle(color: colors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    if (_internationalInfo!.embassyEmergencyNumber != null)
+                      _emergencyRow(colors, "Embassy Emergency", _internationalInfo!.embassyEmergencyNumber!, Icons.account_balance),
+                    if (_internationalInfo!.embassyPhone != null)
+                      _emergencyRow(colors, "Embassy Phone", _internationalInfo!.embassyPhone!, Icons.phone),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emergencyRow(AppColors colors, String label, String number, IconData icon) {
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      leading: Icon(icon, size: 20, color: Colors.red.shade300),
+      title: Text(label, style: const TextStyle(fontSize: 14)),
+      trailing: TextButton.icon(
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: Icon(Icons.phone, size: 14, color: Colors.teal.shade400),
+        label: Text(number, style: TextStyle(color: Colors.teal.shade400, fontWeight: FontWeight.bold, fontSize: 13)),
+        onPressed: () async {
+          final uri = Uri.parse('tel:$number');
+          if (await canLaunchUrl(uri)) {
+            launchUrl(uri);
+          }
+        },
+      ),
     );
   }
 
@@ -1718,7 +2604,6 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _buildTripSnapshotCard(BuildContext context) {
-    final now = DateTime.now();
     String dateRange = "Dates TBD ⏳";
     String duration = "";
     int days = 0;
@@ -1798,7 +2683,60 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
               _buildTimelineBadge("${widget.trip.memberIds.length} Traveler${widget.trip.memberIds.length > 1 ? 's' : ''}", Icons.group_outlined),
             ],
           ),
+          // Countdown
+          _buildCountdown(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCountdown() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    String label;
+    IconData icon;
+
+    if (widget.trip.startDate == null) {
+      label = "Dates not set yet";
+      icon = Icons.calendar_today;
+    } else {
+      final start = DateTime(widget.trip.startDate!.year, widget.trip.startDate!.month, widget.trip.startDate!.day);
+      final end = widget.trip.endDate != null
+          ? DateTime(widget.trip.endDate!.year, widget.trip.endDate!.month, widget.trip.endDate!.day)
+          : start;
+
+      if (today.isBefore(start)) {
+        final daysUntil = start.difference(today).inDays;
+        if (daysUntil == 0) { label = "Trip starts today!"; icon = Icons.flight_takeoff; }
+        else if (daysUntil == 1) { label = "Trip starts tomorrow!"; icon = Icons.flight_takeoff; }
+        else { label = "$daysUntil days to go"; icon = Icons.hourglass_bottom; }
+      } else if (!today.isAfter(end)) {
+        final dayNumber = today.difference(start).inDays + 1;
+        final totalDays = end.difference(start).inDays + 1;
+        label = "Day $dayNumber of $totalDays";
+        icon = Icons.explore;
+      } else {
+        label = "Trip Completed";
+        icon = Icons.check_circle_outline;
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }
@@ -2074,6 +3012,44 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
   @override
   bool get wantKeepAlive => true;
 
+  final ExpenseService _expenseService = ExpenseService();
+  List<TripExpense> _expenses = [];
+  StreamSubscription? _expensesSub;
+  Map<String, UserProfile> _profileCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _expensesSub = _expenseService.getExpensesStream(widget.trip.id).listen((expenses) {
+      if (mounted) setState(() => _expenses = expenses);
+    });
+    _loadProfiles();
+  }
+
+  Future<void> _loadProfiles() async {
+    try {
+      final profiles = await TripService().getTripMembersProfiles(widget.trip.memberIds);
+      if (mounted) {
+        setState(() {
+          for (final p in profiles) {
+            _profileCache[p.uid] = p;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  String _memberName(String uid) {
+    final p = _profileCache[uid];
+    return p?.displayName ?? p?.username ?? uid.substring(0, uid.length.clamp(0, 8));
+  }
+
+  @override
+  void dispose() {
+    _expensesSub?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -2279,9 +3255,239 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                    );
                 }
               ),
+
+            // ── Expense Analytics Section ──
+            if (_expenses.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              const Text("Spending by Category", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _buildExpensePieChart(colors, currency),
+              const SizedBox(height: 32),
+              _buildBurnRate(colors, currency),
+              const SizedBox(height: 32),
+              const Text("Spending by Member", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _buildPerMemberSpending(colors, currency),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  // ── Expense Pie Chart ──
+  Widget _buildExpensePieChart(AppColors colors, String currency) {
+    final Map<String, double> categoryTotals = {};
+    for (final expense in _expenses) {
+      categoryTotals[expense.category] = (categoryTotals[expense.category] ?? 0) + expense.amount;
+    }
+    if (categoryTotals.isEmpty) return const SizedBox.shrink();
+
+    final categoryColors = <String, Color>{
+      'food': Colors.green,
+      'transport': Colors.blue,
+      'accommodation': Colors.orange,
+      'activity': Colors.purple,
+      'shopping': Colors.pink,
+      'general': Colors.teal,
+    };
+
+    final total = categoryTotals.values.fold(0.0, (a, b) => a + b);
+    final sections = categoryTotals.entries.map((entry) {
+      final pct = total > 0 ? (entry.value / total * 100) : 0.0;
+      final color = categoryColors[entry.key] ?? Colors.grey;
+      return PieChartSectionData(
+        value: entry.value,
+        title: '${pct.toStringAsFixed(0)}%',
+        color: color,
+        radius: 60,
+        titleStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+      );
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
+                sections: sections,
+                centerSpaceRadius: 40,
+                sectionsSpace: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: categoryTotals.entries.map((entry) {
+              final color = categoryColors[entry.key] ?? Colors.grey;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${TripExpense.categoryEmoji(entry.key)} ${entry.key[0].toUpperCase()}${entry.key.substring(1)}',
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$currency ${entry.value.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Budget Burn Rate ──
+  Widget _buildBurnRate(AppColors colors, String currency) {
+    final totalSpent = _expenses.fold(0.0, (sum, e) => sum + e.amount);
+    final totalBudget = widget.trip.estimatedCost;
+    final burnProgress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
+    final isOverBudget = totalSpent > totalBudget;
+
+    final tripStart = widget.trip.startDate;
+    final now = DateTime.now();
+    final daysElapsed = (tripStart != null ? now.difference(tripStart).inDays : 1).clamp(1, 9999);
+    final dailyBurnRate = totalSpent / daysElapsed;
+
+    final tripEnd = widget.trip.endDate;
+    final totalDays = (tripStart != null && tripEnd != null)
+        ? tripEnd.difference(tripStart).inDays.clamp(1, 9999)
+        : null;
+    final projectedTotal = totalDays != null ? dailyBurnRate * totalDays : null;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isOverBudget ? Icons.warning_amber_rounded : Icons.trending_up,
+                color: isOverBudget ? Colors.red : Colors.teal,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text("Budget Burn Rate", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Actual Spending", style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+              Text(
+                "$currency ${totalSpent.toStringAsFixed(0)} / $currency ${totalBudget.toStringAsFixed(0)}",
+                style: TextStyle(fontWeight: FontWeight.bold, color: isOverBudget ? Colors.red : null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: burnProgress,
+              backgroundColor: colors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(isOverBudget ? Colors.red : Colors.teal),
+              minHeight: 10,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Daily avg: $currency ${dailyBurnRate.toStringAsFixed(0)}/day",
+                style: TextStyle(color: colors.textMuted, fontSize: 12),
+              ),
+              if (projectedTotal != null)
+                Text(
+                  "Projected: $currency ${projectedTotal.toStringAsFixed(0)}",
+                  style: TextStyle(
+                    color: projectedTotal > totalBudget ? Colors.red.shade300 : Colors.green.shade300,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Per-Member Spending ──
+  Widget _buildPerMemberSpending(AppColors colors, String currency) {
+    final Map<String, double> memberSpending = {};
+    double totalSpent = 0;
+    for (final expense in _expenses) {
+      memberSpending[expense.paidBy] = (memberSpending[expense.paidBy] ?? 0) + expense.amount;
+      totalSpent += expense.amount;
+    }
+    if (memberSpending.isEmpty) return const SizedBox.shrink();
+
+    final sorted = memberSpending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Column(
+      children: sorted.map((entry) {
+        final percentage = totalSpent > 0 ? entry.value / totalSpent : 0.0;
+        final name = _memberName(entry.key);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    Text("$currency ${entry.value.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: percentage,
+                    backgroundColor: colors.border,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.teal.withOpacity(0.7)),
+                    minHeight: 6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -2698,10 +3904,13 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final isOwner = widget.trip.createdBy == uid;
+    final isAdmin = widget.trip.adminIds.contains(uid);
+    final canCreatePoll = isOwner || isAdmin;
 
     return Scaffold(
-      floatingActionButton: widget.trip.isDead ? null : FloatingActionButton.extended(
+      floatingActionButton: (widget.trip.isDead || !canCreatePoll) ? null : FloatingActionButton.extended(
         onPressed: _showCreatePollBottomSheet,
         icon: const Icon(Icons.add),
         label: const Text("New Poll"),
@@ -2734,6 +3943,10 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
                         Text("No active polls", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         Text("Decision making made easy.", style: TextStyle(color: context.appColors.textSecondary)),
+                        if (!canCreatePoll) ...[
+                          const SizedBox(height: 12),
+                          Text("Only trip admins can create polls.", style: TextStyle(color: context.appColors.textMuted, fontSize: 12)),
+                        ],
                       ],
                     ),
                   ),
@@ -3285,6 +4498,8 @@ class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientM
                               );
                             },
                             childCount: dayPhotos.length,
+                            addAutomaticKeepAlives: false,
+                            addRepaintBoundaries: true,
                           ),
                         ),
                       ),
@@ -3357,7 +4572,8 @@ class _GalleryGridTile extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 CachedNetworkImage(
-                  imageUrl: photo['url'],
+                  imageUrl: photo['thumbnail_url'] ?? photo['url'],
+                  memCacheWidth: 400,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(color: context.appColors.surfaceBg),
                   errorWidget: (context, url, e) => const Icon(Icons.error),
@@ -4567,3 +5783,546 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
   }
 }
 
+// ─────────────────────────────────────────────
+//  EXPENSES TAB
+// ─────────────────────────────────────────────
+class _ExpensesTab extends StatefulWidget {
+  final Trip trip;
+  final Future<void> Function() onRefresh;
+  const _ExpensesTab({required this.trip, required this.onRefresh});
+
+  @override
+  State<_ExpensesTab> createState() => _ExpensesTabState();
+}
+
+class _ExpensesTabState extends State<_ExpensesTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  final ExpenseService _expenseService = ExpenseService();
+  Map<String, UserProfile> _profileCache = {};
+  bool _profilesLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfiles();
+  }
+
+  Future<void> _loadProfiles() async {
+    try {
+      final profiles = await TripService().getTripMembersProfiles(widget.trip.memberIds);
+      final map = <String, UserProfile>{};
+      for (final p in profiles) {
+        map[p.uid] = p;
+      }
+      if (mounted) setState(() { _profileCache = map; _profilesLoaded = true; });
+    } catch (_) {
+      if (mounted) setState(() => _profilesLoaded = true);
+    }
+  }
+
+  String _userName(String uid) {
+    return _profileCache[uid]?.displayName ?? _profileCache[uid]?.username ?? uid.substring(0, 8);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final colors = context.appColors;
+    final currentUser = Supabase.instance.client.auth.currentUser?.id;
+    final currency = widget.trip.budgetCurrency;
+
+    return StreamBuilder<List<TripExpense>>(
+      stream: _expenseService.getExpensesStream(widget.trip.id),
+      builder: (context, snapshot) {
+        final expenses = snapshot.data ?? [];
+        final balances = calculateBalances(expenses);
+        final debts = simplifyDebts(balances);
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          floatingActionButton: FloatingActionButton.extended(
+            heroTag: 'add_expense',
+            onPressed: () => _showAddExpenseSheet(context, currency),
+            backgroundColor: AppColors.brand,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: Text("Add Expense", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+          body: RefreshIndicator(
+            onRefresh: widget.onRefresh,
+            child: expenses.isEmpty && !snapshot.hasError
+                ? _buildEmptyState(colors)
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Balance Summary Card
+                        if (balances.isNotEmpty) _buildBalanceSummary(colors, balances, currency, currentUser),
+                        
+                        // Simplified Debts
+                        if (debts.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildSimplifiedDebts(colors, debts, currency, currentUser),
+                        ],
+
+                        // Expense List
+                        const SizedBox(height: 20),
+                        Text("All Expenses", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary)),
+                        const SizedBox(height: 12),
+                        ...expenses.map((e) => _buildExpenseCard(colors, e, currency, currentUser)),
+                      ],
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(AppColors colors) {
+    return Center(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 80),
+            Icon(Icons.receipt_long_rounded, size: 64, color: colors.textSecondary.withOpacity(0.4)),
+            const SizedBox(height: 16),
+            Text("No expenses yet", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+            const SizedBox(height: 8),
+            Text("Tap + to add your first expense", style: TextStyle(color: colors.textSecondary.withOpacity(0.7), fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBalanceSummary(AppColors colors, Map<String, double> balances, String currency, String? currentUser) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Balance Summary", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 16),
+          ...balances.entries.map((entry) {
+            final isCurrentUser = entry.key == currentUser;
+            final balance = entry.value;
+            final isPositive = balance > 0.01;
+            final isNegative = balance < -0.01;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      isCurrentUser ? "You" : _userName(entry.key),
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    "${isPositive ? '+' : ''}${balance.toStringAsFixed(2)} $currency",
+                    style: GoogleFonts.inter(
+                      color: isPositive
+                          ? Colors.greenAccent
+                          : isNegative
+                              ? Colors.redAccent.shade100
+                              : Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimplifiedDebts(AppColors colors, List<SimplifiedDebt> debts, String currency, String? currentUser) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Settle Up", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary)),
+        const SizedBox(height: 12),
+        ...debts.map((debt) {
+          final isYouOwe = debt.fromUserId == currentUser;
+          final isOwedToYou = debt.toUserId == currentUser;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isYouOwe
+                    ? Colors.red.withOpacity(0.3)
+                    : isOwedToYou
+                        ? Colors.green.withOpacity(0.3)
+                        : colors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isYouOwe ? Icons.arrow_upward : Icons.arrow_downward,
+                  color: isYouOwe ? Colors.redAccent : Colors.green,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    isYouOwe
+                        ? "You owe ${_userName(debt.toUserId)}"
+                        : isOwedToYou
+                            ? "${_userName(debt.fromUserId)} owes you"
+                            : "${_userName(debt.fromUserId)} → ${_userName(debt.toUserId)}",
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                  ),
+                ),
+                Text(
+                  "${debt.amount.toStringAsFixed(2)} $currency",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isYouOwe ? Colors.redAccent : Colors.green,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildExpenseCard(AppColors colors, TripExpense expense, String currency, String? currentUser) {
+    final isOwner = expense.paidBy == currentUser;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(TripExpense.categoryEmoji(expense.category), style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(expense.title, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Paid by ${expense.paidBy == currentUser ? 'You' : _userName(expense.paidBy)}",
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    "${expense.amount.toStringAsFixed(2)} $currency",
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: colors.textPrimary),
+                  ),
+                  Text(
+                    DateFormat('MMM d').format(expense.createdAt),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (expense.notes != null && expense.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(expense.notes!, style: TextStyle(fontSize: 13, color: colors.textSecondary)),
+          ],
+          if (expense.splits.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Divider(color: colors.border, height: 1),
+            const SizedBox(height: 10),
+            ...expense.splits.map((split) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Text(
+                    split.userId == currentUser ? "You" : _userName(split.userId),
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                  ),
+                  const Spacer(),
+                  Text(
+                    "${split.amount.toStringAsFixed(2)} $currency",
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                  ),
+                  const SizedBox(width: 8),
+                  if (split.isSettled)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text("Settled", style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ),
+            )),
+          ],
+          if (isOwner) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: Icon(Icons.delete_outline, color: Colors.red.shade300, size: 20),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text("Delete Expense"),
+                      content: const Text("Are you sure you want to delete this expense?"),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text("Delete", style: TextStyle(color: Colors.red))),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await _expenseService.deleteExpense(expense.id);
+                  }
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showAddExpenseSheet(BuildContext context, String currency) {
+    final colors = context.appColors;
+    final titleController = TextEditingController();
+    final amountController = TextEditingController();
+    final notesController = TextEditingController();
+    String selectedCategory = 'general';
+    String splitType = 'equal';
+    final currentUser = Supabase.instance.client.auth.currentUser?.id ?? '';
+    String paidBy = currentUser;
+
+    final categories = ['general', 'food', 'transport', 'accommodation', 'activity', 'shopping'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.surfaceBg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2))),
+                  ),
+                  const SizedBox(height: 16),
+                  Text("Add Expense", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: colors.textPrimary)),
+                  const SizedBox(height: 20),
+                  // Title
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: "Title",
+                      hintText: "e.g. Dinner at restaurant",
+                      filled: true,
+                      fillColor: colors.cardBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Amount
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: "Amount ($currency)",
+                      hintText: "0.00",
+                      filled: true,
+                      fillColor: colors.cardBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Category chips
+                  Text("Category", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: categories.map((cat) {
+                      final isSelected = selectedCategory == cat;
+                      return ChoiceChip(
+                        label: Text("${TripExpense.categoryEmoji(cat)} ${cat[0].toUpperCase()}${cat.substring(1)}"),
+                        selected: isSelected,
+                        selectedColor: AppColors.brand.withOpacity(0.2),
+                        backgroundColor: colors.cardBg,
+                        labelStyle: TextStyle(
+                          color: isSelected ? AppColors.brand : colors.textSecondary,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        onSelected: (val) => setModalState(() => selectedCategory = cat),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  // Paid by dropdown
+                  Text("Paid by", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: colors.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: DropdownButton<String>(
+                      value: paidBy,
+                      isExpanded: true,
+                      underline: const SizedBox(),
+                      dropdownColor: colors.cardBg,
+                      items: widget.trip.memberIds.map((uid) {
+                        return DropdownMenuItem(
+                          value: uid,
+                          child: Text(
+                            uid == currentUser ? "You" : _userName(uid),
+                            style: TextStyle(color: colors.textPrimary),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) => setModalState(() => paidBy = val!),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Split type
+                  Text("Split", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text("Equal"),
+                          selected: splitType == 'equal',
+                          selectedColor: AppColors.brand.withOpacity(0.2),
+                          backgroundColor: colors.cardBg,
+                          onSelected: (_) => setModalState(() => splitType = 'equal'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text("Others Only"),
+                          selected: splitType == 'full',
+                          selectedColor: AppColors.brand.withOpacity(0.2),
+                          backgroundColor: colors.cardBg,
+                          onSelected: (_) => setModalState(() => splitType = 'full'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // Notes
+                  TextField(
+                    controller: notesController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: "Notes (optional)",
+                      filled: true,
+                      fillColor: colors.cardBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.border)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Submit
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        final amount = double.tryParse(amountController.text.trim());
+                        if (title.isEmpty || amount == null || amount <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Please enter a valid title and amount")),
+                          );
+                          return;
+                        }
+                        Navigator.pop(ctx);
+                        try {
+                          await _expenseService.addExpense(
+                            tripId: widget.trip.id,
+                            title: title,
+                            amount: amount,
+                            currency: currency,
+                            category: selectedCategory,
+                            paidBy: paidBy,
+                            splitType: splitType,
+                            splitAmongUserIds: widget.trip.memberIds,
+                            notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                          );
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Failed to add expense: $e")),
+                            );
+                          }
+                        }
+                      },
+                      child: Text("Save Expense", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+}

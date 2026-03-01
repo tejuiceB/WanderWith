@@ -4,6 +4,9 @@ enum NotificationType {
   pollAdded,
   pollCreated, // Alias for pollAdded if needed, or separate
   message,
+  chatMention,   // @mentioned in chat
+  chatReply,     // Someone replied to your message
+  chatReaction,  // Someone reacted to your message
   feedbackRequest,
   system,
   joinRequest,
@@ -59,6 +62,9 @@ class AppNotification {
       case 'poll_added': return NotificationType.pollAdded;
       case 'poll_created': return NotificationType.pollCreated;
       case 'message': return NotificationType.message;
+      case 'chat_mention': return NotificationType.chatMention;
+      case 'chat_reply': return NotificationType.chatReply;
+      case 'chat_reaction': return NotificationType.chatReaction;
       case 'feedback_request': return NotificationType.feedbackRequest;
       case 'join_request': return NotificationType.joinRequest;
       case 'join_response': return NotificationType.joinResponse;
@@ -78,6 +84,9 @@ class AppNotification {
       case NotificationType.pollAdded: return 'poll_added';
       case NotificationType.pollCreated: return 'poll_created';
       case NotificationType.message: return 'message';
+      case NotificationType.chatMention: return 'chat_mention';
+      case NotificationType.chatReply: return 'chat_reply';
+      case NotificationType.chatReaction: return 'chat_reaction';
       case NotificationType.feedbackRequest: return 'feedback_request';
       case NotificationType.joinRequest: return 'join_request';
       case NotificationType.joinResponse: return 'join_response';

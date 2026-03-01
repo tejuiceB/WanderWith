@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://tejuice.fun'),
+  metadataBase: new URL('https://www.wanderwith.online'),
   title: "WanderWith | Travel better. Together.",
   description: "A calm space to plan trips with friends and discover curated journeys — without oversharing.",
   keywords: ["Travel", "Social Network", "Privacy", "Group Travel", "Agency", "Trip Planning"],
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "WanderWith | Travel Social. But Private.",
     description: "Join the privacy-first travel revolution. Plan trips, connect safely, and explore the world.",
-    url: "https://wanderwith.com",
+    url: "https://www.wanderwith.online",
     siteName: "WanderWith",
     images: [
       {

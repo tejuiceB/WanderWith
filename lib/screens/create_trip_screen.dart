@@ -44,6 +44,18 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool _isDatesDecided = true; // Default to needing dates
   bool _isBudgetExpanded = false;
   String _visibility = 'public';
+  int _travelerCount = 1;
+  String _tripType = 'leisure';
+  final List<Map<String, String>> _tripTypes = const [
+    {'id': 'leisure', 'emoji': '🏖', 'label': 'Leisure'},
+    {'id': 'backpacking', 'emoji': '🎒', 'label': 'Backpacking'},
+    {'id': 'luxury', 'emoji': '💎', 'label': 'Luxury'},
+    {'id': 'family', 'emoji': '👨\u200d👩\u200d👧', 'label': 'Family'},
+    {'id': 'workation', 'emoji': '💼', 'label': 'Workation'},
+    {'id': 'adventure', 'emoji': '🧗', 'label': 'Adventure'},
+    {'id': 'romantic', 'emoji': '💕', 'label': 'Romantic'},
+    {'id': 'solo', 'emoji': '🧘', 'label': 'Solo'},
+  ];
 
   void _pickDateRange() async {
     final now = DateTime.now();
@@ -151,6 +163,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         coverImageUrl: finalCoverUrl,
         visibility: _visibility,
         joinCode: _visibility == 'private' ? uuid.v4().substring(0, 8).toUpperCase() : null,
+        tripType: _tripType,
+        travelerCount: _travelerCount,
       );
       
       // Construct local Trip object for immediate navigation
@@ -170,6 +184,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           'budgetCurrency': _selectedCurrency,
           'estimated_cost': totalBudget,
           'days': startDate != null && endDate != null ? endDate.difference(startDate).inDays + 1 : 3,
+          'trip_type': _tripType,
+          'traveler_count': _travelerCount,
         },
         coverImageUrl: finalCoverUrl,
         visibility: _visibility,
@@ -212,7 +228,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     const SizedBox(height: 32),
                     _buildLocationSection(),
                     const SizedBox(height: 32),
+                    _buildTripTypeSelector(),
+                    const SizedBox(height: 32),
                     _buildDatesSection(),
+                    const SizedBox(height: 32),
+                    _buildTravelerCount(),
                     const SizedBox(height: 32),
                     _buildVisibilitySection(),
                     const SizedBox(height: 32),
@@ -533,9 +553,100 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
+  Widget _buildTripTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "TRIP TYPE",
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _tripTypes.map((type) {
+            final isSelected = _tripType == type['id'];
+            return GestureDetector(
+              onTap: () => setState(() => _tripType = type['id']!),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.brand : context.appColors.fieldFillBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? AppColors.brand : context.appColors.border,
+                  ),
+                ),
+                child: Text(
+                  "${type['emoji']} ${type['label']}",
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : context.appColors.textSecondary,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTravelerCount() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "TRAVELERS",
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.appColors.fieldFillBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.people_outline, color: AppColors.brand),
+                  const SizedBox(width: 12),
+                  Text("How many?", style: TextStyle(fontSize: 16, color: context.appColors.textPrimary)),
+                ],
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.remove_circle_outline, color: _travelerCount > 1 ? AppColors.brand : context.appColors.textMuted),
+                    onPressed: _travelerCount > 1 ? () => setState(() => _travelerCount--) : null,
+                  ),
+                  Text("$_travelerCount", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
+                  IconButton(
+                    icon: Icon(Icons.add_circle_outline, color: AppColors.brand),
+                    onPressed: _travelerCount < 50 ? () => setState(() => _travelerCount++) : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildVisibilitySection() {
     final userProfile = Provider.of<AuthService>(context, listen: false).userProfile;
-    if (userProfile?.role != 'agency') return const SizedBox.shrink();
+    // For regular travelers, force private — no UI needed
+    if (userProfile?.role != 'agency') {
+      _visibility = 'private';
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

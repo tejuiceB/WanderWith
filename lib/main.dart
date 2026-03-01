@@ -6,6 +6,8 @@ import 'package:skeletonizer/skeletonizer.dart'; // Added
 import 'package:share_plus/share_plus.dart'; // Added
 import 'package:flutter/services.dart'; // Added for Clipboard
 import 'services/auth_service.dart';
+import 'services/network_service.dart';
+import 'local/local_db.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/notification_service.dart'; // Import Notification Service
@@ -35,14 +37,25 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppEnv.init();
+
+  // Initialize local database for offline support
+  await LocalDb.initialize();
+
+  // Initialize network monitoring
+  await NetworkService.instance.initialize();
   
-  await Supabase.initialize(
-    url: AppEnv.supabaseUrl,
-    anonKey: AppEnv.supabaseAnonKey,
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-  );
+  // Try Supabase init — don't fail if offline
+  try {
+    await Supabase.initialize(
+      url: AppEnv.supabaseUrl,
+      anonKey: AppEnv.supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+    );
+  } catch (e) {
+    debugPrint('Supabase init failed (offline?): $e');
+  }
 
   // Load saved theme preference before building the app
   final savedDarkMode = await ThemeProvider.loadSavedTheme();
@@ -244,6 +257,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: AuthService.instance), // Use singleton
+        ChangeNotifierProvider.value(value: NetworkService.instance), // Network monitoring
         ChangeNotifierProvider(create: (_) => PlanProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider(initialDarkMode: initialDarkMode)),
       ],
