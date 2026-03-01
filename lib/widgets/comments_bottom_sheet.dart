@@ -5,6 +5,8 @@ import 'package:timeago/timeago.dart' as timeago;
 import '../models/user_profile.dart';
 import '../services/post_service.dart';
 import '../screens/profile_screen.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class CommentsBottomSheet extends StatefulWidget {
   final String postId;
@@ -126,7 +128,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
         content: const Text("This action cannot be undone."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete", style: TextStyle(color: Colors.redAccent))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text("Delete", style: TextStyle(color: AppColors.error))),
         ],
       ),
     );
@@ -223,7 +225,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                         const SizedBox(width: 8),
                         Text(
                           timeago.format(DateTime.parse(comment['created_at']), locale: 'en_short'),
-                          style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[400]),
+                          style: GoogleFonts.inter(fontSize: 11, color: context.appColors.textMuted),
                         ),
                         if (comment['updated_at'] != null && 
                             DateTime.parse(comment['updated_at']).difference(DateTime.parse(comment['created_at'])).inSeconds > 5)
@@ -231,13 +233,13 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                             padding: const EdgeInsets.only(left: 4),
                             child: Text(
                               "(edited)", 
-                              style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[400], fontStyle: FontStyle.italic)
+                              style: GoogleFonts.inter(fontSize: 10, color: context.appColors.textMuted, fontStyle: FontStyle.italic)
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(content, style: GoogleFonts.inter(fontSize: 14, color: Colors.black87)),
+                    Text(content, style: GoogleFonts.inter(fontSize: 14, color: context.appColors.textPrimary)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -247,7 +249,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                               _replyingTo = comment;
                               _editingComment = null;
                             }),
-                            child: Text("Reply", style: GoogleFonts.inter(fontSize: 12, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                            child: Text("Reply", style: GoogleFonts.inter(fontSize: 12, color: AppColors.brand, fontWeight: FontWeight.bold)),
                           ),
                         if (!isReply) const SizedBox(width: 16),
                         
@@ -255,14 +257,14 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                         if (comment['user_id'] == _currentUserId)
                           GestureDetector(
                             onTap: () => _startEditing(comment),
-                            child: Text("Edit", style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w600)),
+                            child: Text("Edit", style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textSecondary, fontWeight: FontWeight.w600)),
                           ),
                         if (comment['user_id'] == _currentUserId) const SizedBox(width: 16),
                         
                         if (comment['user_id'] == _currentUserId || _postOwnerId == _currentUserId)
                           GestureDetector(
                             onTap: () => _handleCommentDelete(comment['id']),
-                            child: Text("Delete", style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent.withOpacity(0.8), fontWeight: FontWeight.w600)),
+                            child: Text("Delete", style: GoogleFonts.inter(fontSize: 12, color: AppColors.error.withOpacity(0.8), fontWeight: FontWeight.w600)),
                           ),
                       ],
                     ),
@@ -288,9 +290,9 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: context.appColors.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -300,7 +302,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: context.appColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -325,7 +327,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                               child: Center(
                                 child: Text(
                                   "No comments yet. Be the first!", 
-                                  style: GoogleFonts.inter(color: Colors.grey)
+                                  style: GoogleFonts.inter(color: context.appColors.textSecondary)
                                 ),
                               ),
                             ),
@@ -342,7 +344,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
               if (_showMentions && _mentionSuggestions.isNotEmpty)
                 Container(
                   constraints: const BoxConstraints(maxHeight: 150),
-                  color: Colors.grey.shade50,
+                  color: context.appColors.fieldFillBg,
                   child: ListView.builder(
                     shrinkWrap: true,
                     itemCount: _mentionSuggestions.length,
@@ -360,12 +362,12 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
               if (_replyingTo != null || _editingComment != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  color: Colors.blue.shade50,
+                  color: context.isDark ? AppColors.brand.withOpacity(0.12) : Colors.blue.shade50,
                   child: Row(
                     children: [
                       Text(
                         _editingComment != null ? "Editing comment" : "Replying to @${(_replyingTo!['profiles'] != null ? _replyingTo!['profiles']['username'] : null) ?? 'user'}", 
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.blueAccent)
+                        style: GoogleFonts.inter(fontSize: 12, color: AppColors.brand)
                       ),
                       const Spacer(),
                       GestureDetector(
@@ -374,7 +376,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                           _editingComment = null;
                           if (_editingComment != null) _commentController.clear(); // Clear if canceling edit
                         }), 
-                        child: const Icon(Icons.close, size: 16, color: Colors.blueAccent)
+                        child: Icon(Icons.close, size: 16, color: AppColors.brand)
                       ),
                     ],
                   ),
@@ -396,10 +398,10 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                           hintText: _editingComment != null 
                             ? "Edit your comment..." 
                             : (_replyingTo == null ? "Add a comment..." : "Add a reply..."),
-                          hintStyle: GoogleFonts.inter(color: Colors.grey, fontSize: 14),
+                          hintStyle: GoogleFonts.inter(color: context.appColors.textSecondary, fontSize: 14),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                           filled: true,
-                          fillColor: Colors.grey.shade100,
+                          fillColor: context.appColors.fieldFillBg,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         ),
                         style: GoogleFonts.inter(fontSize: 14),
@@ -408,7 +410,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                     const SizedBox(width: 12),
                     _isSending 
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                      : IconButton(onPressed: _handleCommentSubmit, icon: const Icon(Icons.send_rounded, color: Colors.blueAccent)),
+                      : IconButton(onPressed: _handleCommentSubmit, icon: Icon(Icons.send_rounded, color: AppColors.brand)),
                   ],
                 ),
               ),

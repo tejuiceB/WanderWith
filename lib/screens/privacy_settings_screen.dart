@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 import 'blocked_users_screen.dart';
+import '../theme/theme_extensions.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -24,18 +25,18 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: context.appColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Privacy Settings", 
-          style: GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.bold)
+          style: GoogleFonts.outfit(color: context.appColors.textPrimary, fontWeight: FontWeight.bold)
         ),
       ),
       body: Stack(
@@ -96,9 +97,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                _buildSectionHeader("Safety"),
                ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.block_outlined, color: Colors.black87),
+                  leading: Icon(Icons.block_outlined, color: context.appColors.textPrimary),
                   title: Text("Blocked Accounts", style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-                  trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                  trailing: Icon(Icons.chevron_right, size: 20, color: context.appColors.textSecondary),
                   onTap: () {
                      Navigator.push(context, MaterialPageRoute(builder: (context) => const BlockedUsersScreen()));
                   },
@@ -145,7 +146,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.0),
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.textSecondary, letterSpacing: 1.0),
       ),
     );
   }
@@ -161,11 +162,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                  Switch(
                    value: value, 
                    onChanged: onChanged,
-                   activeColor: Colors.black,
+                   activeColor: context.appColors.textPrimary,
                  ),
               ],
            ),
-           Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600)),
+           Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: context.appColors.textSecondary)),
            const SizedBox(height: 16),
            const Divider(),
            const SizedBox(height: 8),
@@ -187,10 +188,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
              decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: context.appColors.fieldFillBg,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
              ),
-             dropdownColor: Colors.white,
+             dropdownColor: context.appColors.cardBg,
              icon: const Icon(Icons.keyboard_arrow_down_rounded),
            ),
            const SizedBox(height: 16),

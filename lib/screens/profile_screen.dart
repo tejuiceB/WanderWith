@@ -1,7 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,6 +24,8 @@ import '../services/post_service.dart';
 import '../models/post.dart';
 import '../widgets/post_card.dart';
 import '../widgets/trip_card.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId; // If null, show current user
@@ -191,6 +191,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       } else if (isCurrentUser) {
         final uid = Supabase.instance.client.auth.currentUser?.id;
         if (uid != null) {
+          // Force-refresh profile from DB to ensure interests and other
+          // fields are up-to-date (fixes race condition after onboarding).
+          await Provider.of<AuthService>(context, listen: false).refreshProfile();
           await _loadUserPosts(uid);
         }
       }
@@ -226,6 +229,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colors = context.appColors;
+    final isDark = context.isDark;
     final authService = Provider.of<AuthService>(context);
     final user = authService.user;
     final currentUserProfile = authService.userProfile;
@@ -257,13 +262,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.scaffoldBg,
       appBar: AppBar(
         title: Text(
            isLoading ? "       " : (profile.displayName ?? "Profile"), 
-           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)
+           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: colors.textPrimary)
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: colors.scaffoldBg,
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -271,7 +276,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
              Stack(
                children: [
                  IconButton(
-                   icon: const Icon(Icons.person_add_alt_outlined, color: Colors.black87), // Follow Requests
+                   icon: Icon(Icons.person_add_alt_outlined, color: colors.textPrimary), // Follow Requests
                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FollowRequestsScreen())),
                  ),
                  if (profile.isPrivate)
@@ -288,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                            decoration: BoxDecoration(
                              color: Colors.redAccent,
                              shape: BoxShape.circle,
-                             border: Border.all(color: Colors.white, width: 1.5),
+                             border: Border.all(color: colors.scaffoldBg, width: 1.5),
                            ),
                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                            child: Center(
@@ -305,13 +310,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                ],
              ),
              IconButton(
-               icon: const Icon(Icons.settings_outlined, color: Colors.black87),
+               icon: Icon(Icons.settings_outlined, color: colors.textPrimary),
                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
              )
           ],
           if (!isCurrentUser && !isProfileLoading && _targetProfile != null)
              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.black87),
+                icon: Icon(Icons.more_vert, color: colors.textPrimary),
                 onSelected: (val) async {
                    if (val == 'block') {
                       final confirmed = await showDialog<bool>(
@@ -323,7 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
                                TextButton(
                                   onPressed: () => Navigator.pop(context, true), 
-                                  child: const Text("Block", style: TextStyle(color: Colors.red))
+                                  child: Text("Block", style: TextStyle(color: AppColors.error))
                                ),
                             ],
                          ),
@@ -342,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 itemBuilder: (context) => [
                    const PopupMenuItem(
                       value: 'block',
-                      child: Text("Block User", style: TextStyle(color: Colors.red)),
+                      child: Text("Block User", style: TextStyle(color: AppColors.error)),
                    ),
                 ],
              ),
@@ -386,9 +391,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  delegate: _SliverAppBarDelegate(
                    TabBar(
                      controller: _tabController,
-                     labelColor: Colors.black87,
-                     unselectedLabelColor: Colors.grey,
-                     indicatorColor: Colors.black87,
+                     labelColor: colors.textPrimary,
+                     unselectedLabelColor: colors.textMuted,
+                     indicatorColor: AppColors.brand,
                      labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
                      tabs: const [
                         Tab(text: "Posts"),
@@ -427,13 +432,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   Widget _buildBlockedProfile() {
     final isDeepLink = widget.username != null;
+    final colors = context.appColors;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colors.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+          icon: Icon(Icons.arrow_back_ios_new, color: colors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -441,11 +447,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isDeepLink ? Icons.person_off_rounded : Icons.lock_person, size: 64, color: Colors.grey.shade300),
+            Icon(isDeepLink ? Icons.person_off_rounded : Icons.lock_person, size: 64, color: colors.textMuted),
             const SizedBox(height: 16),
             Text(
               isDeepLink ? "User Not Found" : "Profile Not Available",
-              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Padding(
@@ -455,14 +461,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   ? "The profile @${widget.username} does not exist." 
                   : "This profile is not available. This might be because you were blocked or the account was deleted.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: Colors.grey.shade600),
+                style: GoogleFonts.inter(color: colors.textSecondary),
               ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppColors.brand,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text("Go Back"),
@@ -474,29 +480,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildProfileNotFound() {
+    final colors = context.appColors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.person_off_rounded, size: 64, color: Colors.grey.shade300),
+          Icon(Icons.person_off_rounded, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             "Profile not available",
-            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
             "This account may have been deleted or moved.",
-            style: GoogleFonts.inter(color: Colors.grey.shade600),
+            style: GoogleFonts.inter(color: colors.textSecondary),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black87,
+              backgroundColor: colors.textPrimary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text("Go Back", style: GoogleFonts.inter(color: Colors.white)),
+            child: Text("Go Back", style: GoogleFonts.inter(color: colors.scaffoldBg)),
           ),
         ],
       ),
@@ -505,6 +512,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   Widget _buildSocialLinksSection(BuildContext context, UserProfile? profile) {
     if (profile == null) return const SizedBox.shrink();
+    final colors = context.appColors;
+    final isDark = context.isDark;
 
     final List<Map<String, String>> allLinks = [];
     if (profile.instagramUrl != null && profile.instagramUrl!.isNotEmpty) {
@@ -539,18 +548,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.link, size: 14, color: Colors.blueAccent),
+                  Icon(Icons.link, size: 14, color: AppColors.brand),
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
                       primaryLink['url']!.replaceFirst(RegExp(r'^https?://(www\.)?'), ''),
-                      style: GoogleFonts.inter(fontSize: 13, color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.brand, fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -567,13 +576,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               margin: const EdgeInsets.only(top: 12, left: 8),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: colors.surfaceBg,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: colors.border),
               ),
               child: Text(
                 "+ $extraCount more",
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.bold),
+                style: GoogleFonts.inter(fontSize: 12, color: colors.textPrimary, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -604,11 +613,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
-                      backgroundColor: Colors.grey.shade100,
-                      child: Icon(iconData, color: Colors.black87, size: 20),
+                      backgroundColor: context.appColors.surfaceBg,
+                      child: Icon(iconData, color: context.appColors.textPrimary, size: 20),
                     ),
                     title: Text(link['title']!, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15)),
-                    subtitle: Text(link['url']!, style: GoogleFonts.inter(color: Colors.grey.shade500, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(link['url']!, style: GoogleFonts.inter(color: context.appColors.textSecondary, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                     onTap: () {
                       Navigator.pop(ctx);
                       _launchUrl(link['url']!);
@@ -641,6 +650,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildAgencyHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
+     final colors = context.appColors;
+     final isDark = context.isDark;
      final coverUrl = profile?.coverImageUrl;
      final avatarUrl = profile?.avatarUrl;
 
@@ -667,13 +678,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  height: 180,
                  width: double.infinity,
                  decoration: BoxDecoration(
-                   color: Colors.grey.shade200,
+                   color: colors.surfaceBg,
                    image: (coverUrl != null && coverUrl.isNotEmpty)
                       ? DecorationImage(image: CachedNetworkImageProvider(coverUrl), fit: BoxFit.cover)
                       : null,
                  ),
                  child: (coverUrl == null || coverUrl.isEmpty)
-                    ? Center(child: Icon(Icons.business_rounded, color: Colors.grey.shade400, size: 48))
+                    ? Center(child: Icon(Icons.business_rounded, color: colors.textMuted, size: 48))
                     : null,
                ),
              ),
@@ -686,12 +697,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  child: Container(
                    decoration: BoxDecoration(
                      shape: BoxShape.circle,
-                     border: Border.all(color: Colors.white, width: 4),
-                     boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+                     border: Border.all(color: colors.cardBg, width: 4),
+                     boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 10)],
                    ),
                    child: CircleAvatar(
                      radius: 50,
-                     backgroundColor: Colors.grey.shade100,
+                     backgroundColor: colors.surfaceBg,
                      backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? CachedNetworkImageProvider(avatarUrl) : null,
                      child: (avatarUrl == null || avatarUrl.isEmpty) ? Text(profile?.displayName?[0] ?? 'A') : null,
                    ),
@@ -713,26 +724,29 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                    const Icon(Icons.verified, color: Colors.blueAccent, size: 20),
                  ],
                ),
-               Text("@${profile?.username ?? ''}", style: GoogleFonts.inter(color: Colors.grey.shade600)),
+               Text("@${profile?.username ?? ''}", style: GoogleFonts.inter(color: colors.textSecondary)),
                if (isFollowedBy && !isCurrentUser) ...[
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
-                    child: Text("Follows You", style: GoogleFonts.inter(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text("Follows You", style: GoogleFonts.inter(fontSize: 10, color: AppColors.brand, fontWeight: FontWeight.bold)),
                   ),
                ],
                if (profile?.bio != null && profile!.bio!.isNotEmpty) ...[
                  const SizedBox(height: 16),
                  Text(profile.bio!, style: GoogleFonts.inter(fontSize: 15, height: 1.4)),
                ],
-               if (profile?.city != null) ...[
+               if (profile?.city != null || profile?.country != null) ...[
                  const SizedBox(height: 12),
                  Row(
                    children: [
-                     Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade600),
+                     Icon(Icons.location_on_outlined, size: 16, color: colors.textSecondary),
                      const SizedBox(width: 4),
-                     Text(profile!.city!, style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13)),
+                     Text(
+                       [profile?.city, profile?.country].where((s) => s != null && s.isNotEmpty).join(", "),
+                       style: GoogleFonts.inter(color: colors.textSecondary, fontSize: 13),
+                     ),
                    ],
                  ),
                ],
@@ -745,6 +759,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildStandardHeader(BuildContext context, AuthService auth, UserProfile? profile, bool isFollowedBy) {
+     final colors = context.appColors;
+     final isDark = context.isDark;
      final avatarUrl = profile?.avatarUrl;
      return Column(
        children: [
@@ -755,17 +771,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 child: Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.grey.shade200, width: 3),
+                    border: Border.all(color: colors.border, width: 3),
                   ),
                   child: CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: colors.surfaceBg,
                     backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) 
                        ? CachedNetworkImageProvider(avatarUrl) 
                        : null,
                     child: (avatarUrl == null || avatarUrl.isEmpty) 
                        ? Text(profile?.displayName?.isNotEmpty == true ? profile!.displayName![0].toUpperCase() : "U", 
-                           style: GoogleFonts.outfit(fontSize: 32, color: Colors.grey.shade400, fontWeight: FontWeight.bold))
+                           style: GoogleFonts.outfit(fontSize: 32, color: colors.textMuted, fontWeight: FontWeight.bold))
                        : null,
                   ),
                 ),
@@ -777,7 +793,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: const BoxDecoration(
-                      color: Colors.blueAccent,
+                      color: AppColors.brand,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
@@ -793,20 +809,20 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           const SizedBox(height: 4),
           Text(
             profile?.username != null ? "@${profile!.username}" : "@${(profile?.displayName ?? 'user').toLowerCase().replaceAll(' ', '')}",
-            style: GoogleFonts.inter(color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+            style: GoogleFonts.inter(color: colors.textSecondary, fontWeight: FontWeight.w500),
           ),
           if (isFollowedBy && !isCurrentUser) ...[
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.blue.shade100),
+                border: Border.all(color: isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100),
               ),
               child: Text(
                 "Follows You",
-                style: GoogleFonts.inter(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.bold),
+                style: GoogleFonts.inter(fontSize: 10, color: AppColors.brand, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -817,7 +833,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                child: Text(
                  profile!.bio!,
                  textAlign: TextAlign.center,
-                 style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                 style: GoogleFonts.inter(fontSize: 14, color: colors.textPrimary),
                  maxLines: 3,
                  overflow: TextOverflow.ellipsis,
                ),
@@ -828,11 +844,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
              Row(
                mainAxisAlignment: MainAxisAlignment.center,
                children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                  Icon(Icons.location_on, size: 14, color: colors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     [profile?.city, profile?.country].where((s) => s != null && s.isNotEmpty).join(", "),
-                    style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13),
+                    style: GoogleFonts.inter(color: colors.textSecondary, fontSize: 13),
                   ),
                ],
              ),
@@ -842,14 +858,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
     Widget _buildStatsRow(UserProfile? profile, bool canSeeMetadata, bool canSeeContent) {
-     
+     final colors = context.appColors;
      return Container(
        margin: const EdgeInsets.symmetric(horizontal: 24),
        padding: const EdgeInsets.symmetric(vertical: 16),
        decoration: BoxDecoration(
-         color: Colors.grey.shade50,
+         color: colors.surfaceBg,
          borderRadius: BorderRadius.circular(16),
-         border: Border.all(color: Colors.grey.shade100),
+         border: Border.all(color: colors.border),
        ),
        child: Row(
          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -877,6 +893,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
    }
 
   Widget _buildStatItem(String label, String value, {VoidCallback? onTap}) {
+     final colors = context.appColors;
      return InkWell(
        onTap: onTap,
        borderRadius: BorderRadius.circular(8),
@@ -886,7 +903,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
            children: [
              Text(value, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
              const SizedBox(height: 2),
-             Text(label, style: GoogleFonts.inter(fontSize: 12, color: onTap != null ? Colors.blueAccent : Colors.grey.shade600)),
+             Text(label, style: GoogleFonts.inter(fontSize: 12, color: onTap != null ? AppColors.brand : colors.textSecondary)),
            ],
          ),
        ),
@@ -895,6 +912,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   // 3. ACTION BUTTONS
     Widget _buildActionButtons(BuildContext context, bool isMe, UserProfile? profile, bool isFollowing, bool isFollowedBy) {
+     final colors = context.appColors;
      if (profile == null) return const SizedBox.shrink();
 
      return Padding(
@@ -909,10 +927,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                        onPressed: () => _showEditProfile(context, profile),
                        style: OutlinedButton.styleFrom(
                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                         side: BorderSide(color: Colors.grey.shade300),
+                         side: BorderSide(color: colors.border),
                          padding: const EdgeInsets.symmetric(vertical: 12),
                        ),
-                       child: Text("Edit Profile", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87)),
+                       child: Text("Edit Profile", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: colors.textPrimary)),
                      ),
                    ),
                    const SizedBox(width: 12),
@@ -921,10 +939,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                        onPressed: () => _handleShareProfile(profile),
                        style: OutlinedButton.styleFrom(
                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                         side: BorderSide(color: Colors.grey.shade300),
+                         side: BorderSide(color: colors.border),
                          padding: const EdgeInsets.symmetric(vertical: 12),
                        ),
-                       child: Text("Share Profile", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87)),
+                       child: Text("Share Profile", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: colors.textPrimary)),
                      ),
                    ),
                  ] else ...[
@@ -934,12 +952,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                            ? null 
                            : () => _handleFollowAction(profile),
                        style: ElevatedButton.styleFrom(
-                         backgroundColor: (!isFollowing && _requestStatus == null) ? Colors.blueAccent : Colors.grey.shade100,
-                         foregroundColor: (!isFollowing && _requestStatus == null) ? Colors.white : Colors.black87,
+                         backgroundColor: (!isFollowing && _requestStatus == null) ? AppColors.brand : colors.surfaceBg,
+                         foregroundColor: (!isFollowing && _requestStatus == null) ? Colors.white : colors.textPrimary,
                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                          padding: const EdgeInsets.symmetric(vertical: 12),
                          elevation: (!isFollowing && _requestStatus == null) ? 2 : 0,
-                         side: (isFollowing || _requestStatus != null) ? BorderSide(color: Colors.grey.shade300) : null,
+                         side: (isFollowing || _requestStatus != null) ? BorderSide(color: colors.border) : null,
                        ),
                        child: _isCheckingFollow 
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey))
@@ -969,10 +987,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                        },
                        style: OutlinedButton.styleFrom(
                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                         side: BorderSide(color: Colors.grey.shade300),
+                         side: BorderSide(color: colors.border),
                          padding: const EdgeInsets.symmetric(vertical: 12),
                        ),
-                       child: Text("Message", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87)),
+                       child: Text("Message", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: colors.textPrimary)),
                      ),
                    ),
                 ],
@@ -984,7 +1002,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  width: double.infinity,
                  child: TextButton(
                     onPressed: () => _handleRemoveFollower(profile),
-                    child: Text("Remove from Followers", style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 13)),
+                    child: Text("Remove from Followers", style: GoogleFonts.inter(color: AppColors.error, fontSize: 13)),
                  ),
               ),
            ]
@@ -1001,7 +1019,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
            content: Text("WanderWith won't tell ${profile.displayName} they were removed from your followers."),
            actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Remove", style: TextStyle(color: Colors.redAccent))),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text("Remove", style: TextStyle(color: AppColors.error))),
            ],
         ),
      );
@@ -1018,17 +1036,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPrivateTripsPlaceholder() {
+     final colors = context.appColors;
      return SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
           child: Column(
              mainAxisAlignment: MainAxisAlignment.center,
              children: [
-                Icon(Icons.visibility_off_outlined, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.visibility_off_outlined, size: 48, color: colors.textMuted),
                 const SizedBox(height: 16),
-                Text("Trips are Private", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                Text("Trips are Private", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary)),
                 const SizedBox(height: 8),
-                Text("This user has hidden their trips.", style: GoogleFonts.inter(color: Colors.grey), textAlign: TextAlign.center),
+                Text("This user has hidden their trips.", style: GoogleFonts.inter(color: colors.textSecondary), textAlign: TextAlign.center),
              ],
           ),
         ),
@@ -1060,9 +1079,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      }
   }
   
-  // 4. INTERESTS
+  // 4. INTERESTS / SPECIALIZATIONS (unified display)
   Widget _buildInterests(UserProfile? profile) {
-    if (profile?.interests == null || profile!.interests.isEmpty) return const SizedBox.shrink();
+    final colors = context.appColors;
+    final isDark = context.isDark;
+    // Show interests if available, otherwise fall back to specializations
+    final List<String> tags = (profile?.interests != null && profile!.interests.isNotEmpty)
+        ? profile.interests
+        : (profile?.specializations != null && profile!.specializations.isNotEmpty)
+            ? profile.specializations
+            : [];
+    if (tags.isEmpty) return const SizedBox.shrink();
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1070,14 +1097,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         spacing: 8,
         runSpacing: 8,
         alignment: WrapAlignment.center,
-        children: profile.interests.take(4).map((tag) => Container(
+        children: tags.take(4).map((tag) => Container(
            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
            decoration: BoxDecoration(
-             color: Colors.blue.shade50,
+             color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
              borderRadius: BorderRadius.circular(20),
-             border: Border.all(color: Colors.blue.shade100),
+             border: Border.all(color: isDark ? AppColors.brand.withOpacity(0.2) : Colors.blue.shade100),
            ),
-           child: Text(tag, style: GoogleFonts.inter(fontSize: 12, color: Colors.blue.shade800, fontWeight: FontWeight.w500)),
+           child: Text(tag, style: GoogleFonts.inter(fontSize: 12, color: AppColors.brand, fontWeight: FontWeight.w500)),
         )).toList(),
       ),
     );
@@ -1096,8 +1123,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPrivacyLock() {
+     final colors = context.appColors;
      return SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(), // Since it's usually short, but allow fitting
+        physics: const NeverScrollableScrollPhysics(),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
           child: Column(
@@ -1107,21 +1135,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 Container(
                    padding: const EdgeInsets.all(28),
                    decoration: BoxDecoration(
-                     color: Colors.grey.shade50, 
+                     color: colors.surfaceBg, 
                      shape: BoxShape.circle,
-                     border: Border.all(color: Colors.grey.shade100, width: 2),
+                     border: Border.all(color: colors.border, width: 2),
                    ),
-                   child: Icon(Icons.lock_outline_rounded, size: 56, color: Colors.grey.shade400),
+                   child: Icon(Icons.lock_outline_rounded, size: 56, color: colors.textMuted),
                 ),
                 const SizedBox(height: 24),
                 Text(
                   "This account is private", 
-                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: colors.textPrimary)
                 ),
                 const SizedBox(height: 12),
                 Text(
                   "Follow this account to see their photos and shared trips.", 
-                  style: GoogleFonts.inter(color: Colors.grey.shade600, height: 1.5), 
+                  style: GoogleFonts.inter(color: colors.textSecondary, height: 1.5), 
                   textAlign: TextAlign.center
                 ),
                 const SizedBox(height: 40),
@@ -1145,6 +1173,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
 
     if (_userPosts.isEmpty) {
+      final colors = context.appColors;
       return SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Container(
@@ -1153,9 +1182,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-               Icon(Icons.grid_on, size: 48, color: Colors.grey.shade300),
+               Icon(Icons.grid_on, size: 48, color: colors.textMuted),
                const SizedBox(height: 16),
-               Text("No posts yet", style: GoogleFonts.inter(color: Colors.grey.shade500)),
+               Text("No posts yet", style: GoogleFonts.inter(color: colors.textSecondary)),
             ],
           ),
         ),
@@ -1231,7 +1260,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  child: Container(
                    height: 300,
                    alignment: Alignment.center,
-                   child: Text("No trips yet", style: GoogleFonts.inter(color: Colors.grey)),
+                   child: Text("No trips yet", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                  ),
                );
             }
@@ -1243,14 +1272,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                    if (hosted.isNotEmpty) ...[
-                      Text("HOSTED BY YOU", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                      Text("HOSTED BY YOU", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: context.appColors.textSecondary, letterSpacing: 1.1)),
                       const SizedBox(height: 12),
                       ...hosted.map((t) => _buildTripCard(context, t)),
                       const SizedBox(height: 24),
                    ],
                    
                    if (joined.isNotEmpty) ...[
-                      Text("JOINED TRIPS", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                      Text("JOINED TRIPS", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: context.appColors.textSecondary, letterSpacing: 1.1)),
                       const SizedBox(height: 12),
                       ...joined.map((t) => _buildTripCard(context, t)),
                    ]
@@ -1316,18 +1345,55 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _showEditProfile(BuildContext context, UserProfile? profile) {
+     final bool isAgency = profile?.role == 'agency';
+
+     // Basic info controllers
      final cName = TextEditingController(text: profile?.displayName);
      final cUsername = TextEditingController(text: profile?.username);
      final cBio = TextEditingController(text: profile?.bio);
+     final cPhone = TextEditingController(text: profile?.phone);
+
+     // Interests (traveler) / Specializations (agency)
      final cInterests = TextEditingController();
      List<String> selectedInterests = List.from(profile?.interests ?? []);
-     
+     List<String> selectedSpecializations = List.from(profile?.specializations ?? []);
+
+     // Date of birth
+     DateTime? selectedDob = profile?.dateOfBirth;
+
+     // Social links
      final cInstagram = TextEditingController(text: profile?.instagramUrl);
      final cTwitter = TextEditingController(text: profile?.twitterUrl);
      final cYoutube = TextEditingController(text: profile?.youtubeUrl);
      final cOtherLinks = TextEditingController(text: (profile?.otherUrls != null && profile!.otherUrls!.isNotEmpty) ? profile.otherUrls!.first : null);
-      
+
+     // Agency-specific controllers
+     final cAgencyName = TextEditingController(text: profile?.agencyName);
+     final cContactPerson = TextEditingController(text: profile?.contactPerson);
+     final cOfficeLocation = TextEditingController(text: profile?.officeLocation);
+     final cAgencyDescription = TextEditingController(text: profile?.agencyDescription);
+     final cLicenseNumber = TextEditingController(text: profile?.licenseNumber);
+     final cWebsite = TextEditingController(text: profile?.website);
+     final cYearEstablished = TextEditingController(text: profile?.yearEstablished?.toString() ?? '');
+
      bool isSaving = false;
+
+     // Common specialization labels (matching onboarding)
+     const List<String> allSpecLabels = [
+       'Adventure Tours', 'Cultural Tours', 'Luxury Packages', 'Budget Travel',
+       'Honeymoon', 'Group Tours', 'Corporate Travel', 'Wildlife Safari',
+       'Pilgrimage', 'Cruise Packages', 'Trekking & Hiking', 'International',
+     ];
+
+     InputDecoration _inputDeco(String label, {IconData? prefixIcon, String? hint, String? prefix}) {
+       return InputDecoration(
+         labelText: label,
+         hintText: hint,
+         prefixText: prefix,
+         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+       );
+     }
 
      showModalBottomSheet(
        context: context,
@@ -1343,88 +1409,180 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                  mainAxisSize: MainAxisSize.min,
                  crossAxisAlignment: CrossAxisAlignment.start,
                  children: [
-                    Text("Edit Profile", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 24),
-                    TextField(controller: cName, decoration: InputDecoration(labelText: "Name", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: cUsername, 
-                      decoration: InputDecoration(
-                        labelText: "Username", 
-                        prefixText: "@",
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
-                      )
+                    // ─── HEADER ────────────────────────────────────────
+                    Row(
+                      children: [
+                        Text("Edit Profile", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                      ],
                     ),
                     const SizedBox(height: 16),
-                    TextField(controller: cBio, decoration: InputDecoration(labelText: "Bio", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), maxLines: 3),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: cInterests,
-                      decoration: InputDecoration(
-                        labelText: "Interests / Travel Style",
-                        hintText: "e.g. Photography, Food (Press Enter)",
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () {
-                            final text = cInterests.text.trim();
-                            if (text.isNotEmpty && !selectedInterests.contains(text)) {
-                              setSheetState(() {
-                                selectedInterests.add(text);
-                                cInterests.clear();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      onSubmitted: (text) {
-                        if (text.trim().isNotEmpty && !selectedInterests.contains(text.trim())) {
-                          setSheetState(() {
-                            selectedInterests.add(text.trim());
-                            cInterests.clear();
-                          });
-                        }
-                      },
-                    ),
-                    if (selectedInterests.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: selectedInterests.map((interest) {
-                            return Chip(
-                              label: Text(interest, style: GoogleFonts.inter(fontSize: 12)),
-                              backgroundColor: Colors.blue.shade50,
-                              side: BorderSide.none,
-                              deleteIcon: const Icon(Icons.close, size: 14),
-                              onDeleted: () {
-                                setSheetState(() => selectedInterests.remove(interest));
-                              },
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    
-                    const SizedBox(height: 24),
-                    Text("Social Links", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    TextField(controller: cInstagram, decoration: InputDecoration(labelText: "Instagram Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-                    const SizedBox(height: 12),
-                    TextField(controller: cTwitter, decoration: InputDecoration(labelText: "Twitter/X Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-                    const SizedBox(height: 12),
-                    TextField(controller: cYoutube, decoration: InputDecoration(labelText: "YouTube Link", prefixIcon: const Icon(Icons.link), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: cOtherLinks,
-                      decoration: InputDecoration(
-                        labelText: "Other Link / Website",
-                        hintText: "https://example.com/",
-                        prefixIcon: const Icon(Icons.link),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
 
+                    // ─── BASIC INFO ───────────────────────────────────
+                    Text("Basic Info", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cName, decoration: _inputDeco("Display Name")),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: cUsername,
+                      decoration: _inputDeco("Username", prefix: "@"),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(controller: cBio, decoration: _inputDeco("Bio", hint: "Tell us about yourself..."), maxLines: 3),
+                    const SizedBox(height: 14),
+                    TextField(controller: cPhone, decoration: _inputDeco("Phone", prefixIcon: Icons.phone_rounded, hint: "+91 98765 43210"), keyboardType: TextInputType.phone),
+
+                    // ─── DATE OF BIRTH (traveler only) ────────────────
+                    if (!isAgency) ...[
+                      const SizedBox(height: 14),
+                      GestureDetector(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDob ?? DateTime(2000, 1, 1),
+                            firstDate: DateTime(1920),
+                            lastDate: DateTime.now(),
+                            builder: (context, child) => Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: ColorScheme.light(primary: AppColors.brand),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setSheetState(() => selectedDob = picked);
+                          }
+                        },
+                        child: AbsorbPointer(
+                          child: TextField(
+                            controller: TextEditingController(
+                              text: selectedDob != null
+                                  ? "${selectedDob!.day.toString().padLeft(2, '0')}/${selectedDob!.month.toString().padLeft(2, '0')}/${selectedDob!.year}"
+                                  : '',
+                            ),
+                            decoration: _inputDeco("Date of Birth", prefixIcon: Icons.cake_rounded, hint: "DD/MM/YYYY"),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // ─── INTERESTS (all users) ───────────────────────
+                    ...[
+                      const SizedBox(height: 20),
+                      Text("Interests", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: cInterests,
+                        decoration: InputDecoration(
+                          labelText: "Add Interest",
+                          hintText: "e.g. Photography, Food  (Press Enter)",
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () {
+                              final text = cInterests.text.trim();
+                              if (text.isNotEmpty && !selectedInterests.contains(text)) {
+                                setSheetState(() {
+                                  selectedInterests.add(text);
+                                  cInterests.clear();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        onSubmitted: (text) {
+                          if (text.trim().isNotEmpty && !selectedInterests.contains(text.trim())) {
+                            setSheetState(() {
+                              selectedInterests.add(text.trim());
+                              cInterests.clear();
+                            });
+                          }
+                        },
+                      ),
+                      if (selectedInterests.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: selectedInterests.map((interest) {
+                              return Chip(
+                                label: Text(interest, style: GoogleFonts.inter(fontSize: 12)),
+                                backgroundColor: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
+                                side: BorderSide.none,
+                                deleteIcon: const Icon(Icons.close, size: 14),
+                                onDeleted: () {
+                                  setSheetState(() => selectedInterests.remove(interest));
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                    ],
+
+                    // ─── AGENCY DETAILS ───────────────────────────────
+                    if (isAgency) ...[
+                      const SizedBox(height: 20),
+                      Text("Agency Details", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                      const SizedBox(height: 12),
+                      TextField(controller: cAgencyName, decoration: _inputDeco("Agency Name", prefixIcon: Icons.business_rounded)),
+                      const SizedBox(height: 14),
+                      TextField(controller: cContactPerson, decoration: _inputDeco("Contact Person", prefixIcon: Icons.person_rounded)),
+                      const SizedBox(height: 14),
+                      TextField(controller: cOfficeLocation, decoration: _inputDeco("Office Location", prefixIcon: Icons.location_on_rounded)),
+                      const SizedBox(height: 14),
+                      TextField(controller: cAgencyDescription, decoration: _inputDeco("Agency Description", hint: "What your agency does..."), maxLines: 3),
+                      const SizedBox(height: 14),
+                      TextField(controller: cLicenseNumber, decoration: _inputDeco("License Number", prefixIcon: Icons.badge_rounded)),
+                      const SizedBox(height: 14),
+                      TextField(controller: cWebsite, decoration: _inputDeco("Website", prefixIcon: Icons.language_rounded, hint: "https://youragency.com")),
+                      const SizedBox(height: 14),
+                      TextField(controller: cYearEstablished, decoration: _inputDeco("Year Established", prefixIcon: Icons.calendar_today_rounded), keyboardType: TextInputType.number),
+                      const SizedBox(height: 14),
+
+                      // Specializations chips
+                      Text("Specializations", style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: allSpecLabels.map((spec) {
+                          final isSelected = selectedSpecializations.contains(spec);
+                          return FilterChip(
+                            label: Text(spec, style: GoogleFonts.inter(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                            selected: isSelected,
+                            selectedColor: context.isDark ? AppColors.brand.withOpacity(0.2) : Colors.blue.shade100,
+                            backgroundColor: context.appColors.surfaceBg,
+                            checkmarkColor: AppColors.brand,
+                            side: BorderSide.none,
+                            onSelected: (selected) {
+                              setSheetState(() {
+                                if (selected) {
+                                  selectedSpecializations.add(spec);
+                                } else {
+                                  selectedSpecializations.remove(spec);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
+
+                    // ─── SOCIAL LINKS ─────────────────────────────────
+                    const SizedBox(height: 20),
+                    Text("Social Links", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cInstagram, decoration: _inputDeco("Instagram", prefixIcon: Icons.camera_alt_rounded)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cTwitter, decoration: _inputDeco("Twitter / X", prefixIcon: Icons.alternate_email_rounded)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cYoutube, decoration: _inputDeco("YouTube", prefixIcon: Icons.play_circle_fill_rounded)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cOtherLinks, decoration: _inputDeco("Other Link", prefixIcon: Icons.link_rounded, hint: "https://example.com/")),
+
+                    // ─── PHOTO BUTTONS ────────────────────────────────
                     const SizedBox(height: 20),
                     OutlinedButton.icon(
                       onPressed: () {
@@ -1436,17 +1594,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        side: BorderSide(color: Colors.grey.shade400),
+                        side: BorderSide(color: context.appColors.border),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (profile?.role == 'agency') ...[
+                    if (isAgency) ...[
                       OutlinedButton.icon(
                         onPressed: () async {
                           final picker = ImagePicker();
                           final XFile? image = await picker.pickImage(source: ImageSource.gallery);
                           if (image != null) {
-                             // Show loading and call updateAgencyCover
                              setSheetState(() => isSaving = true);
                              try {
                                await Provider.of<AuthService>(context, listen: false).updateAgencyCover(File(image.path));
@@ -1463,12 +1620,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                          side: BorderSide(color: AppColors.brand.withOpacity(0.5)),
                         ),
                       ),
                       const SizedBox(height: 16),
                     ],
-                    const SizedBox(height: 24),
+
+                    // ─── SAVE BUTTON ──────────────────────────────────
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -1483,49 +1642,43 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
                            setSheetState(() => isSaving = true);
                            try {
-                              // Auto-fetch location
-                              double? lat, lng;
-                              String? city, country;
-                              
-                              try {
-                                bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-                                if (serviceEnabled) {
-                                  LocationPermission permission = await Geolocator.checkPermission();
-                                  if (permission == LocationPermission.denied) {
-                                    permission = await Geolocator.requestPermission();
-                                  }
-                                  
-                                  if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-                                    Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
-                                    lat = pos.latitude;
-                                    lng = pos.longitude;
-                                    
-                                    List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
-                                    if (placemarks.isNotEmpty) {
-                                      city = placemarks.first.locality ?? placemarks.first.subAdministrativeArea;
-                                      country = placemarks.first.country;
-                                    }
-                                  }
-                                }
-                              } catch (e) {
-                                print("Silent location fetch failed: $e");
-                              }
+                              // Auto-detect location on save
+                              final authSvc = Provider.of<AuthService>(context, listen: false);
+                              final loc = await authSvc.detectCurrentLocation();
 
-                              await Provider.of<AuthService>(context, listen: false).updateProfile(
-                                 displayName: cName.text,
-                                 username: cUsername.text.toLowerCase().trim(),
-                                 bio: cBio.text,
-                                 latitude: lat,
-                                 longitude: lng,
-                                 city: city,
-                                  country: country,
+                              await authSvc.updateProfile(
+                                 displayName: cName.text.trim(),
+                                 username: username,
+                                 bio: cBio.text.trim(),
+                                 phone: cPhone.text.trim().isNotEmpty ? cPhone.text.trim() : null,
+                                 clearPhone: cPhone.text.trim().isEmpty && profile?.phone != null,
+                                 dateOfBirth: selectedDob,
                                  interests: selectedInterests,
-                                 instagramUrl: cInstagram.text.trim().isEmpty ? null : cInstagram.text.trim(),
-                                 twitterUrl: cTwitter.text.trim().isEmpty ? null : cTwitter.text.trim(),
-                                 youtubeUrl: cYoutube.text.trim().isEmpty ? null : cYoutube.text.trim(),
+                                 // Location from GPS
+                                 city: loc?['city'] as String?,
+                                 country: loc?['country'] as String?,
+                                 latitude: loc?['latitude'] as double?,
+                                 longitude: loc?['longitude'] as double?,
+                                 // Social links — pass value or clear flag
+                                 instagramUrl: cInstagram.text.trim().isNotEmpty ? cInstagram.text.trim() : null,
+                                 clearInstagram: cInstagram.text.trim().isEmpty && profile?.instagramUrl != null,
+                                 twitterUrl: cTwitter.text.trim().isNotEmpty ? cTwitter.text.trim() : null,
+                                 clearTwitter: cTwitter.text.trim().isEmpty && profile?.twitterUrl != null,
+                                 youtubeUrl: cYoutube.text.trim().isNotEmpty ? cYoutube.text.trim() : null,
+                                 clearYoutube: cYoutube.text.trim().isEmpty && profile?.youtubeUrl != null,
                                  otherUrls: cOtherLinks.text.trim().isNotEmpty ? [
                                     cOtherLinks.text.trim().startsWith('http') ? cOtherLinks.text.trim() : 'https://${cOtherLinks.text.trim()}'
                                  ] : [],
+                                 // Agency fields
+                                 agencyName: isAgency ? cAgencyName.text.trim() : null,
+                                 contactPerson: isAgency ? cContactPerson.text.trim() : null,
+                                 officeLocation: isAgency ? cOfficeLocation.text.trim() : null,
+                                 agencyDescription: isAgency ? cAgencyDescription.text.trim() : null,
+                                 licenseNumber: isAgency ? cLicenseNumber.text.trim() : null,
+                                 website: isAgency && cWebsite.text.trim().isNotEmpty ? cWebsite.text.trim() : null,
+                                 clearWebsite: isAgency && cWebsite.text.trim().isEmpty && profile?.website != null,
+                                 specializations: isAgency ? selectedSpecializations : null,
+                                 yearEstablished: isAgency && cYearEstablished.text.isNotEmpty ? int.tryParse(cYearEstablished.text.trim()) : null,
                               );
                               
                               if (ctx.mounted) Navigator.pop(ctx);
@@ -1539,14 +1692,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                            }
                         },
                         style: ElevatedButton.styleFrom(
-                           backgroundColor: Colors.blueAccent,
+                           backgroundColor: AppColors.brand,
                            foregroundColor: Colors.white,
                            padding: const EdgeInsets.symmetric(vertical: 16),
                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                         ),
                         child: isSaving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Save Changes"),
                       ),
-                    )
+                    ),
+                    const SizedBox(height: 16),
                  ],
                ),
              );
@@ -1624,7 +1778,7 @@ class _ProfileTripsTabState extends State<_ProfileTripsTab> with AutomaticKeepAl
             child: Container(
               height: 300,
               alignment: Alignment.center,
-              child: Text("No trips yet", style: GoogleFonts.inter(color: Colors.grey)),
+              child: Text("No trips yet", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
             ),
           );
         }
@@ -1636,13 +1790,13 @@ class _ProfileTripsTabState extends State<_ProfileTripsTab> with AutomaticKeepAl
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (hosted.isNotEmpty) ...[
-                Text("HOSTED BY YOU", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                Text("HOSTED BY YOU", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: context.appColors.textSecondary, letterSpacing: 1.1)),
                 const SizedBox(height: 12),
                 ...hosted.map((t) => widget.buildTripCard(context, t)),
                 const SizedBox(height: 24),
               ],
               if (joined.isNotEmpty) ...[
-                Text("JOINED TRIPS", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade500, letterSpacing: 1.1)),
+                Text("JOINED TRIPS", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: context.appColors.textSecondary, letterSpacing: 1.1)),
                 const SizedBox(height: 12),
                 ...joined.map((t) => widget.buildTripCard(context, t)),
               ]
@@ -1667,7 +1821,7 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return ColoredBox(
-      color: Colors.white,
+      color: Theme.of(context).extension<AppColors>()!.scaffoldBg,
       child: _tabBar,
     );
   }

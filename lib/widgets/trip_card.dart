@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/trip.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class TripCard extends StatelessWidget {
   final Trip trip;
@@ -19,15 +21,17 @@ class TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: colors.shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           )
@@ -41,7 +45,7 @@ class TripCard extends StatelessWidget {
           child: Container(
             width: 56,
             height: 56,
-            decoration: BoxDecoration(color: Colors.blue.shade50),
+            decoration: BoxDecoration(color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50),
             child: (trip.coverImageUrl != null && trip.coverImageUrl!.isNotEmpty)
                 ? CachedNetworkImage(
                     imageUrl: trip.coverImageUrl!,
@@ -49,12 +53,12 @@ class TripCard extends StatelessWidget {
                     placeholder: (context, url) => const Center(
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    errorWidget: (context, url, error) => const Icon(
+                    errorWidget: (context, url, error) => Icon(
                       Icons.flight_takeoff,
-                      color: Colors.blueAccent,
+                      color: AppColors.brand,
                     ),
                   )
-                : const Icon(Icons.flight_takeoff, color: Colors.blueAccent),
+                : Icon(Icons.flight_takeoff, color: AppColors.brand),
           ),
         ),
         title: Text(
@@ -70,14 +74,14 @@ class TripCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                Icon(Icons.location_on, size: 14, color: colors.textSecondary),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     trip.location,
                     style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: Colors.grey.shade600,
+                      color: colors.textSecondary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -90,7 +94,7 @@ class TripCard extends StatelessWidget {
             ],
           ],
         ),
-        trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey),
+        trailing: trailing ?? Icon(Icons.chevron_right, color: colors.textSecondary),
       ),
     );
   }

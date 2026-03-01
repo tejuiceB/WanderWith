@@ -7,6 +7,8 @@ import '../models/trip.dart';
 import '../models/trip_plan.dart'; 
 import '../services/gemini_service.dart';
 import '../services/trip_service.dart'; // NEW
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class AIGuideScreen extends StatefulWidget {
   final Trip trip;
@@ -191,6 +193,7 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -200,8 +203,8 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
             Text("AI Travel Guide"),
           ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: colors.scaffoldBg,
+        foregroundColor: colors.textPrimary,
         elevation: 1,
       ),
       body: Column(
@@ -222,7 +225,7 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isUser ? Colors.blueAccent : Colors.grey.shade200,
+                      color: isUser ? AppColors.brand : colors.surfaceBg,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
@@ -279,11 +282,11 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
 
           // 2. Typing Indicator
           if (_isTyping)
-             const Padding(
-               padding: EdgeInsets.only(left: 16, bottom: 8),
+             Padding(
+               padding: const EdgeInsets.only(left: 16, bottom: 8),
                child: Align(
                  alignment: Alignment.centerLeft,
-                 child: Text("Thinking...", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                 child: Text("Thinking...", style: TextStyle(color: colors.textSecondary, fontStyle: FontStyle.italic)),
                ),
              ),
 
@@ -316,8 +319,8 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, -2))],
+              color: colors.cardBg,
+              boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 5, offset: const Offset(0, -2))],
             ),
             child: Row(
               children: [
@@ -330,14 +333,14 @@ class _AIGuideScreenState extends State<AIGuideScreen> {
                       hintText: "Ask about food, prices, or directions...",
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                       filled: true,
-                      fillColor: Colors.grey.shade100,
+                      fillColor: colors.fieldFillBg,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: AppColors.brand,
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white, size: 18),
                     onPressed: () => _sendMessage(_controller.text),

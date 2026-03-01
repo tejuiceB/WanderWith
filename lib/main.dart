@@ -6,22 +6,26 @@ import 'package:skeletonizer/skeletonizer.dart'; // Added
 import 'package:share_plus/share_plus.dart'; // Added
 import 'package:flutter/services.dart'; // Added for Clipboard
 import 'services/auth_service.dart';
+import 'providers/theme_provider.dart';
+import 'theme/app_theme.dart';
 import 'services/notification_service.dart'; // Import Notification Service
 import 'services/trip_service.dart'; // Import Trip Service for navigation
 import 'models/trip.dart'; // Import Trip model
 import 'models/user_profile.dart'; // Added for UserProfile
-import 'screens/profile_screen.dart'; // Added
-import 'screens/login_screen.dart';
-import 'screens/main_screen.dart'; // Import MainScreen
+import 'screens/profile_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'screens/auth/otp_verification_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
+import 'screens/main_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/trip_dashboard_screen.dart'; // Import dashboard for navigation
-import 'screens/onboarding/role_selection_screen.dart';
-import 'screens/onboarding/traveler_form_screen.dart';
-import 'screens/onboarding/agency_form_screen.dart';
-import 'screens/splash_screen.dart'; 
+import 'screens/trip_dashboard_screen.dart';
+import 'screens/onboarding/onboarding_wizard_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/post_detail_screen.dart';
-import 'screens/follow_requests_screen.dart'; // Added
-import 'screens/join_trip_screen.dart'; // Added
+import 'screens/follow_requests_screen.dart';
+import 'screens/join_trip_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/app_env.dart';
 import 'providers/plan_provider.dart';
@@ -35,7 +39,13 @@ Future<void> main() async {
   await Supabase.initialize(
     url: AppEnv.supabaseUrl,
     anonKey: AppEnv.supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
+
+  // Load saved theme preference before building the app
+  final savedDarkMode = await ThemeProvider.loadSavedTheme();
 
   // Initialize Notifications
   NotificationService().init((type, data) async {
@@ -79,7 +89,7 @@ Future<void> main() async {
       }
   });
 
-  runApp(const MyApp());
+  runApp(MyApp(initialDarkMode: savedDarkMode));
 }
 
 // Custom RefreshListenable to notify GoRouter of auth changes
@@ -98,7 +108,11 @@ final GoRouter _router = GoRouter(
     final bool isAuthenticated = authService.isAuthenticated;
     final bool hasShownSplash = authService.hasShownSplash;
     
-    final bool isLoggingIn = state.matchedLocation == '/login';
+    final bool isAuthScreen = state.matchedLocation == '/login' ||
+        state.matchedLocation == '/signup' ||
+        state.matchedLocation == '/verify-otp' ||
+        state.matchedLocation == '/forgot-password' ||
+        state.matchedLocation == '/reset-password';
     final bool isOnboarding = state.matchedLocation.startsWith('/onboarding');
     final bool isSplashScreen = state.matchedLocation == '/splash';
 
@@ -112,14 +126,22 @@ final GoRouter _router = GoRouter(
     // 2. If on splash, don't redirect (let its timer run)
     if (isSplashScreen) return null;
 
-    // 3. Not authenticated -> Redirect to login
+    // 3. Handle password recovery — Supabase SDK detected recovery session
+    if (authService.isPasswordRecovery) {
+      if (state.matchedLocation == '/reset-password') return null;
+      return '/reset-password';
+    }
+
+    // 4. Allow staying on reset-password screen
+    if (state.matchedLocation == '/reset-password') return null;
+
+    // 5. Not authenticated -> Redirect to login
     if (!isAuthenticated) {
-      if (isLoggingIn) return null;
+      if (isAuthScreen) return null;
       return '/login?from=${Uri.encodeComponent(location)}';
     }
 
-    // 4. Authenticated but not onboarded -> Redirect to onboarding
-    // Wait for profile to load before deciding!
+    // 5. Authenticated but not onboarded -> Redirect to onboarding
     if (isAuthenticated) {
        if (authService.isLoadingProfile) return null; // Wait for fetch
        
@@ -129,10 +151,10 @@ final GoRouter _router = GoRouter(
        }
     }
 
-    // 5. Logged in and complete -> Redirection from Auth Screens to Content
+    // 6. Logged in and complete -> Redirect away from auth/onboarding screens
+    //    BUT never redirect away from /reset-password if in recovery mode
     if (isAuthenticated && authService.hasCompletedOnboarding) {
-       if (isLoggingIn || isOnboarding) {
-          // Check if there was an intended destination saved during login
+       if ((isAuthScreen && state.matchedLocation != '/reset-password') || isOnboarding) {
           final target = state.uri.queryParameters['from'];
           if (target != null && target.isNotEmpty && target != '/' && target != '/login' && target != '/splash') {
              return Uri.decodeComponent(target);
@@ -161,18 +183,27 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const LoginScreen(),
     ),
     GoRoute(
+      path: '/signup',
+      builder: (context, state) => const SignupScreen(),
+    ),
+    GoRoute(
+      path: '/verify-otp',
+      builder: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        return OtpVerificationScreen(email: email);
+      },
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => const ResetPasswordScreen(),
+    ),
+    GoRoute(
       path: '/onboarding',
-      builder: (context, state) => const RoleSelectionScreen(),
-      routes: [
-        GoRoute(
-          path: 'traveler',
-          builder: (context, state) => const TravelerFormScreen(),
-        ),
-        GoRoute(
-          path: 'agency',
-          builder: (context, state) => const AgencyFormScreen(),
-        ),
-      ],
+      builder: (context, state) => const OnboardingWizardScreen(),
     ),
     GoRoute(
       path: '/',
@@ -205,7 +236,8 @@ final GoRouter _router = GoRouter(
 );
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool initialDarkMode;
+  const MyApp({super.key, required this.initialDarkMode});
 
   @override
   Widget build(BuildContext context) {
@@ -213,14 +245,16 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: AuthService.instance), // Use singleton
         ChangeNotifierProvider(create: (_) => PlanProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider(initialDarkMode: initialDarkMode)),
       ],
-      child: MaterialApp.router(
-        routerConfig: _router,
-        title: 'WanderWith',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-          useMaterial3: true,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp.router(
+          routerConfig: _router,
+          title: 'WanderWith',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeProvider.themeMode,
         ),
       ),
     );

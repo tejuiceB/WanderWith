@@ -10,6 +10,8 @@ import 'post_detail_screen.dart';
 import 'trip_dashboard_screen.dart';
 import 'profile_screen.dart';
 import 'follow_requests_screen.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -113,7 +115,7 @@ class NotificationsScreen extends StatelessWidget {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    color: isRead ? Colors.transparent : Colors.blue.withOpacity(0.04),
+                    color: isRead ? Colors.transparent : context.isDark ? AppColors.brand.withOpacity(0.08) : Colors.blue.withOpacity(0.04),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -123,7 +125,7 @@ class NotificationsScreen extends StatelessWidget {
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: isRead ? Colors.transparent : Colors.blue,
+                            color: isRead ? Colors.transparent : AppColors.brand,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -151,7 +153,7 @@ class NotificationsScreen extends StatelessWidget {
                                 style: GoogleFonts.outfit(
                                    fontSize: 15,
                                    fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
-                                   color: Colors.black87
+                                   color: context.appColors.textPrimary
                                 )
                               ),
                               const SizedBox(height: 4),
@@ -159,14 +161,14 @@ class NotificationsScreen extends StatelessWidget {
                                 notification.body,
                                 style: GoogleFonts.inter(
                                    fontSize: 13,
-                                   color: isRead ? Colors.grey.shade600 : Colors.black87,
+                                   color: isRead ? context.appColors.textSecondary : context.appColors.textPrimary,
                                    height: 1.3
                                 )
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 _formatTime(notification.createdAt),
-                                style: GoogleFonts.inter(fontSize: 11, color: Colors.grey),
+                                style: GoogleFonts.inter(fontSize: 11, color: context.appColors.textSecondary),
                               )
                             ],
                           ),

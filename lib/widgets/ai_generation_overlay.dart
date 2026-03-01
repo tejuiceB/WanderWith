@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class AIPlanGenerationOverlay extends StatefulWidget {
   final String status;
@@ -33,6 +35,8 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     // Map status strings to progress and icons
     double progress = 0.25;
     IconData icon = Icons.psychology_outlined;
@@ -67,7 +71,7 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.85),
+                  color: isDark ? Colors.black.withOpacity(0.85) : Colors.white.withOpacity(0.85),
                 ),
               ),
             ),
@@ -102,11 +106,11 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                       width: 100,
                       height: 100,
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.1),
+                            color: AppColors.brand.withOpacity(0.1),
                             blurRadius: 20,
                             spreadRadius: 10,
                           ),
@@ -115,7 +119,7 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                       child: Icon(
                         icon,
                         size: 48,
-                        color: Colors.blue.shade700,
+                        color: AppColors.brand,
                       ),
                     ),
                   ),
@@ -130,10 +134,10 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                         Text(
                           mainText,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: colors.textPrimary,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -143,7 +147,7 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey.shade600,
+                            color: colors.textSecondary,
                             height: 1.5,
                           ),
                         ),
@@ -164,8 +168,8 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                             return LinearProgressIndicator(
                               value: value,
                               minHeight: 8,
-                              backgroundColor: Colors.blue.shade50,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                              backgroundColor: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
                             );
                           },
                         ),
@@ -176,7 +180,7 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
+                          color: AppColors.brand,
                         ),
                       ),
                     ],
@@ -195,18 +199,18 @@ class _AIPlanGenerationOverlayState extends State<AIPlanGenerationOverlay> with 
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: colors.cardBg,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.blue.shade50),
+                  border: Border.all(color: isDark ? colors.border : Colors.blue.shade50),
                 ),
                 child: Row(
                   children: [
                     Icon(Icons.tips_and_updates_outlined, color: Colors.amber.shade700, size: 20),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         "Did you know? Walking through the city is often the best way to find hidden gems.",
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
                       ),
                     ),
                   ],

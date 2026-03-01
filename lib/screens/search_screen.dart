@@ -10,6 +10,8 @@ import 'profile_screen.dart';
 import 'post_detail_screen.dart';
 import 'trip_dashboard_screen.dart';
 import '../models/trip.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -124,20 +126,20 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         title: Container(
           height: 45,
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.appColors.fieldFillBg, borderRadius: BorderRadius.circular(12)),
           child: TextField(
             controller: _searchController,
             onChanged: _handleSearch,
             decoration: InputDecoration(
               hintText: _searchType == 'users' ? "Search travelers..." : _searchType == 'tags' ? "Search #hashtags..." : "Search trip plans...",
-              hintStyle: GoogleFonts.inter(color: Colors.grey, fontSize: 14),
-              prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+              hintStyle: GoogleFonts.inter(color: context.appColors.textSecondary, fontSize: 14),
+              prefixIcon: Icon(Icons.search_rounded, color: context.appColors.textSecondary, size: 20),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -146,7 +148,7 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
         ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list_rounded, color: Colors.black87),
+            icon: Icon(Icons.filter_list_rounded, color: context.appColors.textPrimary),
             onSelected: (val) {
               setState(() {
                 _searchType = val;
@@ -267,7 +269,7 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                               image: trip.coverImageUrl != null 
                                 ? DecorationImage(image: CachedNetworkImageProvider(trip.coverImageUrl!), fit: BoxFit.cover)
                                 : null,
-                              color: Colors.blue.shade50,
+                              color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                             ),
                             child: Stack(
                               children: [
@@ -319,8 +321,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                     return Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: ActionChip(
-                        label: Text("#$tag", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blueAccent)),
-                        backgroundColor: Colors.blue.shade50,
+                        label: Text("#$tag", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.brand)),
+                        backgroundColor: context.isDark ? AppColors.brand.withOpacity(0.12) : Colors.blue.shade50,
                         side: BorderSide.none,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         onPressed: () {
@@ -398,7 +400,7 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                 ]
               ],
             ),
-            subtitle: Text("@${user.username ?? ''}", style: GoogleFonts.inter(color: Colors.grey)),
+            subtitle: Text("@${user.username ?? ''}", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: user.uid))),
           );
         },
@@ -421,15 +423,15 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
           leading: Container(
             width: 50, height: 50,
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
               borderRadius: BorderRadius.circular(8),
               image: trip.coverImageUrl != null ? DecorationImage(image: CachedNetworkImageProvider(trip.coverImageUrl!), fit: BoxFit.cover) : null,
             ),
-            child: trip.coverImageUrl == null ? const Icon(Icons.map_rounded, color: Colors.blueAccent) : null,
+            child: trip.coverImageUrl == null ? Icon(Icons.map_rounded, color: AppColors.brand) : null,
           ),
           title: Text(trip.name, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          subtitle: Text(trip.location, style: GoogleFonts.inter(color: Colors.grey)),
-          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+          subtitle: Text(trip.location, style: GoogleFonts.inter(color: context.appColors.textSecondary)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: context.appColors.textMuted),
           onTap: () {
              // Navigate to Trip Dashboard in View-Only mode if not a member
              // This will be handled in TripDashboardScreen logic
@@ -518,9 +520,9 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
         child: Column(
            mainAxisAlignment: MainAxisAlignment.center,
            children: [
-              Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade300),
+              Icon(Icons.search_off_rounded, size: 48, color: context.appColors.textMuted),
               const SizedBox(height: 16),
-              Text("No results found", style: GoogleFonts.outfit(fontSize: 18, color: Colors.grey)),
+              Text("No results found", style: GoogleFonts.outfit(fontSize: 18, color: context.appColors.textSecondary)),
            ],
         ),
      );

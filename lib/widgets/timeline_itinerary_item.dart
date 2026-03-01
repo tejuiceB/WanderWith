@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/trip_plan.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class TimelineItineraryItem extends StatelessWidget {
   final TripPlanPlace place;
@@ -20,6 +22,8 @@ class TimelineItineraryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -35,12 +39,12 @@ class TimelineItineraryItem extends StatelessWidget {
                      width: 12,
                      height: 12,
                      decoration: BoxDecoration(
-                       color: Colors.blue.shade600,
+                       color: AppColors.brand,
                        shape: BoxShape.circle,
-                       border: Border.all(color: Colors.white, width: 2),
+                       border: Border.all(color: colors.cardBg, width: 2),
                        boxShadow: [
                          BoxShadow(
-                           color: Colors.blue.withOpacity(0.3),
+                           color: AppColors.brand.withOpacity(0.3),
                            blurRadius: 4,
                            spreadRadius: 1,
                          ),
@@ -51,7 +55,7 @@ class TimelineItineraryItem extends StatelessWidget {
                      Expanded(
                        child: Container(
                          width: 2,
-                         color: Colors.blue.shade100,
+                         color: isDark ? AppColors.brand.withOpacity(0.2) : Colors.blue.shade100,
                        ),
                      ),
                 ],
@@ -70,7 +74,7 @@ class TimelineItineraryItem extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
+                            color: AppColors.brand,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -108,10 +112,10 @@ class TimelineItineraryItem extends StatelessWidget {
                             children: [
                               Text(
                                 place.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
+                                  color: colors.textPrimary,
                                   letterSpacing: -0.2,
                                 ),
                               ),
@@ -120,7 +124,7 @@ class TimelineItineraryItem extends StatelessWidget {
                                 place.type,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey.shade600,
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             ],
@@ -136,19 +140,19 @@ class TimelineItineraryItem extends StatelessWidget {
                                   height: 60,
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Container(
-                                    color: Colors.grey.shade100,
+                                    color: colors.surfaceBg,
                                     child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                                   ),
                                   errorWidget: (context, url, error) => Container(
-                                    color: Colors.grey.shade100,
-                                    child: Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade400, size: 20),
+                                    color: colors.surfaceBg,
+                                    child: Icon(Icons.image_not_supported_outlined, color: colors.textMuted, size: 20),
                                   ),
                                 )
                               : Container(
                                   width: 60,
                                   height: 60,
-                                  color: Colors.grey.shade100,
-                                  child: Icon(Icons.image_outlined, color: Colors.grey.shade400, size: 20),
+                                  color: colors.surfaceBg,
+                                  child: Icon(Icons.image_outlined, color: colors.textMuted, size: 20),
                                 ),
                         ),
                       ],
@@ -161,9 +165,9 @@ class TimelineItineraryItem extends StatelessWidget {
               ),
               
               if (canEdit)
-                const Padding(
-                  padding: EdgeInsets.only(top: 24),
-                  child: Icon(Icons.drag_handle, color: Colors.grey, size: 20),
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Icon(Icons.drag_handle, color: colors.textSecondary, size: 20),
                 ),
             ],
           ),

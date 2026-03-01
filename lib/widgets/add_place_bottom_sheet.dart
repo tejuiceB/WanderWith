@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/plan_provider.dart';
 import '../models/trip.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class AddPlaceBottomSheet extends StatefulWidget {
   final Trip trip;
@@ -52,17 +54,19 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
           // Handle
           const SizedBox(height: 12),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2))),
           
           // Sticky Top: Search Bar
           Padding(
@@ -72,7 +76,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: "Search places, cafes, museums...",
-                prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                prefixIcon: Icon(Icons.search, color: AppColors.brand),
                 suffixIcon: _searchController.text.isNotEmpty 
                     ? IconButton(
                         icon: const Icon(Icons.clear), 
@@ -83,7 +87,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
                       ) 
                     : null,
                 filled: true,
-                fillColor: Colors.blue.shade50.withOpacity(0.5),
+                fillColor: isDark ? colors.fieldFillBg : Colors.blue.shade50.withOpacity(0.5),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
@@ -131,8 +135,8 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
       itemBuilder: (context, index) {
         final item = provider.autocompleteSuggestions[index];
         return ListTile(
-          leading: const CircleAvatar(
-            backgroundColor: Colors.blue,
+          leading: CircleAvatar(
+            backgroundColor: AppColors.brand,
             child: Icon(Icons.location_on, color: Colors.white, size: 20),
           ),
           title: Text(item['main_text'] ?? ''),
@@ -199,8 +203,8 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-          Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
+          Text(subtitle, style: TextStyle(fontSize: 13, color: context.appColors.textSecondary)),
         ],
       ),
     );
@@ -214,10 +218,10 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.blue.shade50),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: context.isDark ? context.appColors.border : Colors.blue.shade50),
+          boxShadow: [BoxShadow(color: context.appColors.shadow, blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +230,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
             const SizedBox(height: 12),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 3, overflow: TextOverflow.ellipsis),
+            Text(subtitle, style: TextStyle(fontSize: 11, color: context.appColors.textSecondary), maxLines: 3, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),
@@ -240,9 +244,9 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
         width: 200,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.cardBg,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: context.appColors.shadow, blurRadius: 10, offset: const Offset(0, 4))],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -253,7 +257,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
                 children: [
                   place['image_url'] != null 
                       ? Image.network(place['image_url'], width: double.infinity, fit: BoxFit.cover)
-                      : Container(color: Colors.blue.shade100, child: const Center(child: Icon(Icons.image, color: Colors.white))),
+                      : Container(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade100, child: const Center(child: Icon(Icons.image, color: Colors.white))),
                   if (place['rating'] != null)
                     Positioned(
                       top: 10, right: 10,
@@ -278,7 +282,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(place['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(place['type'] ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  Text(place['type'] ?? '', style: TextStyle(fontSize: 12, color: context.appColors.textSecondary)),
                 ],
               ),
             ),
@@ -309,7 +313,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
             borderRadius: BorderRadius.circular(24),
             child: place['image_url'] != null 
                 ? Image.network(place['image_url'], height: 200, width: double.infinity, fit: BoxFit.cover)
-                : Container(height: 200, color: Colors.blue.shade50),
+                : Container(height: 200, color: context.isDark ? context.appColors.surfaceBg : Colors.blue.shade50),
           ),
           const SizedBox(height: 24),
           Text(place['name'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
@@ -320,12 +324,12 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
               const SizedBox(width: 4),
               Text("${place['rating'] ?? 'N/A'}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               if (place['user_rating_count'] != null)
-                Text(" (${place['user_rating_count']} reviews)", style: TextStyle(color: Colors.grey.shade600)),
+                Text(" (${place['user_rating_count']} reviews)", style: TextStyle(color: context.appColors.textSecondary)),
             ],
           ),
           const SizedBox(height: 16),
           if (place['summary'] != null)
-             Text(place['summary'], style: TextStyle(fontSize: 15, color: Colors.grey.shade800, height: 1.5)),
+             Text(place['summary'], style: TextStyle(fontSize: 15, color: context.appColors.textPrimary, height: 1.5)),
           const SizedBox(height: 24),
           
           _buildDetailRow(Icons.location_on, "Address", place['address'] ?? 'Unknown address'),
@@ -344,7 +348,7 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text("✨ ${place['name']} added to your plan!"),
-                        backgroundColor: Colors.green.shade600,
+                        backgroundColor: AppColors.success,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
@@ -354,14 +358,14 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text("Failed to add place: $e"),
-                        backgroundColor: Colors.red.shade600,
+                        backgroundColor: AppColors.error,
                       ),
                     );
                   }
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
+                backgroundColor: AppColors.brand,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
@@ -386,15 +390,15 @@ class _AddPlaceBottomSheetState extends State<AddPlaceBottomSheet> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Colors.blue),
+          Icon(icon, size: 20, color: AppColors.brand),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.textSecondary)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                Text(value, style: TextStyle(fontSize: 14, color: context.appColors.textPrimary)),
               ],
             ),
           ),

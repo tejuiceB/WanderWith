@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/post.dart';
 import '../services/post_service.dart';
 import '../widgets/post_card.dart';
+import '../theme/theme_extensions.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
@@ -47,11 +48,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
-        title: Text("Post", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
+        title: Text("Post", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
         centerTitle: true,
       ),
       body: _isLoading 
@@ -63,9 +64,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 48, color: Colors.grey.shade300),
+                        Icon(Icons.error_outline, size: 48, color: context.appColors.textMuted),
                         const SizedBox(height: 16),
-                        Text(_error!, textAlign: TextAlign.center, style: GoogleFonts.inter(color: Colors.grey)),
+                        Text(_error!, textAlign: TextAlign.center, style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                         const SizedBox(height: 24),
                         ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text("Go Back")),
                       ],

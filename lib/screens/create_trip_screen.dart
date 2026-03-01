@@ -7,6 +7,8 @@ import '../services/trip_service.dart';
 import '../services/auth_service.dart';
 import '../models/trip.dart';
 import '../services/google_places_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 import 'trip_dashboard_screen.dart';
 
 class CreateTripScreen extends StatefulWidget {
@@ -192,7 +194,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       body: Stack(
         children: [
           CustomScrollView(
@@ -226,9 +228,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             top: MediaQuery.of(context).padding.top + 10,
             left: 16,
             child: CircleAvatar(
-              backgroundColor: Colors.white.withOpacity(0.9),
+              backgroundColor: context.appColors.cardBg.withOpacity(0.9),
               child: IconButton(
-                icon: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                icon: Icon(Icons.arrow_back, size: 20, color: context.appColors.textPrimary),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -279,14 +281,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   "Plan Your Next\nAdventure 🌍",
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: context.appColors.textPrimary,
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   "Start building memories with your crew.",
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                  style: TextStyle(color: context.appColors.textSecondary, fontSize: 16),
                 ),
               ],
             ),
@@ -301,7 +303,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       children: [
         Text(
           "TRIP NAME",
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -310,9 +312,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           onChanged: (val) => setState(() {}),
           decoration: InputDecoration(
             hintText: "e.g. Summer in Santorini",
-            hintStyle: TextStyle(color: Colors.grey.shade300),
+            hintStyle: TextStyle(color: context.appColors.textMuted),
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: context.appColors.fieldFillBg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -330,13 +332,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       children: [
         Text(
           "DESTINATION",
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: context.appColors.fieldFillBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -347,9 +349,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   hintText: "Where are you going?",
-                  prefixIcon: const Icon(Icons.location_on, color: Colors.blueAccent),
+                  prefixIcon: Icon(Icons.location_on, color: AppColors.brand),
                   border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  hintStyle: TextStyle(color: context.appColors.textMuted),
                 ),
               ),
               if (_locationSuggestions.isNotEmpty)
@@ -379,11 +381,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           children: [
             Text(
               "TRIP DATES",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
             ),
             Row(
               children: [
-                Text("Not decided yet", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text("Not decided yet", style: TextStyle(fontSize: 12, color: context.appColors.textSecondary)),
                 Switch(
                   value: !_isDatesDecided,
                   onChanged: (val) {
@@ -392,7 +394,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                       if (!_isDatesDecided) _dateRange = null;
                     });
                   },
-                  activeColor: Colors.blueAccent,
+                  activeColor: AppColors.brand,
                 ),
               ],
             ),
@@ -404,13 +406,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.05),
+                color: context.isDark ? AppColors.brand.withOpacity(0.08) : Colors.blueAccent.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blueAccent.withOpacity(0.1)),
+                border: Border.all(color: context.isDark ? context.appColors.border : Colors.blueAccent.withOpacity(0.1)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today_rounded, color: Colors.blueAccent),
+                  Icon(Icons.calendar_today_rounded, color: AppColors.brand),
                   const SizedBox(width: 16),
                   Text(
                     _dateRange == null
@@ -419,11 +421,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _dateRange == null ? Colors.blueAccent : Colors.black87,
+                      color: _dateRange == null ? AppColors.brand : context.appColors.textPrimary,
                     ),
                   ),
                   const Spacer(),
-                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blueAccent),
+                  Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.brand),
                 ],
               ),
             ),
@@ -433,7 +435,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             padding: const EdgeInsets.all(20),
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: context.appColors.fieldFillBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Text("Dates will be decided later ⏳", style: TextStyle(color: Colors.grey)),
@@ -453,11 +455,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             children: [
               Text(
                 "OPTIONAL BUDGET",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
               ),
               Icon(
                 _isBudgetExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                color: Colors.blueAccent,
+                color: AppColors.brand,
               ),
             ],
           ),
@@ -467,7 +469,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: context.appColors.fieldFillBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -486,7 +488,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     hintText: "Total Estimated Budget",
                     border: InputBorder.none,
                     prefixText: "${_selectedCurrency} ",
-                    prefixIcon: const Icon(Icons.account_balance_wallet_outlined, color: Colors.blueAccent),
+                    prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: AppColors.brand),
                   ),
                   keyboardType: TextInputType.number,
                 ),
@@ -502,8 +504,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        color: context.appColors.cardBg,
+        boxShadow: [BoxShadow(color: context.appColors.shadow, blurRadius: 10, offset: const Offset(0, -5))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -513,7 +515,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             child: ElevatedButton(
               onPressed: _isLoading ? null : _createTrip,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppColors.brand,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -540,13 +542,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       children: [
         Text(
           "TRIP VISIBILITY",
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 1),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.appColors.textSecondary, letterSpacing: 1),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: context.appColors.fieldFillBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -557,7 +559,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                 value: 'public',
                 groupValue: _visibility,
                 onChanged: (val) => setState(() => _visibility = val!),
-                activeColor: Colors.blueAccent,
+                activeColor: AppColors.brand,
               ),
               RadioListTile<String>(
                 title: const Text("Private"),
@@ -565,7 +567,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                 value: 'private',
                 groupValue: _visibility,
                 onChanged: (val) => setState(() => _visibility = val!),
-                activeColor: Colors.blueAccent,
+                activeColor: AppColors.brand,
               ),
             ],
           ),

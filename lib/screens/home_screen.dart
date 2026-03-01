@@ -15,6 +15,8 @@ import 'profile_screen.dart';
 import 'create_trip_screen.dart';
 import '../services/notification_service.dart';
 import '../services/post_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -127,9 +129,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     final authService = Provider.of<AuthService>(context, listen: false);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 24, 
@@ -150,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               style: GoogleFonts.outfit(
                 fontWeight: FontWeight.bold, 
                 fontSize: 24,
-                color: const Color(0xFF1A1A1A),
+                color: context.appColors.textPrimary,
               ),
             ),
           ],
@@ -163,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               return Stack(
                 children: [
                    IconButton(
-                     icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
+                     icon: Icon(Icons.notifications_outlined, color: context.appColors.textPrimary),
                      onPressed: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
                      },
@@ -214,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              color: Colors.blueAccent,
+              color: AppColors.brand,
               child: _isLoading && _posts.isEmpty
                   ? _buildSkeletonFeed()
                   : _posts.isEmpty 
@@ -240,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   child: Center(
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: Colors.blue.shade300,
+                                      color: AppColors.brand,
                                     ),
                                   ),
                                 );
@@ -266,21 +268,21 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 children: [
                    Container(
                       padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-                      child: Icon(Icons.flight_takeoff, size: 64, color: Colors.blue.shade300),
+                      decoration: BoxDecoration(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50, shape: BoxShape.circle),
+                      child: Icon(Icons.flight_takeoff, size: 64, color: AppColors.brand),
                    ),
                    const SizedBox(height: 24),
                    Text("No posts yet 🚀", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
                    const SizedBox(height: 8),
-                   Text("Follow travelers or join trips to see updates here.", textAlign: TextAlign.center, style: GoogleFonts.inter(color: Colors.grey[600], fontSize: 16)),
+                   Text("Follow travelers or join trips to see updates here.", textAlign: TextAlign.center, style: GoogleFonts.inter(color: context.appColors.textSecondary, fontSize: 16)),
                    const SizedBox(height: 32),
                    ElevatedButton.icon(
                       onPressed: _refresh, 
                       icon: const Icon(Icons.refresh),
                       label: const Text("Refresh Feed"),
                       style: ElevatedButton.styleFrom(
-                         backgroundColor: Colors.black87,
-                         foregroundColor: Colors.white,
+                         backgroundColor: context.appColors.textPrimary,
+                         foregroundColor: context.appColors.scaffoldBg,
                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       )
                    )

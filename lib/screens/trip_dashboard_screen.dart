@@ -36,6 +36,8 @@ import '../services/plan_service.dart'; // Add this
 import '../widgets/trip_activity_tab.dart';
 import '../widgets/trip_chat_tab.dart';
 import '../providers/plan_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class TripDashboardScreen extends StatefulWidget {
   final Trip trip;
@@ -169,6 +171,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
       stream: _tripStream,
       initialData: widget.trip,
       builder: (context, snapshot) {
+        final colors = context.appColors;
         final currentTrip = snapshot.data ?? widget.trip;
 
         // If there's an error AND we somehow don't even have fallback data (though we should via widget.trip)
@@ -182,9 +185,9 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                         Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade400),
+                         Icon(Icons.cloud_off, size: 64, color: colors.textMuted),
                          const SizedBox(height: 16),
-                         const Text("No Connection", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
+                         Text("No Connection", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.textSecondary)),
                          Padding(
                            padding: const EdgeInsets.all(16.0),
                            child: Text(
@@ -192,7 +195,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                                 ? "We can't reach the servers right now. Please check your internet."
                                 : "Something went wrong. Please try again.",
                              textAlign: TextAlign.center,
-                             style: const TextStyle(color: Colors.grey)
+                             style: TextStyle(color: colors.textSecondary)
                            )
                          ),
                          ElevatedButton.icon(
@@ -232,7 +235,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         return DefaultTabController(
           length: 9,
           child: Scaffold(
-            backgroundColor: const Color(0xFFF8F9FA),
+            backgroundColor: colors.scaffoldBg,
             body: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
@@ -258,25 +261,25 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                   SliverAppBar(
                     pinned: true,
                     elevation: 0,
-                    backgroundColor: Colors.white,
+                    backgroundColor: colors.scaffoldBg,
                     centerTitle: false,
                     title: Text(
                       "${currentTrip.name} ${currentTrip.metadata?['emoji'] ?? '✈️'}",
                       style: GoogleFonts.outfit(
-                        color: Colors.black87,
+                        color: colors.textPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     leading: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                      icon: Icon(Icons.arrow_back, color: colors.textPrimary),
                       onPressed: () => Navigator.pop(context),
                     ),
                     actions: [
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, color: Colors.black87),
+                          icon: Icon(Icons.more_vert, color: colors.textPrimary),
                           onSelected: (value) {
                             if (value == 'leave') {
                               _leaveTrip(currentTrip);
@@ -316,9 +319,9 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                         height: 48,
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          border: Border(bottom: BorderSide(color: Color(0xFFF1F3F5), width: 1)),
+                        decoration: BoxDecoration(
+                          color: colors.cardBg,
+                          border: Border(bottom: BorderSide(color: colors.border, width: 1)),
                         ),
                         child: TabBar(
                           isScrollable: true,
@@ -327,17 +330,17 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                           dividerColor: Colors.transparent,
                           indicator: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
-                            color: Colors.blueAccent,
+                            color: AppColors.brand,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blueAccent.withOpacity(0.3),
+                                color: AppColors.brand.withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
                           labelColor: Colors.white,
-                          unselectedLabelColor: Colors.grey.shade500,
+                          unselectedLabelColor: colors.textSecondary,
                           labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
                           unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                            tabs: const [
@@ -378,6 +381,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
   }
 
   Widget _buildRestrictedPublicView(Trip trip, String uid, {bool isPending = false, bool isRejected = false}) {
+     final colors = context.appColors;
      final publicTrip = Trip(
         id: trip.id,
         name: trip.name,
@@ -405,7 +409,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
             onPressed: isPending ? null : () => _showJoinRequestForm(trip, uid),
             label: Text(isPending ? "Request Pending" : "Request to Join", style: const TextStyle(fontWeight: FontWeight.bold)),
             icon: Icon(isPending ? Icons.access_time : Icons.person_add),
-            backgroundColor: isPending ? Colors.grey : Colors.blueAccent,
+            backgroundColor: isPending ? Colors.grey : AppColors.brand,
             foregroundColor: Colors.white,
           ),
           body: Column(
@@ -423,14 +427,14 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                                ? "Your join request is pending approval. You can still view the basic plan below."
                                : "This is a public agency-led trip. You can view the basic plan below, but you must join the trip to interact with the crew.", 
                            textAlign: TextAlign.center, 
-                           style: const TextStyle(fontSize: 13, color: Colors.black54)
+                           style: TextStyle(fontSize: 13, color: colors.textSecondary)
                          ),
                       ],
                    ),
                 ),
                 const Divider(height: 1, thickness: 1),
                 Container(
-                  color: Colors.white,
+                  color: colors.cardBg,
                   child: TabBar(
                     isScrollable: true,
                     indicatorSize: TabBarIndicatorSize.tab,
@@ -438,10 +442,10 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                     dividerColor: Colors.transparent,
                     indicator: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
-                      color: Colors.blueAccent,
+                      color: AppColors.brand,
                     ),
                     labelColor: Colors.white,
-                    unselectedLabelColor: Colors.grey.shade500,
+                    unselectedLabelColor: colors.textSecondary,
                     labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
                     unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                     tabs: const [
@@ -471,6 +475,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
   }
 
   Widget _buildPrivateBarrier(Trip trip, String uid) {
+     final colors = context.appColors;
      final codeController = TextEditingController();
      return Scaffold(
         body: Center(
@@ -479,11 +484,11 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
               child: Column(
                  mainAxisAlignment: MainAxisAlignment.center,
                  children: [
-                    const Icon(Icons.lock_rounded, size: 64, color: Colors.blueAccent),
+                    const Icon(Icons.lock_rounded, size: 64, color: AppColors.brand),
                     const SizedBox(height: 24),
                     Text("Private Trip", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
-                    const Text("This trip is private. Please enter the join code provided by the agency to gain access.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                    Text("This trip is private. Please enter the join code provided by the agency to gain access.", textAlign: TextAlign.center, style: TextStyle(color: colors.textSecondary)),
                     const SizedBox(height: 32),
                     TextField(
                        controller: codeController,
@@ -491,7 +496,7 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                           hintText: "Enter Join Code",
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: Colors.grey.shade50,
+                          fillColor: colors.fieldFillBg,
                        ),
                        textAlign: TextAlign.center,
                        textCapitalization: TextCapitalization.characters,
@@ -586,6 +591,8 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for KeepAlive
+    final colors = context.appColors;
+    final isDark = context.isDark;
     // Determine trip status
     final now = DateTime.now();
     final isPast = widget.trip.endDate != null && widget.trip.endDate!.isBefore(now);
@@ -596,7 +603,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
         onPressed: () => _showAIAssistant(context),
         label: const Text("Plan with AI"),
         icon: const Icon(Icons.auto_awesome),
-        backgroundColor: Colors.white,
+        backgroundColor: colors.cardBg,
         foregroundColor: Colors.purple,
       ),
       body: RefreshIndicator(
@@ -644,7 +651,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                         if (widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id) && !widget.trip.isDead)
                           IconButton(
                             onPressed: () => _showEditAboutDialog(context),
-                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20),
+                            icon: const Icon(Icons.edit, color: AppColors.brand, size: 20),
                             tooltip: "Edit Description",
                           ),
                       ],
@@ -655,7 +662,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                         widget.trip.about!,
                         style: TextStyle(
                           fontSize: 15,
-                          color: Colors.grey.shade800,
+                          color: colors.textSecondary,
                           height: 1.6,
                         ),
                       )
@@ -667,18 +674,18 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade100, style: BorderStyle.solid),
+                            border: Border.all(color: isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100, style: BorderStyle.solid),
                           ),
                           child: Column(
                             children: [
-                              Icon(Icons.edit_note, color: Colors.blue.shade400, size: 32),
+                              Icon(Icons.edit_note, color: AppColors.brand, size: 32),
                               const SizedBox(height: 8),
                               Text(
                                 "Add a description to tell your crew what this trip is all about.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.blue.shade800),
+                                style: TextStyle(color: isDark ? colors.textPrimary : Colors.blue.shade800),
                               ),
                             ],
                           ),
@@ -687,7 +694,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                     else
                       Text(
                         "No description provided for this trip yet.",
-                        style: TextStyle(fontSize: 15, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                        style: TextStyle(fontSize: 15, color: colors.textMuted, fontStyle: FontStyle.italic),
                       ),
                     
                     const SizedBox(height: 32),
@@ -712,17 +719,17 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                                          width: 40,
                                          height: 5,
                                          decoration: BoxDecoration(
-                                           color: Colors.grey.shade300,
+                                           color: colors.textMuted,
                                            borderRadius: BorderRadius.circular(10),
                                          ),
                                        ),
                                        const SizedBox(height: 24),
                                        Text("Invite Members", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
                                        const SizedBox(height: 8),
-                                       Text("How would you like to invite people to this trip?", style: GoogleFonts.inter(color: Colors.grey.shade600), textAlign: TextAlign.center),
+                                       Text("How would you like to invite people to this trip?", style: GoogleFonts.inter(color: colors.textSecondary), textAlign: TextAlign.center),
                                        const SizedBox(height: 24),
                                        ListTile(
-                                         leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.link, color: Colors.white)),
+                                         leading: const CircleAvatar(backgroundColor: AppColors.brand, child: Icon(Icons.link, color: Colors.white)),
                                          title: const Text("Share Invite Link", style: TextStyle(fontWeight: FontWeight.bold)),
                                          subtitle: const Text("Send a direct link that opens the app."),
                                          onTap: () {
@@ -738,7 +745,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                                        ),
                                        const Divider(),
                                        ListTile(
-                                         leading: CircleAvatar(backgroundColor: Colors.grey.shade200, child: const Icon(Icons.copy, color: Colors.black54)),
+                                         leading: CircleAvatar(backgroundColor: colors.surfaceBg, child: Icon(Icons.copy, color: colors.textSecondary)),
                                          title: const Text("Copy Join Code", style: TextStyle(fontWeight: FontWeight.bold)),
                                          subtitle: const Text("Just copy the raw ID text."),
                                          onTap: () {
@@ -752,7 +759,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                                  ),
                                );
                              },
-                             icon: const Icon(Icons.person_add_outlined, color: Colors.blueAccent),
+                             icon: const Icon(Icons.person_add_outlined, color: AppColors.brand),
                              tooltip: "Invite Members",
                           ),
                       ],
@@ -771,10 +778,12 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Widget _buildIntegratedHero(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     return Container(
       width: double.infinity,
       height: 240,
-      decoration: BoxDecoration(color: Colors.grey.shade100),
+      decoration: BoxDecoration(color: colors.surfaceBg),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -785,7 +794,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
               ? CachedNetworkImage(
                   imageUrl: widget.trip.coverImageUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (c, u) => Container(color: Colors.grey.shade200),
+                  placeholder: (c, u) => Container(color: colors.surfaceBg),
                 )
               : Container(
                   decoration: const BoxDecoration(
@@ -821,7 +830,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
+                color: isDark ? Colors.black.withOpacity(0.85) : Colors.white.withOpacity(0.95),
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4)),
@@ -838,7 +847,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
-                      color: Colors.black87,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
                 ],
@@ -865,12 +874,13 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Widget _buildSectionHeader(String title) {
+    final colors = context.appColors;
     return Text(
       title,
       style: GoogleFonts.outfit(
         fontSize: 18,
         fontWeight: FontWeight.bold,
-        color: Colors.black87,
+        color: colors.textPrimary,
       ),
     );
   }
@@ -926,7 +936,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
           icon: Icons.calendar_today_outlined,
           label: "Duration",
           value: "$days Days",
-          color: Colors.blueAccent,
+          color: AppColors.brand,
         ),
         const SizedBox(width: 12),
         _StatCardV2(
@@ -949,6 +959,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   void _showEditAboutDialog(BuildContext context) {
+    final colors = context.appColors;
     final controller = TextEditingController(text: widget.trip.about ?? "");
     bool isSaving = false;
 
@@ -971,7 +982,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
-                    child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                    child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.textMuted, borderRadius: BorderRadius.circular(2))),
                   ),
                   const SizedBox(height: 24),
                   Row(
@@ -1011,12 +1022,12 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: "Write a short paragraph about the goals, vibe, or important info for this trip...",
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.blue.shade400)),
+                      hintStyle: TextStyle(color: colors.textMuted),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.brand)),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: colors.fieldFillBg,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -1030,6 +1041,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Widget _buildMembersGrid(BuildContext context) {
+    final isDark = context.isDark;
     return FutureBuilder<List<UserProfile>>(
       future: TripService().getTripMembersProfiles(widget.trip.memberIds),
         builder: (context, snapshot) {
@@ -1070,19 +1082,19 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Text(
                     "+${profiles.length - 5} more",
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? AppColors.brand : Colors.blue.shade700),
                   ),
                 ),
               ),
             // Always show a manage button for the creator/admins if they want to invite more
             if (!hasMore)
               IconButton(
-                icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent, size: 28),
+                icon: const Icon(Icons.add_circle_outline, color: AppColors.brand, size: 28),
                 onPressed: () => _showManageMembers(context),
               ),
           ],
@@ -1093,6 +1105,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
 
 
   void _showPendingRequestDetails(BuildContext context, Map<String, dynamic> req, String uid) {
+    final colors = context.appColors;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1109,7 +1122,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.textMuted, borderRadius: BorderRadius.circular(2))),
               ),
               const SizedBox(height: 24),
               FutureBuilder<UserProfile?>(
@@ -1138,7 +1151,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                               if (snapshot.data?.role == 'agency') {
                                 return const Padding(
                                   padding: EdgeInsets.only(left: 6),
-                                  child: Icon(Icons.verified, color: Colors.blueAccent, size: 18),
+                                  child: Icon(Icons.verified, color: AppColors.brand, size: 18),
                                 );
                               }
                               return const SizedBox.shrink();
@@ -1205,12 +1218,13 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final colors = context.appColors;
     return Row(
       children: [
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: Colors.grey.shade700, size: 20)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: colors.surfaceBg, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: colors.textSecondary, size: 20)),
         const SizedBox(width: 16),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          Text(label, style: TextStyle(fontSize: 12, color: colors.textMuted)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
         ]),
       ],
@@ -1218,6 +1232,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Widget _buildPendingRequests(BuildContext context, List<Map<String, dynamic>> requests) {
+    final colors = context.appColors;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1253,7 +1268,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                     final profile = snapshot.data;
                     final hasAvatar = profile?.avatarUrl != null && profile!.avatarUrl!.isNotEmpty;
                     return CircleAvatar(
-                      backgroundColor: Colors.white,
+                      backgroundColor: colors.cardBg,
                       backgroundImage: hasAvatar ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
                       child: hasAvatar ? null : Text(name.isNotEmpty ? name[0].toUpperCase() : "?", style: const TextStyle(color: Colors.orange)),
                     );
@@ -1268,7 +1283,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                         if (snapshot.data?.role == 'agency') {
                           return const Padding(
                             padding: EdgeInsets.only(left: 4),
-                            child: Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                            child: Icon(Icons.verified, color: AppColors.brand, size: 14),
                           );
                         }
                         return const SizedBox.shrink();
@@ -1318,6 +1333,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   void _showManageMembers(BuildContext context) {
+    final isDark = context.isDark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1350,7 +1366,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid)));
                      },
                      leading: CircleAvatar(
-                       backgroundColor: Colors.blue.shade50,
+                       backgroundColor: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                        backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
                        child: avatarUrl == null ? Text(name[0].toUpperCase()) : null,
                      ),
@@ -1365,14 +1381,16 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                          ),
                          if (role == 'agency') ...[
                            const SizedBox(width: 4),
-                           const Icon(Icons.verified, color: Colors.blueAccent, size: 14),
+                           const Icon(Icons.verified, color: AppColors.brand, size: 14),
                          ],
                          if (targetIsOwner || targetIsAdmin) ...[
                            const SizedBox(width: 8),
                            Container(
                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                              decoration: BoxDecoration(
-                               color: targetIsOwner ? Colors.orange.shade50 : Colors.blue.shade50,
+                               color: targetIsOwner 
+                                 ? (isDark ? Colors.orange.withOpacity(0.15) : Colors.orange.shade50) 
+                                 : (isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50),
                                borderRadius: BorderRadius.circular(4),
                              ),
                              child: Text(
@@ -1467,14 +1485,15 @@ class _StatCardV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colors.cardBg,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(color: colors.shadow, blurRadius: 10, offset: const Offset(0, 4)),
           ],
         ),
         child: Column(
@@ -1483,7 +1502,7 @@ class _StatCardV2 extends StatelessWidget {
             const SizedBox(height: 8),
             Text(value, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+            Text(label, style: TextStyle(color: colors.textMuted, fontSize: 10)),
           ],
         ),
       ),
@@ -1497,13 +1516,14 @@ class _MemberChipV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
+          BoxShadow(color: colors.shadow, blurRadius: 4, offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
@@ -1511,7 +1531,7 @@ class _MemberChipV2 extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 12,
-            backgroundColor: Colors.grey.shade100,
+            backgroundColor: colors.surfaceBg,
             backgroundImage: profile.avatarUrl != null ? CachedNetworkImageProvider(profile.avatarUrl!) : null,
             child: profile.avatarUrl == null ? Text((profile.displayName ?? " ")[0], style: const TextStyle(fontSize: 10)) : null,
           ),
@@ -1522,7 +1542,7 @@ class _MemberChipV2 extends StatelessWidget {
           ),
           if (profile.role == 'agency') ...[
             const SizedBox(width: 4),
-            const Icon(Icons.verified, color: Colors.blueAccent, size: 12),
+            const Icon(Icons.verified, color: AppColors.brand, size: 12),
           ],
         ],
       ),
@@ -1560,6 +1580,7 @@ class _MemberAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -1568,7 +1589,7 @@ class _MemberAvatar extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: Colors.blueAccent.shade100,
+                backgroundColor: AppColors.brand.withOpacity(0.3),
                 backgroundImage: profile.avatarUrl != null
                     ? CachedNetworkImageProvider(profile.avatarUrl!)
                     : null,
@@ -1588,8 +1609,8 @@ class _MemberAvatar extends StatelessWidget {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: colors.cardBg,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.workspace_premium,
@@ -1602,12 +1623,12 @@ class _MemberAvatar extends StatelessWidget {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: colors.cardBg,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.shield,
-                        size: 14, color: Colors.blueAccent),
+                        size: 14, color: AppColors.brand),
                   ),
                 ),
               if (profile.role == 'agency')
@@ -1616,12 +1637,12 @@ class _MemberAvatar extends StatelessWidget {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: colors.cardBg,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.verified,
-                        size: 14, color: Colors.blueAccent),
+                        size: 14, color: AppColors.brand),
                   ),
                 ),
             ],
@@ -1642,7 +1663,7 @@ class _MemberAvatar extends StatelessWidget {
                 ),
                 if (profile.role == 'agency') ...[
                   const SizedBox(width: 2),
-                  const Icon(Icons.verified, color: Colors.blueAccent, size: 10),
+                  const Icon(Icons.verified, color: AppColors.brand, size: 10),
                 ]
               ],
             ),
@@ -1819,6 +1840,7 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
   }
 
   void _showCalendarModal() {
+    final isDark = context.isDark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1827,9 +1849,9 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
         builder: (context, setModalState) {
           return Container(
             height: MediaQuery.of(context).size.height * 0.8,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            decoration: BoxDecoration(
+              color: context.appColors.scaffoldBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -1867,10 +1889,10 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                       },
                       headerStyle: const HeaderStyle(formatButtonVisible: false, titleCentered: true),
                       calendarStyle: CalendarStyle(
-                        rangeHighlightColor: Colors.blue.shade50,
+                        rangeHighlightColor: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                         rangeStartDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
                         rangeEndDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
-                        todayDecoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle),
+                        todayDecoration: BoxDecoration(color: isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100, shape: BoxShape.circle),
                       ),
                     ),
                   ),
@@ -1904,6 +1926,7 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
+    final isDark = context.isDark;
     final isAdmin = widget.trip.adminIds.contains(Supabase.instance.client.auth.currentUser?.id);
 
     return RefreshIndicator(
@@ -1947,9 +1970,9 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.blue.shade100),
+                              border: Border.all(color: isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100),
                             ),
                             child: Text(
                               "${dayDate.day}",
@@ -1957,7 +1980,7 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                             ),
                           ),
                           if (!isLast)
-                            Container(width: 20, height: 2, color: Colors.blue.shade100),
+                            Container(width: 20, height: 2, color: isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100),
                         ],
                       );
                     },
@@ -1978,9 +2001,9 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.appColors.cardBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade100),
+                      border: Border.all(color: context.appColors.border),
                     ),
                     child: ListTile(
                       onTap: () {
@@ -1989,7 +2012,7 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                       leading: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
+                          color: context.appColors.surfaceBg,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
@@ -2000,7 +2023,7 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       title: Text(DateFormat('EEEE, MMM d').format(dayDate)),
-                      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                      trailing: Icon(Icons.chevron_right, size: 18, color: context.appColors.textMuted),
                     ),
                   );
                 },
@@ -2011,12 +2034,12 @@ class _DateTabState extends State<_DateTab> with AutomaticKeepAliveClientMixin {
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Column(
                     children: [
-                      Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey.shade300),
+                      Icon(Icons.calendar_month_outlined, size: 64, color: context.appColors.textMuted),
                       const SizedBox(height: 16),
-                      const Text("No dates set yet", style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text("No dates set yet", style: TextStyle(color: context.appColors.textSecondary, fontSize: 16, fontWeight: FontWeight.bold)),
                       if (isAdmin && !widget.trip.isDead) ...[
                         const SizedBox(height: 8),
-                        const Text("Set dates to start planning the timeline.", style: TextStyle(color: Colors.grey)),
+                        Text("Set dates to start planning the timeline.", style: TextStyle(color: context.appColors.textSecondary)),
                         const SizedBox(height: 24),
                         ElevatedButton(
                           onPressed: _showCalendarModal,
@@ -2054,6 +2077,7 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colors = context.appColors;
     final currency = widget.trip.budgetCurrency;
     final currentUser = Supabase.instance.client.auth.currentUser?.id;
     final isAdmin = currentUser != null && widget.trip.adminIds.contains(currentUser);
@@ -2196,18 +2220,18 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Column(
                     children: [
-                      Icon(Icons.account_balance_wallet_outlined, size: 64, color: Colors.grey.shade300),
+                      Icon(Icons.account_balance_wallet_outlined, size: 64, color: colors.textMuted),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         "Track your travel expenses smartly ✈️",
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: colors.textSecondary, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         "Add hotels, flights, food & activities.",
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: colors.textSecondary),
                       ),
                       if (isAdmin) ...[
                         const SizedBox(height: 24),
@@ -2231,9 +2255,9 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                    final cost = item['cost'] is int ? (item['cost'] as int).toDouble() : (item['cost'] as double? ?? 0.0);
                    return Container(
                      decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: colors.cardBg,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade100),
+                        border: Border.all(color: colors.border),
                      ),
                      child: ListTile(
                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -2246,7 +2270,7 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                           child: const Icon(Icons.receipt_long_outlined, color: Colors.teal, size: 20),
                        ),
                        title: Text(item['title'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.bold)),
-                       subtitle: Text("Allocation", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                       subtitle: Text("Allocation", style: TextStyle(color: colors.textMuted, fontSize: 12)),
                        trailing: Text(
                          "$currency ${cost.toStringAsFixed(0)}", 
                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal)
@@ -2322,7 +2346,7 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                       // List of items to edit/delete
                       Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: context.appColors.border),
                           borderRadius: BorderRadius.circular(8)
                         ),
                         child: Column(
@@ -2390,11 +2414,11 @@ class _BudgetTabState extends State<_BudgetTab> with AutomaticKeepAliveClientMix
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.blue),
+                            border: Border.all(color: context.isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue),
                             borderRadius: BorderRadius.circular(8),
-                            color: Colors.blue.shade50
+                            color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50
                           ),
-                          child: const Center(child: Text("+ Add New Item", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
+                          child: Center(child: Text("+ Add New Item", style: TextStyle(color: context.isDark ? AppColors.brand : Colors.blue, fontWeight: FontWeight.bold))),
                         ),
                       )
                    ],
@@ -2473,9 +2497,9 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
         builder: (context, setModalState) {
           return Container(
             height: MediaQuery.of(context).size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            decoration: BoxDecoration(
+              color: context.appColors.scaffoldBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -2486,7 +2510,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: context.appColors.textMuted, borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2524,7 +2548,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
+                                      color: context.appColors.surfaceBg,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: TextField(
@@ -2560,9 +2584,9 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
                           onTap: () => setModalState(() => showAdvanced = !showAdvanced),
                           child: Row(
                             children: [
-                              Text("Advanced Settings", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                              Text("Advanced Settings", style: TextStyle(color: context.appColors.textSecondary, fontWeight: FontWeight.bold)),
                               const SizedBox(width: 4),
-                              Icon(showAdvanced ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
+                              Icon(showAdvanced ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 20, color: context.appColors.textSecondary),
                             ],
                           ),
                         ),
@@ -2632,7 +2656,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: AppColors.brand,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
@@ -2681,7 +2705,7 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
         onPressed: _showCreatePollBottomSheet,
         icon: const Icon(Icons.add),
         label: const Text("New Poll"),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: AppColors.brand,
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<List<TripPoll>>(
@@ -2703,13 +2727,13 @@ class _PollsTabState extends State<_PollsTab> with TickerProviderStateMixin, Aut
                       children: [
                         Container(
                           padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-                          child: const Icon(Icons.how_to_vote_outlined, size: 48, color: Colors.blueAccent),
+                          decoration: BoxDecoration(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50, shape: BoxShape.circle),
+                          child: const Icon(Icons.how_to_vote_outlined, size: 48, color: AppColors.brand),
                         ),
                         const SizedBox(height: 24),
                         Text("No active polls", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
-                        const Text("Decision making made easy.", style: TextStyle(color: Colors.grey)),
+                        Text("Decision making made easy.", style: TextStyle(color: context.appColors.textSecondary)),
                       ],
                     ),
                   ),
@@ -2750,6 +2774,8 @@ class _RelationalPollCard extends StatefulWidget {
 class _RelationalPollCardState extends State<_RelationalPollCard> {
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     final totalVotes = widget.poll.votes.length;
     final uid = Supabase.instance.client.auth.currentUser!.id;
     final myVoteOptionIds = widget.poll.votes.where((v) => v.userId == uid).map((v) => v.optionId).toList();
@@ -2760,7 +2786,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2786,11 +2812,11 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                     future: AuthService.instance.getOtherUserProfile(widget.poll.createdBy),
                     builder: (context, snap) {
                       final name = snap.data?.displayName ?? "Someone";
-                      return Text("$name created a poll", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey));
+                      return Text("$name created a poll", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.textSecondary));
                     },
                   ),
                 ),
-                if (widget.poll.isPinned) const Icon(Icons.push_pin, size: 14, color: Colors.blueAccent),
+                if (widget.poll.isPinned) const Icon(Icons.push_pin, size: 14, color: AppColors.brand),
                 if (widget.isAdmin)
                    IconButton(
                      visualDensity: VisualDensity.compact,
@@ -2811,11 +2837,11 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                 Text("$totalVotes votes", style: TextStyle(fontSize: 12, color: Colors.blue.shade300, fontWeight: FontWeight.bold)),
                 if (widget.poll.endsAt != null) ...[
                   const SizedBox(width: 12),
-                  Icon(Icons.timer_outlined, size: 14, color: isExpired ? Colors.red : Colors.grey),
+                  Icon(Icons.timer_outlined, size: 14, color: isExpired ? Colors.red : colors.textMuted),
                   const SizedBox(width: 4),
                   Text(
                     isExpired ? "Ended" : "Ends in ${_getTimeRemaining()}", 
-                    style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : Colors.grey)
+                    style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : colors.textMuted)
                   ),
                 ]
               ],
@@ -2840,7 +2866,9 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                         curve: Curves.easeOutCubic,
                         width: MediaQuery.of(context).size.width * percent,
                         decoration: BoxDecoration(
-                          color: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
+                          color: isSelected 
+                            ? (isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade100) 
+                            : colors.surfaceBg,
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
@@ -2848,7 +2876,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: isSelected ? Colors.blueAccent.withOpacity(0.5) : Colors.transparent),
+                          border: Border.all(color: isSelected ? AppColors.brand.withOpacity(0.5) : Colors.transparent),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -2859,7 +2887,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                                 option.optionText, 
                                 style: TextStyle(
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                                  color: isSelected ? Colors.blue.shade800 : colors.textPrimary,
                                 )
                               )
                             ),
@@ -2890,6 +2918,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
   }
 
   Widget _buildVoterAvatars() {
+    final colors = context.appColors;
     if (widget.poll.votes.isEmpty) return const SizedBox();
     
     // Get unique voter IDs, up to 3 for display
@@ -2915,7 +2944,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                       final profile = snap.data;
                       return Container(
                         padding: const EdgeInsets.all(1.5),
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: colors.cardBg, shape: BoxShape.circle),
                         child: CircleAvatar(
                           radius: 10,
                           backgroundImage: profile?.avatarUrl != null ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
@@ -2931,11 +2960,11 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
                   left: displayIds.length * 16.0,
                   child: Container(
                     padding: const EdgeInsets.all(1.5),
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: colors.cardBg, shape: BoxShape.circle),
                     child: CircleAvatar(
                       radius: 10,
-                      backgroundColor: Colors.grey.shade200,
-                      child: Text("+$othersCount", style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                      backgroundColor: colors.surfaceBg,
+                      child: Text("+$othersCount", style: TextStyle(fontSize: 8, color: colors.textSecondary, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
@@ -2945,7 +2974,7 @@ class _RelationalPollCardState extends State<_RelationalPollCard> {
         const SizedBox(width: 8),
         Text(
           "Voted: ${voterIds.length} members", 
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500)
+          style: TextStyle(fontSize: 10, color: colors.textSecondary, fontWeight: FontWeight.w500)
         ),
       ],
     );
@@ -3148,7 +3177,7 @@ class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientM
           ? null 
           : FloatingActionButton.extended(
               onPressed: _isUploading ? null : _pickAndUploadPhotos,
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: AppColors.brand,
               icon: _isUploading 
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                   : const Icon(Icons.add_a_photo),
@@ -3174,7 +3203,7 @@ class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientM
                   const SizedBox(height: 24),
                   Text("No memories yet", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text("Start capturing your trip together.", style: TextStyle(color: Colors.grey)),
+                  Text("Start capturing your trip together.", style: TextStyle(color: context.appColors.textSecondary)),
                 ],
               ),
             );
@@ -3199,7 +3228,7 @@ class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientM
                             Text(_isSelectionMode ? "${_selectedPhotoIds.length} Selected" : "Memory Timeline", 
                                 style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold)),
                             Text(_isSelectionMode ? "Tap photos to select/deselect" : "All moments from ${widget.trip.location}", 
-                                style: TextStyle(color: Colors.grey.shade600)),
+                                style: TextStyle(color: context.appColors.textSecondary)),
                           ],
                         ),
                         if (_isSelectionMode)
@@ -3229,7 +3258,7 @@ class _GalleryTabState extends State<_GalleryTab> with AutomaticKeepAliveClientM
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                          child: Text(dateKey, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                          child: Text(dateKey, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.brand)),
                         ),
                       ),
                       SliverPadding(
@@ -3314,7 +3343,7 @@ class _GalleryGridTile extends StatelessWidget {
         padding: isSelected ? const EdgeInsets.all(4) : EdgeInsets.zero,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isSelected ? Colors.blueAccent.withOpacity(0.3) : Colors.transparent,
+          color: isSelected ? AppColors.brand.withOpacity(0.3) : Colors.transparent,
         ),
         child: Hero(
           tag: photo['id'], 
@@ -3330,7 +3359,7 @@ class _GalleryGridTile extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: photo['url'],
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.grey.shade200),
+                  placeholder: (context, url) => Container(color: context.appColors.surfaceBg),
                   errorWidget: (context, url, e) => const Icon(Icons.error),
                 ),
                 if (isSelectionMode)
@@ -3339,7 +3368,7 @@ class _GalleryGridTile extends StatelessWidget {
                     right: 4,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.blueAccent : Colors.black26,
+                        color: isSelected ? AppColors.brand : Colors.black26,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
@@ -3659,18 +3688,18 @@ class _ReviewsTabState extends State<_ReviewsTab> with AutomaticKeepAliveClientM
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.rate_review_outlined, size: 64, color: Colors.grey),
+                  Icon(Icons.rate_review_outlined, size: 64, color: context.appColors.textMuted),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     "Reviews will open when the trip ends.",
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: context.appColors.textSecondary),
                   ),
                   if (widget.trip.endDate != null)
                      Padding(
                        padding: const EdgeInsets.only(top: 8.0),
                        child: Text(
                          "Trip ends on: ${DateFormat.yMMMd().format(widget.trip.endDate!)}",
-                         style: const TextStyle(color: Colors.grey),
+                         style: TextStyle(color: context.appColors.textSecondary),
                        ),
                      ),
                 ],
@@ -3691,11 +3720,11 @@ class _ReviewsTabState extends State<_ReviewsTab> with AutomaticKeepAliveClientM
          child: Column(
            mainAxisAlignment: MainAxisAlignment.center,
            children: [
-             Icon(Icons.lock_clock, size: 64, color: Colors.grey.shade400),
+             Icon(Icons.lock_clock, size: 64, color: context.appColors.textMuted),
              const SizedBox(height: 16),
-             const Text("Reviews Locked", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
+             Text("Reviews Locked", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.appColors.textSecondary)),
              const SizedBox(height: 8),
-             const Text("Finish the trip to unlock reviews!", style: TextStyle(color: Colors.grey)),
+             Text("Finish the trip to unlock reviews!", style: TextStyle(color: context.appColors.textSecondary)),
            ],
          ),
        );
@@ -3764,7 +3793,7 @@ class _ReviewsTabState extends State<_ReviewsTab> with AutomaticKeepAliveClientM
            const Text("All Reviews", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
            const SizedBox(height: 16),
            if (reviews.isEmpty)
-              const Center(child: Text("No reviews yet. Be the first!", style: TextStyle(color: Colors.grey)))
+              Center(child: Text("No reviews yet. Be the first!", style: TextStyle(color: context.appColors.textSecondary)))
            else
               ...reviews.entries.map((entry) {
                  final review = entry.value as Map<String, dynamic>;
@@ -3928,7 +3957,7 @@ class _LinksTabState extends State<_LinksTab> with AutomaticKeepAliveClientMixin
       floatingActionButton: widget.trip.isDead ? null : FloatingActionButton.extended(
         onPressed: () => _showAddResourceSheet(context),
         icon: const Icon(Icons.add_link),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: AppColors.brand,
         label: const Text("Add Resource"),
       ),
       body: StreamBuilder<List<TripLink>>(
@@ -3976,7 +4005,7 @@ class _LinksTabState extends State<_LinksTab> with AutomaticKeepAliveClientMixin
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade500,
+                        color: context.appColors.textMuted,
                         letterSpacing: 1.2,
                       ),
                     ),
@@ -4032,8 +4061,8 @@ class _LinksTabState extends State<_LinksTab> with AutomaticKeepAliveClientMixin
         children: [
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), shape: BoxShape.circle),
-            child: const Icon(Icons.link, size: 64, color: Colors.blueAccent),
+            decoration: BoxDecoration(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.withOpacity(0.05), shape: BoxShape.circle),
+            child: const Icon(Icons.link, size: 64, color: AppColors.brand),
           ),
           const SizedBox(height: 24),
           Text(
@@ -4046,7 +4075,7 @@ class _LinksTabState extends State<_LinksTab> with AutomaticKeepAliveClientMixin
             child: Text(
               "Keep all your bookings, tickets, and travel documents in one organized place.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              style: TextStyle(color: context.appColors.textSecondary, fontSize: 14),
             ),
           ),
         ],
@@ -4125,10 +4154,10 @@ class _LinkCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.cardBg,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: context.appColors.shadow, blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: ClipRRect(
@@ -4165,7 +4194,7 @@ class _LinkCard extends StatelessWidget {
                         ),
                         Text(
                           link.siteName ?? Uri.parse(link.url).host,
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                          style: TextStyle(color: context.appColors.textMuted, fontSize: 12),
                         ),
                         if (link.previewImage != null) ...[
                           const SizedBox(height: 12),
@@ -4176,7 +4205,7 @@ class _LinkCard extends StatelessWidget {
                               height: 120,
                               width: double.infinity,
                               fit: BoxFit.cover,
-                              placeholder: (c, u) => Container(color: Colors.grey.shade100),
+                              placeholder: (c, u) => Container(color: context.appColors.surfaceBg),
                               errorWidget: (c, u, e) => const SizedBox.shrink(),
                             ),
                           ),
@@ -4187,21 +4216,21 @@ class _LinkCard extends StatelessWidget {
                           children: [
                             Text(
                               "Added ${timeago.format(link.createdAt)}",
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                              style: TextStyle(color: context.appColors.textMuted, fontSize: 10),
                             ),
                             Row(
                               children: [
                                 if (!isDead && (isAdmin || isOwner))
                                   IconButton(
                                     icon: Icon(link.isPinned ? Icons.push_pin : Icons.push_pin_outlined, 
-                                        size: 18, color: link.isPinned ? Colors.orange : Colors.grey),
+                                        size: 18, color: link.isPinned ? Colors.orange : context.appColors.textMuted),
                                     onPressed: () => onPin(!link.isPinned),
                                     constraints: const BoxConstraints(),
                                     padding: const EdgeInsets.all(4),
                                   ),
                                 if (!isDead && (isAdmin || isOwner))
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+                                    icon: Icon(Icons.delete_outline, size: 18, color: context.appColors.textMuted),
                                     onPressed: onDelete,
                                     constraints: const BoxConstraints(),
                                     padding: const EdgeInsets.all(4),
@@ -4274,9 +4303,9 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: context.appColors.scaffoldBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -4326,7 +4355,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
             child: ElevatedButton(
               onPressed: _isSaving ? null : _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppColors.brand,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -4459,9 +4488,9 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: context.appColors.scaffoldBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4471,13 +4500,13 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.auto_awesome, color: Colors.blueAccent.shade200),
+                  Icon(Icons.auto_awesome, color: AppColors.brand),
                   const SizedBox(width: 8),
-                  const Text('AI Assistant',
+                  Text('AI Assistant',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87
+                      color: context.appColors.textPrimary
                     )
                   ),
                 ],
@@ -4496,12 +4525,12 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
                 if (_isLoading)
                   const Center(child: CircularProgressIndicator())
                 else if (_summary != null) ...[
-                  Text("Saved AI Summary", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  Text("Saved AI Summary", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.brand)),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(_summary!, style: const TextStyle(fontSize: 14)),
@@ -4511,18 +4540,18 @@ class _AIBottomSheetState extends State<_AIBottomSheet> {
                     onPressed: () => Share.share(_summary!),
                     icon: const Icon(Icons.share),
                     label: const Text("Share Trip Summary"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
                   ),
                 ] else ...[
-                  Text("Trip Summary", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  Text("Trip Summary", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.brand)),
                   const SizedBox(height: 8),
-                  Text("Generate once and save it for your whole team.", style: TextStyle(color: Colors.grey.shade600)),
+                  Text("Generate once and save it for your whole team.", style: TextStyle(color: context.appColors.textSecondary)),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: _isGenerating ? null : _generateAndSaveSummary,
                     icon: _isGenerating ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.auto_awesome),
                     label: Text(_isGenerating ? "Generating..." : "Generate & Save"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
                   ),
                 ],
                 if (_error != null) ...[

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/follow_service.dart';
+import '../theme/theme_extensions.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});
@@ -52,18 +53,18 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: context.appColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Blocked Accounts",
-          style: GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: GoogleFonts.outfit(color: context.appColors.textPrimary, fontWeight: FontWeight.bold),
         ),
       ),
       body: _isLoading
@@ -86,9 +87,9 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                       children: [
                         CircleAvatar(
                           radius: 24,
-                          backgroundColor: Colors.grey.shade100,
+                          backgroundColor: context.appColors.surfaceBg,
                           backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
-                          child: avatarUrl == null ? const Icon(Icons.person, color: Colors.grey) : null,
+                          child: avatarUrl == null ? Icon(Icons.person, color: context.appColors.textSecondary) : null,
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -96,17 +97,17 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(displayName, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
-                              Text("@$username", style: GoogleFonts.inter(color: Colors.grey.shade600, fontSize: 13)),
+                              Text("@$username", style: GoogleFonts.inter(color: context.appColors.textSecondary, fontSize: 13)),
                             ],
                           ),
                         ),
                         OutlinedButton(
                           onPressed: () => _handleUnblock(userId),
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade300),
+                            side: BorderSide(color: context.appColors.border),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: Text("Unblock", style: GoogleFonts.inter(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w600)),
+                          child: Text("Unblock", style: GoogleFonts.inter(color: context.appColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
                       ],
                     );
@@ -120,16 +121,16 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.block_flipped, size: 64, color: Colors.grey.shade300),
+          Icon(Icons.block_flipped, size: 64, color: context.appColors.textMuted),
           const SizedBox(height: 16),
           Text(
             "No blocked accounts",
-            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: context.appColors.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
             "Users you block will appear here.",
-            style: GoogleFonts.inter(color: Colors.grey.shade600),
+            style: GoogleFonts.inter(color: context.appColors.textSecondary),
           ),
         ],
       ),

@@ -44,6 +44,12 @@ class UserProfile {
 
   final bool uploadHdPosts;
 
+  // New onboarding fields
+  final DateTime? dateOfBirth;
+  final List<String> specializations;
+  final int? yearEstablished;
+  final bool emailVerified;
+
   UserProfile({
     required this.uid,
     this.username,
@@ -81,6 +87,10 @@ class UserProfile {
     this.onboardingCompleted = false,
     this.latitude,
     this.longitude,
+    this.dateOfBirth,
+    this.specializations = const [],
+    this.yearEstablished,
+    this.emailVerified = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -121,6 +131,10 @@ class UserProfile {
       'onboarding_completed': onboardingCompleted,
       'latitude': latitude,
       'longitude': longitude,
+      'date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
+      'specializations': specializations,
+      'year_established': yearEstablished,
+      'email_verified': emailVerified,
       'updated_at': DateTime.now().toIso8601String(),
     };
   }
@@ -163,6 +177,10 @@ class UserProfile {
       onboardingCompleted: map['onboarding_completed'] ?? map['onboardingCompleted'] ?? false,
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
+      dateOfBirth: map['date_of_birth'] != null ? DateTime.tryParse(map['date_of_birth']) : null,
+      specializations: (map['specializations'] is List) ? List<String>.from(map['specializations']) : [],
+      yearEstablished: map['year_established'] as int?,
+      emailVerified: map['email_verified'] ?? false,
     );
   }
 }

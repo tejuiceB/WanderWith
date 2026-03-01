@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/trip_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 import 'home_screen.dart';
 import 'my_trips_screen.dart';
 import 'create_trip_screen.dart';
@@ -134,9 +136,9 @@ class _MainScreenState extends State<MainScreen> {
            }
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
+        backgroundColor: context.appColors.cardBg,
+        selectedItemColor: context.appColors.textPrimary,
+        unselectedItemColor: context.appColors.textSecondary,
         showSelectedLabels: false,
         showUnselectedLabels: false,
         elevation: 16,
@@ -147,10 +149,10 @@ class _MainScreenState extends State<MainScreen> {
               icon: Container(
                  padding: const EdgeInsets.all(12),
                  decoration: BoxDecoration(
-                    color: Colors.black, // Premium dark circle
+                    color: AppColors.brand,
                     shape: BoxShape.circle,
                     boxShadow: [
-                       BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+                       BoxShadow(color: AppColors.brand.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
                     ]
                  ),
                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
@@ -170,14 +172,14 @@ class _MainScreenState extends State<MainScreen> {
         backgroundColor: Colors.transparent,
         builder: (context) => Container(
            padding: const EdgeInsets.all(24),
-           decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+           decoration: BoxDecoration(
+              color: context.appColors.cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
            ),
            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                 Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                 Container(width: 40, height: 4, decoration: BoxDecoration(color: context.appColors.border, borderRadius: BorderRadius.circular(2))),
                  const SizedBox(height: 24),
                  Text("Create New", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
                  const SizedBox(height: 24),
@@ -190,12 +192,12 @@ class _MainScreenState extends State<MainScreen> {
                     },
                     leading: Container(
                        padding: const EdgeInsets.all(12),
-                       decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12)),
-                       child: const Icon(Icons.add_location_alt_rounded, color: Colors.blueAccent),
+                       decoration: BoxDecoration(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50, borderRadius: BorderRadius.circular(12)),
+                       child: Icon(Icons.add_location_alt_rounded, color: AppColors.brand),
                     ),
                     title: Text("Plan a New Trip", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
-                    subtitle: Text("Start from scratch with AI", style: GoogleFonts.inter(color: Colors.grey)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                    subtitle: Text("Start from scratch with AI", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
+                    trailing: Icon(Icons.chevron_right, color: context.appColors.textMuted),
                  ),
                  
                  const SizedBox(height: 16),
@@ -212,8 +214,8 @@ class _MainScreenState extends State<MainScreen> {
                        child: const Icon(Icons.add_photo_alternate_rounded, color: Colors.greenAccent),
                     ),
                     title: Text("Create a Post", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
-                    subtitle: Text("Share a travel memory", style: GoogleFonts.inter(color: Colors.grey)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                    subtitle: Text("Share a travel memory", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
+                    trailing: Icon(Icons.chevron_right, color: context.appColors.textMuted),
                  ),
                  
                  const SizedBox(height: 16),
@@ -230,8 +232,8 @@ class _MainScreenState extends State<MainScreen> {
                        child: const Icon(Icons.link_rounded, color: Colors.purpleAccent),
                     ),
                     title: Text("Join Existing Trip", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
-                    subtitle: Text("Have a code? Enter it here", style: GoogleFonts.inter(color: Colors.grey)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                    subtitle: Text("Have a code? Enter it here", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
+                    trailing: Icon(Icons.chevron_right, color: context.appColors.textMuted),
                  ),
                  
                  const SizedBox(height: 32),
@@ -250,8 +252,8 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
+            backgroundColor: context.appColors.cardBg,
+            surfaceTintColor: context.appColors.cardBg,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Text("Join a Trip", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
             content: Column(
@@ -259,7 +261,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 Text(
                   "Paste the Trip ID shared by your friend.",
-                  style: GoogleFonts.inter(color: Colors.grey[600]),
+                  style: GoogleFonts.inter(color: context.appColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -268,7 +270,7 @@ class _MainScreenState extends State<MainScreen> {
                     labelText: "Trip ID",
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: context.appColors.fieldFillBg,
                   ),
                 ),
                 if (_isLoading) ...[
@@ -280,7 +282,7 @@ class _MainScreenState extends State<MainScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context), 
-                child: Text("Cancel", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey))
+                child: Text("Cancel", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: context.appColors.textSecondary))
               ),
               ElevatedButton(
                 onPressed: _isLoading ? null : () async {
@@ -294,9 +296,9 @@ class _MainScreenState extends State<MainScreen> {
                       await TripService().joinTrip(tripId, uid);
                       if (context.mounted) {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text("Join request sent! Waiting for approval. 🎒"),
-                          backgroundColor: Colors.blueAccent,
+                          backgroundColor: AppColors.brand,
                         ));
                       }
                    } catch (e) {
@@ -310,7 +312,7 @@ class _MainScreenState extends State<MainScreen> {
                    }
                 }, 
                 style: ElevatedButton.styleFrom(
-                   backgroundColor: Colors.blueAccent,
+                   backgroundColor: AppColors.brand,
                    foregroundColor: Colors.white,
                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),

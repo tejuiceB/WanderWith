@@ -18,6 +18,8 @@ import '../models/chat_message.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class TripChatTab extends StatefulWidget {
   final Trip trip;
@@ -385,14 +387,15 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
   }
 
   void _showAttachmentMenu(String uid, String name) {
+    final colors = context.appColors;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -485,6 +488,8 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
+    final colors = context.appColors;
+    final isDark = context.isDark;
     final auth = Provider.of<AuthService>(context);
     final user = auth.user;
     final userProfile = auth.userProfile;
@@ -497,17 +502,17 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset:const Offset(0, 2))]
+            color: colors.cardBg,
+            boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 4, offset:const Offset(0, 2))]
           ),
           child: Row(
             children: [
               const CircleAvatar(radius: 4, backgroundColor: Colors.green),
               const SizedBox(width: 8),
-              Text("${widget.trip.memberIds.length} members online", style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+              Text("${widget.trip.memberIds.length} members online", style: TextStyle(fontSize: 12, color: colors.textSecondary, fontWeight: FontWeight.w500)),
               const Spacer(),
               IconButton(
-                icon: Icon(Icons.info_outline, size: 20, color: Colors.grey.shade400),
+                icon: Icon(Icons.info_outline, size: 20, color: colors.textMuted),
                 onPressed: () => _showTripInfo(),
               ),
             ],
@@ -646,15 +651,15 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.grey),
+                  child: CircularProgressIndicator(strokeWidth: 1.5, color: colors.textMuted),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   "${_typingUsers.keys.join(', ')} ${_typingUsers.length > 1 ? 'are' : 'is'} typing...",
-                  style: const TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+                  style: TextStyle(fontSize: 10, color: colors.textMuted, fontStyle: FontStyle.italic),
                 ),
               ],
             ),
@@ -694,6 +699,8 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
   }
 
   void _showTripInfo() {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -702,16 +709,16 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
         ),
         child: Column(
           children: [
             const SizedBox(height: 8),
-            Text(widget.trip.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(widget.trip.name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.textPrimary)),
             const SizedBox(height: 8),
-            Text("${widget.trip.memberIds.length} Collaborators", style: TextStyle(color: Colors.grey.shade600)),
+            Text("${widget.trip.memberIds.length} Collaborators", style: TextStyle(color: colors.textSecondary)),
             const SizedBox(height: 24),
             Expanded(
               child: ListView.builder(
@@ -723,9 +730,9 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
-                      backgroundColor: Colors.blue.shade50,
+                      backgroundColor: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                       backgroundImage: profile?.avatarUrl != null ? CachedNetworkImageProvider(profile!.avatarUrl!) : null,
-                      child: profile?.avatarUrl == null ? const Icon(Icons.person, color: Colors.blue) : null,
+                      child: profile?.avatarUrl == null ? Icon(Icons.person, color: AppColors.brand) : null,
                     ),
                     title: Text(profile?.displayName ?? "Member ${mid.substring(0, 5)}..."),
                     subtitle: Text(profile?.role == 'agency' ? "Travel Agency" : mid == widget.trip.createdBy ? "Trip Owner" : "Member"),
@@ -743,16 +750,17 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
   }
 
   Widget _buildActionIndicator({required IconData icon, required String label, required VoidCallback onClose}) {
+    final isDark = context.isDark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.blue.shade50,
+      color: isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.blue),
+          Icon(icon, size: 16, color: AppColors.brand),
           const SizedBox(width: 8),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.blue))),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: AppColors.brand))),
           IconButton(
-            icon: const Icon(Icons.close, size: 16, color: Colors.blue),
+            icon: Icon(Icons.close, size: 16, color: AppColors.brand),
             onPressed: onClose,
           )
         ],
@@ -761,14 +769,15 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
   }
 
   Widget _buildEmptyState() {
+     final colors = context.appColors;
      return Center(
        child: Column(
          mainAxisAlignment: MainAxisAlignment.center,
          children: [
-           Icon(Icons.forum_outlined, size: 64, color: Colors.blue.withOpacity(0.2)),
+           Icon(Icons.forum_outlined, size: 64, color: AppColors.brand.withOpacity(0.2)),
            const SizedBox(height: 16),
-           const Text("Start a conversation!", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
-           const Text("Share plans and travel ideas.", style: TextStyle(color: Colors.grey)),
+           Text("Start a conversation!", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textSecondary)),
+           Text("Share plans and travel ideas.", style: TextStyle(color: colors.textMuted)),
          ],
        ),
      );
@@ -781,18 +790,19 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
         children: [
           const CircleAvatar(radius: 16),
           const SizedBox(width: 8),
-          Container(width: 150, height: 40, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(12))),
+          Container(width: 150, height: 40, decoration: BoxDecoration(color: context.appColors.border, borderRadius: BorderRadius.circular(12))),
         ],
       ),
     );
   }
 
   Widget _buildInputBar(String uid, String name) {
+    final colors = context.appColors;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -2))]
+        color: colors.cardBg,
+        boxShadow: [BoxShadow(color: colors.shadow, blurRadius: 10, offset: const Offset(0, -2))]
       ),
       child: SafeArea(
         child: Row(
@@ -800,14 +810,14 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
             IconButton(
               icon: _isUploadingImage 
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.add_circle_outline, color: Colors.blueAccent),
+                  : Icon(Icons.add_circle_outline, color: AppColors.brand),
               onPressed: _isUploadingImage ? null : () => _showAttachmentMenu(uid, name), 
             ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: colors.fieldFillBg,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: TextField(
@@ -826,7 +836,7 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
             ),
             const SizedBox(width: 8),
             CircleAvatar(
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: AppColors.brand,
               child: IconButton(
                 icon: Icon(_editingMessageId != null ? Icons.check : Icons.send, color: Colors.white, size: 18),
                 onPressed: () => _sendMessage(uid, name),
@@ -871,21 +881,22 @@ class _MessageBubble extends StatelessWidget {
   });
 
   void _showOptions(BuildContext context) {
+    final colors = context.appColors;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
         ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -901,33 +912,33 @@ class _MessageBubble extends StatelessWidget {
               _buildOption(Icons.reply, "Reply", () {
                 Navigator.pop(context);
                 onReply();
-              }),
+              }, color: colors.textPrimary),
               _buildOption(Icons.push_pin_outlined, message.isPinned ? "Unpin" : "Pin", () {
                 Navigator.pop(context);
                 onPin();
-              }),
+              }, color: colors.textPrimary),
               _buildOption(Icons.copy, "Copy Text", () {
                 if (message.type == ChatMessageType.text) {
                   Clipboard.setData(ClipboardData(text: message.content));
                 }
                 Navigator.pop(context);
-              }),
+              }, color: colors.textPrimary),
               if (isMe && message.type == ChatMessageType.text) _buildOption(Icons.edit_outlined, "Edit", () {
                 Navigator.pop(context);
                 onEdit();
-              }),
+              }, color: colors.textPrimary),
               _buildOption(Icons.delete_outline, "Delete for me", () {
                 Navigator.pop(context);
                 onDeleteForMe();
-              }, color: Colors.grey.shade700),
+              }, color: colors.textSecondary),
               if (isMe) _buildOption(Icons.delete_forever_outlined, "Delete for everyone", () {
                 Navigator.pop(context);
                 onDeleteForEveryone();
-              }, color: Colors.red),
+              }, color: AppColors.error),
               _buildOption(Icons.report_gmailerrorred, "Report", () {
                 Navigator.pop(context);
                 onReport();
-              }, color: Colors.orange),
+              }, color: AppColors.warning),
               const SizedBox(height: 20),
             ],
           ),
@@ -946,6 +957,8 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isDark = context.isDark;
     final Map<String, int> reactionCounts = {};
     for (var r in message.reactions) {
       reactionCounts[r.reaction] = (reactionCounts[r.reaction] ?? 0) + 1;
@@ -990,7 +1003,7 @@ class _MessageBubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(message.senderName ?? 'User', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  Text(message.senderName ?? 'User', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colors.textSecondary)),
                   if (isAgency) ...[
                     const SizedBox(width: 4),
                     const Icon(Icons.verified, color: Colors.blueAccent, size: 10),
@@ -1014,11 +1027,11 @@ class _MessageBubble extends StatelessWidget {
                         Bubble(
                           alignment: isMe ? Alignment.topRight : isBot ? Alignment.center : Alignment.topLeft,
                           nip: isBot ? null : isMe ? BubbleNip.rightTop : BubbleNip.leftTop,
-                          color: isBot ? Colors.indigo.shade50 : isMe ? Colors.blue.shade600 : Colors.white,
+                          color: isBot ? (isDark ? Colors.indigo.withOpacity(0.15) : Colors.indigo.shade50) : isMe ? Colors.blue.shade600 : colors.cardBg,
                           elevation: isBot ? 0 : 1,
                           margin: isBot ? const BubbleEdges.symmetric(horizontal: 20) : null,
                           borderWidth: isBot ? 1 : 0,
-                          borderColor: isBot ? Colors.indigo.shade100 : Colors.transparent,
+                          borderColor: isBot ? (isDark ? Colors.indigo.withOpacity(0.2) : Colors.indigo.shade100) : Colors.transparent,
                           padding: const BubbleEdges.symmetric(horizontal: 12, vertical: 8),
                           child: Column(
                             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1038,7 +1051,7 @@ class _MessageBubble extends StatelessWidget {
                                     margin: const EdgeInsets.only(bottom: 4),
                                     padding: const EdgeInsets.all(6),
                                     decoration: BoxDecoration(
-                                      color: isMe ? Colors.black12 : Colors.grey.shade200,
+                                      color: isMe ? Colors.black12 : colors.surfaceBg,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Column(
@@ -1046,11 +1059,11 @@ class _MessageBubble extends StatelessWidget {
                                       children: [
                                         Text(
                                           message.metadata['reply_to']['sender_name'] ?? 'User',
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isMe ? Colors.white70 : Colors.blue),
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isMe ? Colors.white70 : AppColors.brand),
                                         ),
                                         Text(
                                           message.metadata['reply_to']['content'] ?? '',
-                                          style: TextStyle(fontSize: 10, color: isMe ? Colors.white60 : Colors.black54),
+                                          style: TextStyle(fontSize: 10, color: isMe ? Colors.white60 : colors.textSecondary),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -1076,7 +1089,7 @@ class _MessageBubble extends StatelessWidget {
                                     DateFormat('HH:mm').format(message.createdAt),
                                     style: TextStyle(
                                       fontSize: 9,
-                                      color: isMe ? Colors.white70 : Colors.grey,
+                                      color: isMe ? Colors.white70 : colors.textMuted,
                                     ),
                                   ),
                                 ],
@@ -1098,9 +1111,9 @@ class _MessageBubble extends StatelessWidget {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: hasMe ? Colors.blue.shade50 : Colors.grey.shade100,
+                                  color: hasMe ? (isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50) : colors.surfaceBg,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: hasMe ? Colors.blue.shade200 : Colors.transparent),
+                                  border: Border.all(color: hasMe ? (isDark ? AppColors.brand.withOpacity(0.3) : Colors.blue.shade200) : Colors.transparent),
                                 ),
                                 child: Text("${e.key} ${e.value}", style: const TextStyle(fontSize: 10)),
                               ),
@@ -1120,6 +1133,7 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent(BuildContext context) {
+    final colors = context.appColors;
     switch (message.type) {
       case ChatMessageType.image:
         final url = message.metadata['url'] as String?;
@@ -1149,7 +1163,7 @@ class _MessageBubble extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: url,
               width: 220,
-              placeholder: (context, url) => Container(width: 220, height: 150, color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator())),
+              placeholder: (context, url) => Container(width: 220, height: 150, color: colors.border, child: const Center(child: CircularProgressIndicator())),
               errorWidget: (context, url, e) => const Icon(Icons.error),
             ),
           ),
@@ -1171,7 +1185,7 @@ class _MessageBubble extends StatelessWidget {
             width: 200,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isMe ? Colors.blue.shade700 : Colors.grey.shade100,
+              color: isMe ? Colors.blue.shade700 : colors.surfaceBg,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -1181,28 +1195,28 @@ class _MessageBubble extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: isMe ? Colors.white24 : Colors.blue.withOpacity(0.1),
-                      child: Icon(Icons.location_on, color: isMe ? Colors.white : Colors.blue, size: 18),
+                      backgroundColor: isMe ? Colors.white24 : AppColors.brand.withOpacity(0.1),
+                      child: Icon(Icons.location_on, color: isMe ? Colors.white : AppColors.brand, size: 18),
                     ),
                     const SizedBox(width: 8),
-                    const Expanded(child: Text("Location", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent))),
+                    Expanded(child: Text("Location", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.brand))),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(address, style: TextStyle(fontSize: 12, color: isMe ? Colors.white : Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(address, style: TextStyle(fontSize: 12, color: isMe ? Colors.white : colors.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: isMe ? Colors.white10 : Colors.grey.shade300,
+                    color: isMe ? Colors.white10 : colors.border,
                     borderRadius: BorderRadius.circular(8),
                     image: const DecorationImage(
                       image: NetworkImage("https://via.placeholder.com/400x200.png?text=Map+Preview"), // Replace with static map if key available
                       fit: BoxFit.cover,
                     ),
                   ),
-                  child: Center(child: Icon(Icons.map, color: isMe ? Colors.white : Colors.blue)),
+                  child: Center(child: Icon(Icons.map, color: isMe ? Colors.white : AppColors.brand)),
                 ),
               ],
             ),
@@ -1213,7 +1227,7 @@ class _MessageBubble extends StatelessWidget {
         return Text(
           message.content,
           style: TextStyle(
-            color: isMe ? Colors.white : Colors.black87,
+            color: isMe ? Colors.white : colors.textPrimary,
             fontSize: 15,
           ),
         );

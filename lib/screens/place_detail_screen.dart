@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/trip_plan.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class PlaceDetailScreen extends StatelessWidget {
   final TripPlanPlace place;
@@ -42,8 +44,9 @@ class PlaceDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.scaffoldBg,
       body: CustomScrollView(
         slivers: [
           // 1. Premium Hero Section with Parallax
@@ -67,7 +70,7 @@ class PlaceDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
-            backgroundColor: Colors.white,
+            backgroundColor: colors.scaffoldBg,
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [
                 StretchMode.zoomBackground,
@@ -118,7 +121,7 @@ class PlaceDetailScreen extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade600,
+                            color: AppColors.brand,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -152,8 +155,8 @@ class PlaceDetailScreen extends StatelessWidget {
           // 2. Content Section
           SliverToBoxAdapter(
             child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: colors.cardBg,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
               child: Padding(
@@ -171,8 +174,8 @@ class PlaceDetailScreen extends StatelessWidget {
                             icon: const Icon(Icons.directions_outlined, size: 20),
                             label: const Text("Get Directions", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black87,
-                              foregroundColor: Colors.white,
+                              backgroundColor: colors.textPrimary,
+                              foregroundColor: colors.scaffoldBg,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -182,26 +185,26 @@ class PlaceDetailScreen extends StatelessWidget {
                         const SizedBox(width: 12),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: colors.surfaceBg,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: colors.border),
                           ),
                           child: IconButton(
                             onPressed: () {},
-                            icon: const Icon(Icons.add_circle_outline, color: Colors.black87),
+                            icon: Icon(Icons.add_circle_outline, color: colors.textPrimary),
                             padding: const EdgeInsets.all(16),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: colors.surfaceBg,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: colors.border),
                           ),
                           child: IconButton(
                             onPressed: () {},
-                            icon: const Icon(Icons.bookmark_border, color: Colors.black87),
+                            icon: Icon(Icons.bookmark_border, color: colors.textPrimary),
                             padding: const EdgeInsets.all(16),
                           ),
                         ),
@@ -216,7 +219,7 @@ class PlaceDetailScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade900,
+                          color: colors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -224,7 +227,7 @@ class PlaceDetailScreen extends StatelessWidget {
                         _basicInfo,
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey.shade700,
+                          color: colors.textSecondary,
                           height: 1.6,
                         ),
                       ),
@@ -237,7 +240,7 @@ class PlaceDetailScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade900,
+                          color: colors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -275,7 +278,7 @@ class PlaceDetailScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade900,
+                        color: colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -306,33 +309,38 @@ class PlaceDetailScreen extends StatelessWidget {
   }
 
   Widget _infoTile(IconData icon, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: Colors.black87),
-          const SizedBox(width: 12),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Builder(
+      builder: (context) {
+        final colors = context.appColors;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.surfaceBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
             children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-              ),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              Icon(icon, size: 24, color: colors.textPrimary),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    value,
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.textPrimary),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

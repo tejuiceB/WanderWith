@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post.dart';
 import '../services/post_service.dart';
 import '../widgets/post_card.dart';
+import '../theme/theme_extensions.dart';
 
 class ArchivedPostsScreen extends StatefulWidget {
   const ArchivedPostsScreen({super.key});
@@ -52,18 +53,18 @@ class _ArchivedPostsScreenState extends State<ArchivedPostsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: context.appColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Archived Posts", 
-          style: GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.bold)
+          style: GoogleFonts.outfit(color: context.appColors.textPrimary, fontWeight: FontWeight.bold)
         ),
       ),
       body: _isLoading
@@ -75,7 +76,7 @@ class _ArchivedPostsScreenState extends State<ArchivedPostsScreen> {
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: Colors.grey),
                       const SizedBox(height: 16),
-                      Text("Failed to load archived posts", style: GoogleFonts.inter(color: Colors.grey)),
+                      Text("Failed to load archived posts", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                       TextButton(onPressed: _fetchArchivedPosts, child: const Text("Retry")),
                     ],
                   ),
@@ -87,8 +88,8 @@ class _ArchivedPostsScreenState extends State<ArchivedPostsScreen> {
                         children: [
                           const Icon(Icons.archive_outlined, size: 64, color: Colors.grey),
                           const SizedBox(height: 16),
-                          Text("No archived posts", style: GoogleFonts.outfit(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold)),
-                          Text("Posts you archive will appear here", style: GoogleFonts.inter(color: Colors.grey)),
+                          Text("No archived posts", style: GoogleFonts.outfit(fontSize: 18, color: context.appColors.textSecondary, fontWeight: FontWeight.bold)),
+                          Text("Posts you archive will appear here", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                         ],
                       ),
                     )

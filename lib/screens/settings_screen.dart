@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
+import '../providers/theme_provider.dart';
+import '../theme/theme_extensions.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_conditions_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'archived_posts_screen.dart';
-import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -15,26 +16,31 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
+    final colors = context.appColors;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colors.scaffoldBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: colors.iconDefault),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Settings", 
-          style: GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.bold)
+          style: GoogleFonts.outfit(color: colors.textPrimary, fontWeight: FontWeight.bold)
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSectionHeader("Support"),
+          _buildSectionHeader(context, "Appearance"),
+          _buildThemeToggle(context),
+
+          const SizedBox(height: 32),
+          _buildSectionHeader(context, "Support"),
           _buildSettingsItem(
             context,
             icon: Icons.feedback_outlined, 
@@ -55,7 +61,7 @@ class SettingsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 32),
-          _buildSectionHeader("Privacy"),
+          _buildSectionHeader(context, "Privacy"),
           _buildSettingsItem(
             context,
             icon: Icons.archive_outlined, 
@@ -70,7 +76,7 @@ class SettingsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 32),
-          _buildSectionHeader("Account"),
+          _buildSectionHeader(context, "Account"),
           _buildSettingsItem(
             context,
             icon: Icons.logout, 
@@ -151,9 +157,9 @@ class SettingsScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                 Text("WanderWith v1.0.0", style: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 12)),
+                 Text("WanderWith v1.0.0", style: GoogleFonts.inter(color: colors.textMuted, fontSize: 12)),
                  const SizedBox(height: 4),
-                 Text("Made with ❤️ for Travelers", style: GoogleFonts.inter(color: Colors.grey.shade300, fontSize: 10)),
+                 Text("Made with ❤️ for Travelers", style: GoogleFonts.inter(color: colors.textMuted, fontSize: 10)),
               ],
             ),
           )
@@ -162,35 +168,62 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.0),
+        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.textSecondary, letterSpacing: 1.0),
       ),
     );
   }
 
   Widget _buildSettingsItem(BuildContext context, {required IconData icon, required String title, required VoidCallback onTap, bool isDestructive = false, bool showChevron = true}) {
+    final colors = context.appColors;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: colors.surfaceBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: isDestructive ? Colors.redAccent : Colors.black87, size: 22),
+        leading: Icon(icon, color: isDestructive ? Colors.redAccent : colors.iconDefault, size: 22),
         title: Text(
           title,
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w500,
-            color: isDestructive ? Colors.redAccent : Colors.black87
+            color: isDestructive ? Colors.redAccent : colors.textPrimary
           ),
         ),
-        trailing: showChevron ? Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400) : null,
+        trailing: showChevron ? Icon(Icons.chevron_right, size: 18, color: colors.iconMuted) : null,
+      ),
+    );
+  }
+
+  Widget _buildThemeToggle(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final colors = context.appColors;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: ListTile(
+        leading: Icon(
+          themeProvider.isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+          color: colors.iconDefault,
+          size: 22,
+        ),
+        title: Text("Dark Mode", style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: colors.textPrimary)),
+        trailing: Switch.adaptive(
+          value: themeProvider.isDark,
+          onChanged: (_) => themeProvider.toggleTheme(),
+          activeColor: const Color(0xFF448AFF),
+        ),
       ),
     );
   }

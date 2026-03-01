@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../services/trip_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class JoinTripScreen extends StatefulWidget {
   final String initialCode;
@@ -47,9 +49,9 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
     try {
       await TripService().joinTrip(tripId, uid);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Join request sent! Waiting for approval. 🎒"),
-          backgroundColor: Colors.blueAccent,
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text("Join request sent! Waiting for approval. \u{1F392}"),
+          backgroundColor: AppColors.brand,
         ));
         // Bounce back to home screen after successfully joining
         context.go('/');
@@ -68,12 +70,12 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black87),
+          icon: Icon(Icons.close, color: context.appColors.textPrimary),
           onPressed: () {
             // If they cancel out, jump to home so they aren't stuck on an empty stack
             if (context.canPop()) {
@@ -91,10 +93,10 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
+              Icon(
                 Icons.card_travel_outlined,
                 size: 80,
-                color: Colors.blueAccent,
+                color: AppColors.brand,
               ),
               const SizedBox(height: 24),
               Text(
@@ -103,7 +105,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                 style: GoogleFonts.outfit(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: context.appColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -112,7 +114,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: context.appColors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -130,14 +132,14 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   floatingLabelAlignment: FloatingLabelAlignment.center,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(color: context.appColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                    borderSide: BorderSide(color: AppColors.brand, width: 2),
                   ),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: context.appColors.fieldFillBg,
                 ),
               ),
               const SizedBox(height: 32),
@@ -147,7 +149,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                 ElevatedButton(
                   onPressed: _handleJoin,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
+                    backgroundColor: AppColors.brand,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,

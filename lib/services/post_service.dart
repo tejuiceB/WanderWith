@@ -342,13 +342,14 @@ class PostService {
   }
 
   /// Search users for mentions (@username)
+  /// Private profiles are still searchable — only their posts are hidden from discover
   Future<List<UserProfile>> searchUsers(String query) async {
     if (query.isEmpty) return [];
     
     try {
       final response = await _supabase
-          .from('searchable_profiles') // Query the search-safe view
-          .select()
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, role, is_private')
           .ilike('username', '$query%')
           .limit(5);
       
@@ -470,7 +471,7 @@ class PostService {
     try {
       final response = await _supabase
           .from('posts')
-          .select('hashtags')
+          .select('hashtags, profiles!user_id(is_private)')
           .eq('is_deleted', false)
           .eq('is_archived', false)
           .order('created_at', ascending: false)
@@ -478,6 +479,11 @@ class PostService {
 
       final Map<String, int> counts = {};
       for (var row in response) {
+        // Skip posts from private profiles
+        var profileData = row['profiles'];
+        if (profileData is List && profileData.isNotEmpty) profileData = profileData[0];
+        if (profileData != null && profileData['is_private'] == true) continue;
+
         final List<dynamic> hashtags = row['hashtags'] ?? [];
         for (var tag in hashtags) {
           final sTag = tag.toString().toLowerCase();
@@ -514,7 +520,17 @@ class PostService {
           .order('created_at', ascending: false)
           .limit(limit);
 
-      return response.map((json) {
+      return response.where((json) {
+        // Filter out posts from private profiles
+        var authorMap = json['profiles'];
+        if (authorMap is List && authorMap.isNotEmpty) authorMap = authorMap[0];
+        if (authorMap != null && authorMap['is_private'] == true) {
+          // Allow own posts even if profile is private
+          if (currentUser != null && json['user_id'] == currentUser.id) return true;
+          return false;
+        }
+        return true;
+      }).map((json) {
         var authorMap = json['profiles'];
         if (authorMap is List && authorMap.isNotEmpty) authorMap = authorMap[0];
         final author = authorMap != null ? UserProfile.fromMap(authorMap as Map<String, dynamic>) : null;
@@ -545,7 +561,16 @@ class PostService {
           .order('created_at', ascending: false)
           .limit(limit);
 
-      return (response as List).map((json) {
+      return (response as List).where((json) {
+        // Filter out posts from private profiles
+        var authorMap = json['profiles'];
+        if (authorMap is List && authorMap.isNotEmpty) authorMap = authorMap[0];
+        if (authorMap != null && authorMap['is_private'] == true) {
+          if (currentUser != null && json['user_id'] == currentUser.id) return true;
+          return false;
+        }
+        return true;
+      }).map((json) {
         var authorMap = json['profiles'];
         if (authorMap is List && authorMap.isNotEmpty) authorMap = authorMap[0];
         final author = authorMap != null ? UserProfile.fromMap(authorMap as Map<String, dynamic>) : null;

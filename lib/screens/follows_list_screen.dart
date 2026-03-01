@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import '../services/follow_service.dart';
 import '../models/user_profile.dart';
 import 'profile_screen.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 enum FollowListType { followers, following }
 
@@ -60,19 +62,19 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
     final title = widget.type == FollowListType.followers ? "Followers" : "Following";
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
         title: Column(
           children: [
-            Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
-            Text(widget.displayName, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey)),
+            Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: context.appColors.textPrimary)),
+            Text(widget.displayName, style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textSecondary)),
           ],
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios, color: context.appColors.textPrimary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -111,12 +113,12 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
       ),
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: Colors.grey.shade100,
+        backgroundColor: context.appColors.surfaceBg,
         backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
             ? CachedNetworkImageProvider(avatarUrl)
             : null,
         child: (avatarUrl == null || avatarUrl.isEmpty)
-            ? Text(name[0].toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.grey))
+            ? Text(name[0].toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.appColors.textSecondary))
             : null,
       ),
       title: Row(
@@ -124,12 +126,12 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
           Text(name, style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15)),
           if (isPrivate) ...[
             const SizedBox(width: 4),
-            const Icon(Icons.lock, size: 12, color: Colors.grey),
+            Icon(Icons.lock, size: 12, color: context.appColors.textSecondary),
           ]
         ],
       ),
-      subtitle: Text("@$username", style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600)),
-      trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+      subtitle: Text("@$username", style: GoogleFonts.inter(fontSize: 13, color: context.appColors.textSecondary)),
+      trailing: Icon(Icons.chevron_right, size: 16, color: context.appColors.textSecondary),
     );
   }
 
@@ -158,19 +160,19 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-              child: Icon(Icons.people_outline, size: 64, color: Colors.blue.shade300),
+              decoration: BoxDecoration(color: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50, shape: BoxShape.circle),
+              child: Icon(Icons.people_outline, size: 64, color: context.isDark ? AppColors.brand : Colors.blue.shade300),
             ),
             const SizedBox(height: 24),
             Text(
               "No $title Found",
-              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: context.appColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600),
+              style: GoogleFonts.inter(fontSize: 14, color: context.appColors.textSecondary),
             ),
             if (isCurrentUser) ...[
               const SizedBox(height: 32),
@@ -181,7 +183,7 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
                   icon: const Icon(Icons.share_outlined, size: 18),
                   label: const Text("Invite Friends"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
+                    backgroundColor: AppColors.brand,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -192,7 +194,7 @@ class _FollowsListScreenState extends State<FollowsListScreen> {
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text("Go Back", style: GoogleFonts.inter(color: Colors.blueAccent)),
+                child: Text("Go Back", style: GoogleFonts.inter(color: AppColors.brand)),
               ),
             ],
           ],

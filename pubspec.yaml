@@ -60,11 +60,15 @@ dependencies:
   flutter_rating_bar: ^4.0.1
   timeago: ^3.6.1
   go_router: 12.0.0
+  shared_preferences: ^2.2.2
   flutter_image_compress: ^2.3.0
   any_link_preview: ^3.0.1
   html: ^0.15.4
   geocoding: ^3.0.0
   geolocator: ^11.0.0
+  app_links: ^3.5.1
+  pin_code_fields: ^8.0.1
+  path_drawing: ^1.0.1
 
 dev_dependencies:
   flutter_test:

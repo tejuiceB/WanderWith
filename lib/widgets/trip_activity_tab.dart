@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../services/trip_service.dart';
+import '../theme/theme_extensions.dart';
 
 class TripActivityTab extends StatelessWidget {
   final String tripId;
@@ -21,13 +22,13 @@ class TripActivityTab extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.history_rounded, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.history_rounded, size: 48, color: context.appColors.textMuted),
                 const SizedBox(height: 16),
-                Text("No activities yet.", style: GoogleFonts.inter(color: Colors.grey)),
+                Text("No activities yet.", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                 const SizedBox(height: 12),
                 Text("Things like new members, dates, and budget changes will appear here.", 
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 12)),
+                  style: GoogleFonts.inter(color: context.appColors.textMuted, fontSize: 12)),
               ],
             ),
           );
@@ -43,14 +44,14 @@ class TripActivityTab extends StatelessWidget {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12), 
-                side: BorderSide(color: Colors.grey.shade100)
+                side: BorderSide(color: context.appColors.border)
               ),
               child: ListTile(
                 leading: _buildActivityIcon(activity['type']),
                 title: Text(activity['content'], style: GoogleFonts.inter(fontSize: 14)),
                 subtitle: Text(
                   DateFormat('MMM d, h:mm a').format(DateTime.parse(activity['created_at'])),
-                  style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                  style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textSecondary),
                 ),
               ),
             );

@@ -9,6 +9,8 @@ import '../models/user_profile.dart';
 import '../services/post_service.dart';
 import '../services/trip_service.dart';
 import '../services/google_places_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -241,17 +243,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colors.scaffoldBg,
         elevation: 0,
         leading: TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text("Cancel", style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w500)),
+          child: Text("Cancel", style: GoogleFonts.inter(color: colors.textPrimary, fontWeight: FontWeight.w500)),
         ),
         leadingWidth: 80,
-        title: Text("New Post", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
+        title: Text("New Post", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: colors.textPrimary)),
         centerTitle: true,
         actions: [
           Padding(
@@ -260,7 +263,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
               : TextButton(
                   onPressed: _handlePost,
-                  child: Text("Post", style: GoogleFonts.inter(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text("Post", style: GoogleFonts.inter(color: AppColors.brand, fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
           ),
         ],
@@ -278,15 +281,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       onTap: _pickImages,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: colors.surfaceBg,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.add_photo_alternate_outlined, size: 48, color: Colors.grey),
+                            Icon(Icons.add_photo_alternate_outlined, size: 48, color: colors.textSecondary),
                             const SizedBox(height: 8),
-                            Text("Tap to select images", style: GoogleFonts.inter(color: Colors.grey)),
+                            Text("Tap to select images", style: GoogleFonts.inter(color: colors.textSecondary)),
                           ],
                         ),
                       ),
@@ -303,11 +306,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               aspectRatio: 1,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
+                                  color: colors.surfaceBg,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.grey.shade300, width: 2),
+                                  border: Border.all(color: colors.border, width: 2),
                                 ),
-                                child: const Center(child: Icon(Icons.add, size: 32, color: Colors.grey)),
+                                child: Center(child: Icon(Icons.add, size: 32, color: colors.textSecondary)),
                               ),
                             ),
                           );
@@ -353,7 +356,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   maxLength: 500,
                   decoration: InputDecoration(
                     hintText: "Write a caption...",
-                    hintStyle: GoogleFonts.inter(color: Colors.grey),
+                    hintStyle: GoogleFonts.inter(color: colors.textSecondary),
                     border: InputBorder.none,
                   ),
                   style: GoogleFonts.inter(fontSize: 15),
@@ -363,10 +366,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     constraints: const BoxConstraints(maxHeight: 180),
                     margin: const EdgeInsets.only(top: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colors.cardBg,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+                        BoxShadow(color: colors.shadow, blurRadius: 10, offset: const Offset(0, 4)),
                       ],
                     ),
                     child: ListView.separated(
@@ -387,7 +390,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 : null,
                           ),
                           title: Text(user.displayName ?? user.username ?? 'Traveler', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
-                          subtitle: Text("@${user.username}", style: GoogleFonts.inter(fontSize: 11, color: Colors.blueAccent)),
+                          subtitle: Text("@${user.username}", style: GoogleFonts.inter(fontSize: 11, color: AppColors.brand)),
                           onTap: () => _selectUser(user),
                         );
                       },
@@ -403,7 +406,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               children: [
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.location_on_outlined, color: Colors.blueAccent),
+                  leading: Icon(Icons.location_on_outlined, color: AppColors.brand),
                   title: TextField(
                     controller: _locationController,
                     decoration: const InputDecoration(
@@ -413,7 +416,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     style: GoogleFonts.inter(fontSize: 15),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    icon: Icon(Icons.close, size: 20, color: colors.textSecondary),
                     onPressed: () {
                       _locationController.clear();
                       setState(() {
@@ -428,10 +431,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     margin: const EdgeInsets.only(top: 50),
                     constraints: const BoxConstraints(maxHeight: 200),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colors.cardBg,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                        BoxShadow(color: colors.shadow, blurRadius: 10, offset: const Offset(0, 4)),
                       ],
                     ),
                     child: ListView.separated(
@@ -442,9 +445,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         final suggestion = _locationSuggestions[index];
                         return ListTile(
                           dense: true,
-                          leading: const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                          leading: Icon(Icons.location_on, size: 16, color: colors.textSecondary),
                           title: Text(suggestion['main_text'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
-                          subtitle: Text(suggestion['description'] ?? '', style: GoogleFonts.inter(fontSize: 11, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(suggestion['description'] ?? '', style: GoogleFonts.inter(fontSize: 11, color: colors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
                           onTap: () => _selectLocation(suggestion),
                         );
                       },
@@ -464,7 +467,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   : DropdownButtonHideUnderline(
                       child: DropdownButton<Trip?>(
                         value: _selectedTrip,
-                        hint: Text("Associate with Trip (Optional)", style: GoogleFonts.inter(fontSize: 15, color: Colors.grey)),
+                        hint: Text("Associate with Trip (Optional)", style: GoogleFonts.inter(fontSize: 15, color: colors.textSecondary)),
                         isExpanded: true,
                         items: [
                           const DropdownMenuItem<Trip?>(value: null, child: Text("None")),
@@ -511,21 +514,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Widget _buildVisibilityChip(String value, IconData icon, String label) {
+    final colors = context.appColors;
     final bool isSelected = _visibility == value;
     return GestureDetector(
       onTap: () => setState(() => _visibility = value),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.black : Colors.grey.shade100,
+          color: isSelected ? colors.textPrimary : colors.surfaceBg,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.grey),
+            Icon(icon, size: 16, color: isSelected ? colors.scaffoldBg : colors.textSecondary),
             const SizedBox(width: 6),
-            Text(label, style: GoogleFonts.inter(fontSize: 13, color: isSelected ? Colors.white : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+            Text(label, style: GoogleFonts.inter(fontSize: 13, color: isSelected ? colors.scaffoldBg : colors.textSecondary, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
           ],
         ),
       ),

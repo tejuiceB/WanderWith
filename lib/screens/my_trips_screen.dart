@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/trip_service.dart';
 import 'trip_dashboard_screen.dart';
 import '../widgets/trip_card.dart';
+import '../theme/theme_extensions.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
@@ -41,17 +42,17 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
     if (user == null) return const Center(child: CircularProgressIndicator());
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        title: Text("My Trips", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
-        backgroundColor: Colors.white,
+        title: Text("My Trips", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
         centerTitle: false,
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.black,
+          labelColor: context.appColors.textPrimary,
+          unselectedLabelColor: context.appColors.textSecondary,
+          indicatorColor: context.appColors.textPrimary,
           labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
           tabs: const [
             Tab(text: "Hosted"),
@@ -96,9 +97,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.luggage_outlined, size: 64, color: Colors.grey.shade300),
+            Icon(Icons.luggage_outlined, size: 64, color: context.appColors.textMuted),
             const SizedBox(height: 16),
-            Text(emptyMessage, style: GoogleFonts.inter(color: Colors.grey.shade500), textAlign: TextAlign.center),
+            Text(emptyMessage, style: GoogleFonts.inter(color: context.appColors.textSecondary), textAlign: TextAlign.center),
           ],
         ),
       );
@@ -131,7 +132,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             height: 80,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(color: context.appColors.cardBg, borderRadius: BorderRadius.circular(16)),
             child: const ListTile(
                leading: CircleAvatar(),
                title: Text("Loading Trip..."),

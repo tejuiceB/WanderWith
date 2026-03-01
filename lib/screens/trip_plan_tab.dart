@@ -12,6 +12,8 @@ import 'place_detail_screen.dart';
 import '../widgets/ai_generation_overlay.dart';
 import '../widgets/timeline_itinerary_item.dart';
 import '../widgets/add_place_bottom_sheet.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class TripPlanTab extends StatefulWidget {
   final Trip trip;
@@ -60,7 +62,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                     children: [
                         const Icon(Icons.map_outlined, size: 80, color: Colors.grey),
                         const SizedBox(height: 16),
-                        const Text("No plan generated yet.", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text("No plan generated yet.", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
                          const SizedBox(height: 8),
                          Padding(
                            padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -136,10 +138,10 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
               snap: true, 
               builder: (context, scrollController) {
                 return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 2)],
+                  decoration: BoxDecoration(
+                    color: context.appColors.cardBg,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    boxShadow: [BoxShadow(color: context.appColors.shadow, blurRadius: 10, spreadRadius: 2)],
                   ),
                   child: CustomScrollView(
                     controller: scrollController,
@@ -149,20 +151,20 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                           children: [
                             const SizedBox(height: 12),
                             // Handle
-                            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+                            Container(width: 40, height: 4, decoration: BoxDecoration(color: context.appColors.border, borderRadius: BorderRadius.circular(2))),
                             const SizedBox(height: 12),
                             
                             // Day Selector Header
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 20),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Row(
                                 children: [
                                   Text(
                                     "Trip Timeline",
-                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.appColors.textPrimary),
                                   ),
-                                  Spacer(),
-                                  Icon(Icons.more_horiz, color: Colors.grey),
+                                  const Spacer(),
+                                  Icon(Icons.more_horiz, color: context.appColors.textSecondary),
                                 ],
                               ),
                             ),
@@ -187,11 +189,11 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                           duration: const Duration(milliseconds: 300),
                                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                           decoration: BoxDecoration(
-                                            color: provider.selectedDayIndex == i ? Colors.blue.shade600 : Colors.blue.shade50.withOpacity(0.5),
+                                            color: provider.selectedDayIndex == i ? AppColors.brand : (context.isDark ? AppColors.brand.withOpacity(0.1) : Colors.blue.shade50.withOpacity(0.5)),
                                             borderRadius: BorderRadius.circular(12),
                                             boxShadow: provider.selectedDayIndex == i ? [
                                               BoxShadow(
-                                                color: Colors.blue.withOpacity(0.3),
+                                                color: AppColors.brand.withOpacity(0.3),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 4),
                                               )
@@ -200,7 +202,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                           child: Text(
                                             "Day ${provider.days[i].dayNumber}",
                                             style: TextStyle(
-                                              color: provider.selectedDayIndex == i ? Colors.white : Colors.blue.shade700,
+                                              color: provider.selectedDayIndex == i ? Colors.white : AppColors.brand,
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
                                             ),
@@ -219,9 +221,9 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.shade50.withOpacity(0.3),
+                                    color: context.isDark ? AppColors.brand.withOpacity(0.08) : Colors.blue.shade50.withOpacity(0.3),
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.blue.shade50),
+                                    border: Border.all(color: context.isDark ? context.appColors.border : Colors.blue.shade50),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,7 +233,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.blue.shade800,
+                                          color: AppColors.brand,
                                           letterSpacing: 1.2,
                                         ),
                                       ),
@@ -240,7 +242,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                          provider.currentDay!.summary ?? '',
                                          style: TextStyle(
                                            fontSize: 14,
-                                           color: Colors.grey.shade700,
+                                           color: context.appColors.textSecondary,
                                            height: 1.4,
                                          ),
                                          maxLines: 3,
@@ -317,7 +319,7 @@ class _TripPlanTabState extends State<TripPlanTab> with AutomaticKeepAliveClient
                                       useRootNavigator: true,
                                       useSafeArea: true,
                                       enableDrag: true,
-                                      backgroundColor: Colors.white,
+                                      backgroundColor: context.appColors.cardBg,
                                       clipBehavior: Clip.antiAlias,
                                       shape: const RoundedRectangleBorder(
                                         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

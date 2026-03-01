@@ -4,6 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../services/follow_service.dart';
 import 'profile_screen.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class FollowRequestsScreen extends StatefulWidget {
   const FollowRequestsScreen({super.key});
@@ -70,12 +72,12 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.appColors.scaffoldBg,
       appBar: AppBar(
-        title: Text("Follow Requests", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
-        backgroundColor: Colors.white,
+        title: Text("Follow Requests", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: context.appColors.textPrimary)),
+        backgroundColor: context.appColors.scaffoldBg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: context.appColors.textPrimary),
       ),
       body: RefreshIndicator(
         onRefresh: _fetchRequests,
@@ -101,11 +103,11 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.appColors.cardBg,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade100),
+                          border: Border.all(color: context.appColors.border),
                           boxShadow: [
-                             BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))
+                             BoxShadow(color: context.appColors.shadow, blurRadius: 8, offset: const Offset(0, 2))
                           ]
                         ),
                         child: Row(
@@ -124,7 +126,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                                  crossAxisAlignment: CrossAxisAlignment.start,
                                  children: [
                                     Text(name, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    Text("Wants to follow you", style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade600)),
+                                    Text("Wants to follow you", style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textSecondary)),
                                  ],
                                ),
                              ),
@@ -132,14 +134,14 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                                children: [
                                   IconButton(
                                     onPressed: () => _accept(uid), 
-                                    icon: const Icon(Icons.check_circle, color: Colors.blueAccent, size: 32),
+                                    icon: Icon(Icons.check_circle, color: AppColors.brand, size: 32),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                   ),
                                   const SizedBox(width: 16),
                                   IconButton(
                                     onPressed: () => _reject(uid), 
-                                    icon: const Icon(Icons.cancel, color: Colors.grey, size: 32),
+                                    icon: Icon(Icons.cancel, color: context.appColors.textSecondary, size: 32),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                   ),
@@ -159,9 +161,9 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
         child: Column(
            mainAxisAlignment: MainAxisAlignment.center,
            children: [
-              Icon(Icons.notifications_none, size: 64, color: Colors.grey.shade300),
+              Icon(Icons.notifications_none, size: 64, color: context.appColors.textMuted),
               const SizedBox(height: 16),
-              Text("No pending requests", style: GoogleFonts.inter(color: Colors.grey.shade500)),
+              Text("No pending requests", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
            ],
         ),
      );
@@ -177,7 +179,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
              child: Container(
                margin: const EdgeInsets.only(bottom: 16),
                height: 72,
-               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+               decoration: BoxDecoration(color: context.appColors.cardBg, borderRadius: BorderRadius.circular(16)),
                child: ListTile(
                   leading: const CircleAvatar(),
                   title: const Text("Loading Name"),

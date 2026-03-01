@@ -10,6 +10,8 @@ import 'comments_bottom_sheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:share_plus/share_plus.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 class PostCard extends StatefulWidget {
   final Post post;
@@ -95,15 +97,15 @@ class _PostCardState extends State<PostCard> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: context.appColors.cardBg,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: context.appColors.border, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
@@ -160,7 +162,7 @@ class _PostCardState extends State<PostCard> {
               Navigator.pop(context);
               _handleUpdateCaption(newCaption);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
             child: const Text("Save"),
           ),
         ],
@@ -274,7 +276,7 @@ class _PostCardState extends State<PostCard> {
       if (word.startsWith('#') && word.length > 1) {
         spans.add(TextSpan(
           text: '$word ',
-          style: GoogleFonts.inter(color: Colors.blueAccent, fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(color: AppColors.brand, fontWeight: FontWeight.w600),
           recognizer: TapGestureRecognizer()..onTap = () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text("Hashtag $word search coming soon!"), behavior: SnackBarBehavior.floating),
@@ -285,13 +287,13 @@ class _PostCardState extends State<PostCard> {
         final username = word.substring(1).replaceAll(RegExp(r'[^\w]'), '');
         spans.add(TextSpan(
           text: '$word ',
-          style: GoogleFonts.inter(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+          style: GoogleFonts.inter(color: AppColors.brand, fontWeight: FontWeight.bold),
           recognizer: TapGestureRecognizer()..onTap = () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(username: username)));
           },
         ));
       } else {
-        spans.add(TextSpan(text: '$word ', style: GoogleFonts.inter(color: Colors.black87)));
+        spans.add(TextSpan(text: '$word ', style: GoogleFonts.inter(color: context.appColors.textPrimary)));
       }
     }
 
@@ -311,10 +313,10 @@ class _PostCardState extends State<PostCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.cardBg,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: context.appColors.shadow, blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -329,9 +331,9 @@ class _PostCardState extends State<PostCard> {
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.post.userId))),
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundColor: Colors.blue.shade50,
+                    backgroundColor: context.isDark ? AppColors.brand.withOpacity(0.15) : Colors.blue.shade50,
                     backgroundImage: (authorAvatar != null && authorAvatar.isNotEmpty) ? CachedNetworkImageProvider(authorAvatar) : null,
-                    child: (authorAvatar == null || authorAvatar.isEmpty) ? Text(initials, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent)) : null,
+                    child: (authorAvatar == null || authorAvatar.isEmpty) ? Text(initials, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.brand)) : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -351,9 +353,9 @@ class _PostCardState extends State<PostCard> {
                       if (widget.post.location != null && widget.post.location!.isNotEmpty)
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 10, color: Colors.blueAccent),
+                            Icon(Icons.location_on, size: 10, color: AppColors.brand),
                             const SizedBox(width: 2),
-                            Text(widget.post.location!, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[600])),
+                            Text(widget.post.location!, style: GoogleFonts.inter(fontSize: 11, color: context.appColors.textSecondary)),
                           ],
                         ),
                     ],
@@ -361,11 +363,11 @@ class _PostCardState extends State<PostCard> {
                 ),
                 Text(
                   timeago.format(widget.post.createdAt, locale: 'en_short'),
-                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[400]),
+                  style: GoogleFonts.inter(fontSize: 11, color: context.appColors.textMuted),
                 ),
                 if (widget.post.userId == Supabase.instance.client.auth.currentUser?.id)
                   IconButton(
-                    icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
+                    icon: Icon(Icons.more_vert, size: 20, color: context.appColors.textSecondary),
                     onPressed: () => _showPostOptions(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -477,7 +479,7 @@ class _PostCardState extends State<PostCard> {
               children: [
                 _InteractionButton(
                   icon: _isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: _isLiked ? Colors.redAccent : Colors.black87,
+                  color: _isLiked ? Colors.redAccent : context.appColors.textPrimary,
                   label: "$_likeCount",
                   onTap: _handleLikeToggle,
                 ),
@@ -486,10 +488,11 @@ class _PostCardState extends State<PostCard> {
                   icon: Icons.chat_bubble_outline_rounded,
                   label: "$_commentCount",
                   onTap: _showComments,
+                  color: context.appColors.textPrimary,
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.share_outlined, size: 22, color: Colors.black87),
+                  icon: Icon(Icons.share_outlined, size: 22, color: context.appColors.textPrimary),
                   onPressed: _handleShare,
                 ),
               ],
