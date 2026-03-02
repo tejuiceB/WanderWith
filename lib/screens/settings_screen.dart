@@ -72,21 +72,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // ── Security ──────────────────────────────
           const SizedBox(height: 24),
           _buildSectionHeader(context, "Security"),
-          if (isEmailUser)
+          if (isEmailUser) ...[
+            _buildSettingsItem(
+              context,
+              icon: Icons.email_outlined,
+              title: "Change Email",
+              subtitle: authService.user?.email,
+              onTap: () => _changeEmail(context, authService),
+            ),
             _buildSettingsItem(
               context,
               icon: Icons.lock_outline,
               title: "Change Password",
               onTap: () => _changePassword(context, authService),
             ),
+          ],
           if (!isEmailUser)
             _buildSettingsItem(
               context,
               icon: Icons.account_circle_outlined,
               title: "Signed in with Google",
               subtitle: "Password & email managed by Google",
-              onTap: () {},
-              showChevron: false,
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Row(
+                      children: [
+                        Icon(Icons.account_circle, color: colors.iconDefault, size: 24),
+                        const SizedBox(width: 10),
+                        const Text("Google Account"),
+                      ],
+                    ),
+                    content: const Text(
+                      "You signed in with Google.\n\n"
+                      "To change your email or password, visit your Google Account security settings at myaccount.google.com.",
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text("OK"),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          try {
+                            await launchUrl(Uri.parse('https://myaccount.google.com/security'));
+                          } catch (_) {}
+                        },
+                        child: Text("Open Google Settings",
+                          style: TextStyle(fontWeight: FontWeight.bold, color: colors.textPrimary)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              showChevron: true,
             ),
 
           // ── Privacy ───────────────────────────────

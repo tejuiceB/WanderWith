@@ -243,6 +243,13 @@ final GoRouter _router = GoRouter(
             return JoinTripScreen(initialCode: code ?? '');
           },
         ),
+        GoRoute(
+          path: 'trip/:id',
+          builder: (context, state) {
+            final tripId = state.pathParameters['id'] ?? '';
+            return _TripDeepLinkLoader(tripId: tripId);
+          },
+        ),
       ],
     ),
   ],
@@ -278,3 +285,67 @@ class MyApp extends StatelessWidget {
 // AppRoot is no longer needed as GoRouter handles the tree
 // But we keep it if any splash logic was complex.
 // Actually, let's simplify and use the GoRouter directly.
+
+/// Loader widget for deep-linked trip URLs.
+/// Fetches the [Trip] by ID, then shows [TripDashboardScreen].
+class _TripDeepLinkLoader extends StatefulWidget {
+  final String tripId;
+  const _TripDeepLinkLoader({required this.tripId});
+
+  @override
+  State<_TripDeepLinkLoader> createState() => _TripDeepLinkLoaderState();
+}
+
+class _TripDeepLinkLoaderState extends State<_TripDeepLinkLoader> {
+  late Future<Trip> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = TripService().getTrip(widget.tripId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Trip>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Trip Not Found')),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Could not load this trip.',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'It may have been deleted or you don\'t have access.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () => context.go('/'),
+                    icon: const Icon(Icons.home),
+                    label: const Text('Go Home'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return TripDashboardScreen(trip: snapshot.data!);
+      },
+    );
+  }
+}

@@ -237,6 +237,8 @@ class AuthService with ChangeNotifier {
           email: data['email'],
           displayName: data['display_name'],
           country: data['country'],
+          passportCountry: data['passport_country'],
+          residenceCountry: data['residence_country'],
           budgetStyle: data['budget_style'],
           tripVibe: data['trip_vibe'],
           avatarUrl: data['avatar_url'] ?? _user!.userMetadata?['avatar_url'] ?? _user!.userMetadata?['picture'],
@@ -888,6 +890,8 @@ class AuthService with ChangeNotifier {
     String? bio,
     String? city,
     String? country,
+    String? passportCountry,
+    String? residenceCountry,
     double? latitude,
     double? longitude,
     String? coverImageUrl,
@@ -922,6 +926,8 @@ class AuthService with ChangeNotifier {
     if (bio != null) updates['bio'] = bio;
     if (city != null) updates['city'] = city;
     if (country != null) updates['country'] = country;
+    if (passportCountry != null) updates['passport_country'] = passportCountry;
+    if (residenceCountry != null) updates['residence_country'] = residenceCountry;
     if (latitude != null) updates['latitude'] = latitude;
     if (longitude != null) updates['longitude'] = longitude;
     if (coverImageUrl != null) updates['cover_image_url'] = coverImageUrl;

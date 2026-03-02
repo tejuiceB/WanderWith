@@ -250,11 +250,22 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
               _ExportOptionTile(
                 icon: Icons.picture_as_pdf,
                 color: Colors.red,
-                title: 'Export as PDF',
-                subtitle: 'Printable document with itinerary, checklist & expenses',
+                title: 'Full Trip PDF',
+                subtitle: 'Professional multi-page document with cover, itinerary, budget & more',
                 onTap: () {
                   Navigator.pop(ctx);
                   _runExport(trip, isPdf: true);
+                },
+              ),
+              const SizedBox(height: 10),
+              _ExportOptionTile(
+                icon: Icons.checklist_rounded,
+                color: AppColors.brand,
+                title: 'Checklist Only (PDF)',
+                subtitle: 'Printable packing & preparation checklist',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runExport(trip, isPdf: true, checklistOnly: true);
                 },
               ),
               const SizedBox(height: 10),
@@ -276,20 +287,23 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
     );
   }
 
-  Future<void> _runExport(Trip trip, {required bool isPdf}) async {
+  Future<void> _runExport(Trip trip, {required bool isPdf, bool checklistOnly = false}) async {
     final messenger = ScaffoldMessenger.of(context);
+    final label = checklistOnly ? 'Checklist PDF' : (isPdf ? 'PDF' : 'JSON');
     messenger.showSnackBar(SnackBar(
       content: Row(children: [
         const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
         const SizedBox(width: 12),
-        Text('Generating ${isPdf ? "PDF" : "JSON"}…'),
+        Text('Generating $label…'),
       ]),
       duration: const Duration(seconds: 30),
     ));
 
     try {
       final service = ExportService();
-      if (isPdf) {
+      if (checklistOnly) {
+        await service.exportChecklistPdf(trip);
+      } else if (isPdf) {
         await service.exportAsPdf(trip);
       } else {
         await service.exportAsJson(trip);
@@ -919,7 +933,9 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   }
 
   Future<void> _loadInternationalInfo(TripMetadata? metadata) async {
-    final userCountry = AuthService.instance.userProfile?.country;
+    // Use passport nationality for visa/embassy lookups (priority: passport → country → residence)
+    final userCountry = AuthService.instance.userProfile?.nationalityCountry 
+        ?? AuthService.instance.userProfile?.country;
     if (userCountry == null || userCountry.isEmpty) return;
 
     // Determine if trip is international by comparing user country to destination
@@ -978,9 +994,12 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
 
   Future<void> _loadChecklist() async {
     try {
+      final visaReq = _isInternational && ((_internationalInfo?.visaRequired == true) ||
+          (_metadata?.visaRequired?.toLowerCase().contains('required') == true));
       final items = await _checklistService.generateSmartChecklist(
         trip: widget.trip,
         isInternational: _isInternational,
+        visaRequired: visaReq,
       );
       if (mounted) setState(() { _checklistItems = items; _checklistLoading = false; });
     } catch (e) {
@@ -993,9 +1012,12 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
     if (_aiChecklistGenerating) return;
     setState(() => _aiChecklistGenerating = true);
     try {
+      final visaReq = _isInternational && ((_internationalInfo?.visaRequired == true) ||
+          (_metadata?.visaRequired?.toLowerCase().contains('required') == true));
       final items = await _checklistService.generateSmartChecklist(
         trip: widget.trip,
         isInternational: _isInternational,
+        visaRequired: visaReq,
         regenerate: true,
       );
       if (mounted) setState(() { _checklistItems = items; _aiChecklistGenerating = false; });
@@ -1464,12 +1486,28 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
           _intelRow(colors, "🗓 Best Time", "${_metadata!.bestTimeToVisit ?? '-'} ${_metadata!.bestTimeWeatherEmoji ?? ''}"),
           _intelRow(colors, "👥 Crowds", _metadata!.crowdLevel ?? "-"),
           _intelRow(colors, "🌡 Avg Temp", _metadata!.avgTempRange ?? "-"),
-          if (_isInternational)
+          if (_isInternational) ...[
             _intelRow(colors, "🛂 Visa", _metadata!.visaRequired ?? "-"),
-          if (_isInternational)
             _intelRow(colors, "💱 Currency", _metadata!.currencyCode != null
                 ? "${_metadata!.currencyCode} (${_metadata!.currencyName ?? ''})"
                 : "-"),
+            if (_internationalInfo?.entryRequirements != null)
+              _intelRow(colors, "📋 Entry", _internationalInfo!.entryRequirements!),
+            if (_internationalInfo?.drivingSide != null)
+              _intelRow(colors, "🚗 Driving", "Drives on the ${_internationalInfo!.drivingSide!}"),
+          ],
+          if (!_isInternational)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.home_rounded, size: 15, color: colors.textMuted),
+                  const SizedBox(width: 6),
+                  Text("Domestic trip — no visa or exchange needed",
+                      style: TextStyle(color: colors.textMuted, fontSize: 12, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
           _intelRow(colors, "🕐 Timezone", _metadata!.timezone ?? "-"),
           _intelRow(colors, "🗣 Language", _metadata!.language ?? "-"),
           if (_metadata!.emergencyNumber != null)
@@ -1594,6 +1632,10 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                     _intelRow(colors, "Stay", info.stayDuration!),
                   if (info.processingTime != null)
                     _intelRow(colors, "Processing", info.processingTime!),
+                  if (info.visaFeeEstimate != null)
+                    _intelRow(colors, "Est. Fee", info.visaFeeEstimate!),
+                  if (info.visaRecommendedApplyDate != null)
+                    _intelRow(colors, "Apply By", info.visaRecommendedApplyDate!),
                   if (info.visaApplyUrl != null) ...[
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -1644,18 +1686,20 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
             ],
 
             // K2: Enhanced International Fields
-            if (info.passportReminder != null || info.travelInsuranceNote != null) ...[
+            if (info.passportReminder != null || info.travelInsuranceNote != null || info.entryRequirements != null) ...[
               const SizedBox(height: 14),
               Text("📋 Before You Go",
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
               const SizedBox(height: 6),
               if (info.passportReminder != null)
                 _intelRow(colors, "🛂 Passport", info.passportReminder!),
+              if (info.entryRequirements != null)
+                _intelRow(colors, "🏥 Entry Req.", info.entryRequirements!),
               if (info.travelInsuranceNote != null)
                 _intelRow(colors, "🛡 Insurance", info.travelInsuranceNote!),
             ],
 
-            if (info.plugType != null || info.simInfo != null) ...[
+            if (info.plugType != null || info.simInfo != null || info.drivingSide != null) ...[
               const SizedBox(height: 14),
               Text("🔌 Connectivity & Power",
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colors.textPrimary)),
@@ -1664,6 +1708,8 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                 _intelRow(colors, "Plug Type", info.plugType!),
               if (info.simInfo != null)
                 _intelRow(colors, "SIM / WiFi", info.simInfo!),
+              if (info.drivingSide != null)
+                _intelRow(colors, "🚗 Drive Side", info.drivingSide!),
             ],
 
             if (info.tippingCustoms != null) ...[
@@ -2376,7 +2422,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                   _emergencyRow(colors, "Emergency", emergencyNumber, Icons.sos),
                   _emergencyRow(colors, "Police", policeNumber, Icons.local_police),
                   _emergencyRow(colors, "Ambulance", ambulanceNumber, Icons.local_hospital),
-                  if (hasInternational) ...[
+                  if (hasInternational && _isInternational) ...[
                     Divider(color: colors.border, height: 16),
                     Padding(
                       padding: const EdgeInsets.only(left: 16, bottom: 8),
@@ -2389,6 +2435,20 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                       _emergencyRow(colors, "Embassy Emergency", _internationalInfo!.embassyEmergencyNumber!, Icons.account_balance),
                     if (_internationalInfo!.embassyPhone != null)
                       _emergencyRow(colors, "Embassy Phone", _internationalInfo!.embassyPhone!, Icons.phone),
+                  ],
+                  if (!_isInternational) ...[
+                    Divider(color: colors.border, height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 14, color: colors.textMuted),
+                          const SizedBox(width: 6),
+                          Text("Local emergency numbers for your destination",
+                              style: TextStyle(color: colors.textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                    ),
                   ],
                 ],
               ),

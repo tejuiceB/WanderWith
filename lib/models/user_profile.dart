@@ -4,6 +4,8 @@ class UserProfile {
   final String? email;
   final String? displayName;
   final String? country;
+  final String? passportCountry;
+  final String? residenceCountry;
   final String? budgetStyle; // Budget, Mid, Luxury
   final String? tripVibe; // Chill, Adventure, Party
   final String? avatarUrl;
@@ -11,6 +13,10 @@ class UserProfile {
 
   /// Convenience getter — returns displayName or fallback.
   String get fullName => displayName ?? username ?? 'User';
+
+  /// Returns the best country to use for visa determination.
+  /// Priority: passportCountry → country → residenceCountry
+  String? get nationalityCountry => passportCountry ?? country ?? residenceCountry;
 
   // Social Links
   final String? instagramUrl;
@@ -72,6 +78,8 @@ class UserProfile {
     this.email,
     this.displayName,
     this.country,
+    this.passportCountry,
+    this.residenceCountry,
     this.budgetStyle,
     this.tripVibe,
     this.avatarUrl,
@@ -125,6 +133,8 @@ class UserProfile {
       'email': email,
       'display_name': displayName,
       'country': country,
+      'passport_country': passportCountry,
+      'residence_country': residenceCountry,
       'budget_style': budgetStyle,
       'trip_vibe': tripVibe,
       'avatar_url': avatarUrl,
@@ -180,6 +190,8 @@ class UserProfile {
       email: map['email'],
       displayName: map['display_name'] ?? map['displayName'],
       country: map['country'],
+      passportCountry: map['passport_country'],
+      residenceCountry: map['residence_country'],
       budgetStyle: map['budget_style'] ?? map['budgetStyle'],
       tripVibe: map['trip_vibe'] ?? map['tripVibe'],
       avatarUrl: map['avatar_url'] ?? map['avatarUrl'],

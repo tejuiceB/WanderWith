@@ -31,6 +31,12 @@ class TripInternationalInfo {
   final String? passportReminder;
   final String? travelInsuranceNote;
 
+  // V3: Enhanced visa & travel fields
+  final String? visaFeeEstimate;
+  final String? visaRecommendedApplyDate;
+  final String? entryRequirements;
+  final String? drivingSide;
+
   final DateTime? createdAt;
 
   TripInternationalInfo({
@@ -57,6 +63,10 @@ class TripInternationalInfo {
     this.simInfo,
     this.passportReminder,
     this.travelInsuranceNote,
+    this.visaFeeEstimate,
+    this.visaRecommendedApplyDate,
+    this.entryRequirements,
+    this.drivingSide,
     this.createdAt,
   });
 
@@ -85,6 +95,10 @@ class TripInternationalInfo {
       simInfo: json['sim_info'] as String?,
       passportReminder: json['passport_reminder'] as String?,
       travelInsuranceNote: json['travel_insurance_note'] as String?,
+      visaFeeEstimate: json['visa_fee_estimate'] as String?,
+      visaRecommendedApplyDate: json['visa_recommended_apply_date'] as String?,
+      entryRequirements: json['entry_requirements'] as String?,
+      drivingSide: json['driving_side'] as String?,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
     );
   }
@@ -113,6 +127,10 @@ class TripInternationalInfo {
       'sim_info': simInfo,
       'passport_reminder': passportReminder,
       'travel_insurance_note': travelInsuranceNote,
+      'visa_fee_estimate': visaFeeEstimate,
+      'visa_recommended_apply_date': visaRecommendedApplyDate,
+      'entry_requirements': entryRequirements,
+      'driving_side': drivingSide,
     };
   }
 }

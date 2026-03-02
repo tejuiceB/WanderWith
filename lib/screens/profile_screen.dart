@@ -1519,6 +1519,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
      final cBio = TextEditingController(text: profile?.bio);
      final cPhone = TextEditingController(text: profile?.phone);
 
+     // Passport & Residence country controllers
+     final cPassportCountry = TextEditingController(text: profile?.passportCountry ?? profile?.country);
+     final cResidenceCountry = TextEditingController(text: profile?.residenceCountry ?? profile?.country);
+
      // Interests (traveler) / Specializations (agency)
      final cInterests = TextEditingController();
      List<String> selectedInterests = List.from(profile?.interests ?? []);
@@ -1632,6 +1636,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         ),
                       ),
                     ],
+
+                    // ─── PASSPORT & RESIDENCE COUNTRY ─────────────────
+                    const SizedBox(height: 20),
+                    Text("Travel Identity", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: context.appColors.textSecondary)),
+                    const SizedBox(height: 4),
+                    Text("Used for visa requirements & travel intel", style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textMuted)),
+                    const SizedBox(height: 12),
+                    TextField(controller: cPassportCountry, decoration: _inputDeco("Passport Country", prefixIcon: Icons.badge_rounded, hint: "e.g. India")),
+                    const SizedBox(height: 14),
+                    TextField(controller: cResidenceCountry, decoration: _inputDeco("Residence Country", prefixIcon: Icons.home_rounded, hint: "e.g. United States")),
 
                     // ─── INTERESTS (all users) ───────────────────────
                     ...[
@@ -1820,6 +1834,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                  clearPhone: cPhone.text.trim().isEmpty && profile?.phone != null,
                                  dateOfBirth: selectedDob,
                                  interests: selectedInterests,
+                                 // Passport & Residence country
+                                 passportCountry: cPassportCountry.text.trim().isNotEmpty ? cPassportCountry.text.trim() : null,
+                                 residenceCountry: cResidenceCountry.text.trim().isNotEmpty ? cResidenceCountry.text.trim() : null,
                                  // Location from GPS
                                  city: loc?['city'] as String?,
                                  country: loc?['country'] as String?,

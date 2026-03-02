@@ -452,6 +452,9 @@ Provide accurate international travel information as JSON:
   "stay_duration": "maximum allowed stay (e.g., 30 Days, 90 Days)",
   "processing_time": "typical processing time (e.g., 3-7 business days)",
   "visa_apply_url": "official government visa application URL if applicable, or null",
+  "visa_fee_estimate": "approximate visa fee in USD (e.g., '\$40' or 'Free' or '\$25-\$50')",
+  "visa_recommended_apply_date": "how many days before travel to apply (e.g., '30 days before departure')",
+  "entry_requirements": "COVID/vaccine/health requirements if any, or 'None currently'",
   "embassy_name": "name of $userCountry's embassy/consulate in the destination country",
   "embassy_address": "full address of the embassy",
   "embassy_phone": "embassy phone number with country code",
@@ -465,7 +468,8 @@ Provide accurate international travel information as JSON:
   "useful_phrases": "5-8 essential phrases in local language with pronunciation (e.g., Hello = Bonjour (bon-ZHOOR), Thank you = Merci (mehr-SEE))",
   "sim_info": "advice on getting local SIM card or connectivity (e.g., buy at airport, eSIM recommended, free WiFi availability)",
   "passport_reminder": "passport validity requirement (e.g., Must be valid for 6+ months from date of entry)",
-  "travel_insurance_note": "whether travel insurance is recommended or required, and brief advice"
+  "travel_insurance_note": "whether travel insurance is recommended or required, and brief advice",
+  "driving_side": "Left or Right"
 }
 
 IMPORTANT: Return ONLY the JSON object. No markdown, no explanation.

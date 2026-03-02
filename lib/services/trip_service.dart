@@ -1662,6 +1662,10 @@ class TripService {
         'sim_info': aiResponse['sim_info'],
         'passport_reminder': aiResponse['passport_reminder'],
         'travel_insurance_note': aiResponse['travel_insurance_note'],
+        'visa_fee_estimate': aiResponse['visa_fee_estimate'],
+        'visa_recommended_apply_date': aiResponse['visa_recommended_apply_date'],
+        'entry_requirements': aiResponse['entry_requirements'],
+        'driving_side': aiResponse['driving_side'],
       };
 
       final saved = await _supabase

@@ -61,6 +61,7 @@ class ChecklistService {
   Future<List<ChecklistItem>> generateDefaults({
     required String tripId,
     required bool isInternational,
+    bool visaRequired = false,
   }) async {
     // Check if user already has items for this trip
     final existing = await getChecklist(tripId);
@@ -98,12 +99,19 @@ class ChecklistService {
     if (isInternational) {
       final intlItems = [
         {'text': 'Passport valid 6+ months', 'category': 'documents'},
-        {'text': 'Visa approved / printed', 'category': 'documents'},
         {'text': 'Currency exchanged', 'category': 'money'},
         {'text': 'International SIM / eSIM', 'category': 'packing'},
         {'text': 'Embassy contact saved', 'category': 'documents'},
         {'text': 'Travel adapter / converter', 'category': 'packing'},
         {'text': 'Vaccination certificates', 'category': 'health'},
+        if (visaRequired) ...[
+          {'text': 'Visa application submitted', 'category': 'documents'},
+          {'text': 'Visa appointment booked', 'category': 'documents'},
+          {'text': 'Visa approval copy printed', 'category': 'documents'},
+          {'text': 'Passport-size photos for visa', 'category': 'documents'},
+        ],
+        if (!visaRequired)
+          {'text': 'Check if visa-on-arrival applies', 'category': 'documents'},
       ];
       for (final c in intlItems) {
         items.add({
@@ -130,6 +138,7 @@ class ChecklistService {
   Future<List<ChecklistItem>> generateSmartChecklist({
     required Trip trip,
     required bool isInternational,
+    bool visaRequired = false,
     bool regenerate = false,
   }) async {
     // If regenerating, clear old auto-generated items first
@@ -147,7 +156,7 @@ class ChecklistService {
     }
 
     try {
-      final aiItems = await _callGeminiForChecklist(trip, isInternational);
+      final aiItems = await _callGeminiForChecklist(trip, isInternational, visaRequired: visaRequired);
       if (aiItems.isNotEmpty) {
         await _supabase.from('trip_checklist').insert(aiItems);
         return getChecklist(trip.id);
@@ -157,13 +166,14 @@ class ChecklistService {
     }
 
     // Fallback to hardcoded defaults
-    return generateDefaults(tripId: trip.id, isInternational: isInternational);
+    return generateDefaults(tripId: trip.id, isInternational: isInternational, visaRequired: visaRequired);
   }
 
   /// Call Gemini to produce categorized checklist items
   Future<List<Map<String, dynamic>>> _callGeminiForChecklist(
     Trip trip,
     bool isInternational,
+    {bool visaRequired = false}
   ) async {
     // Calculate trip context
     int durationDays = 3;
@@ -189,6 +199,7 @@ TRIP DETAILS:
 - Duration: $durationDays days
 - Month: $startMonth
 - International travel: $isInternational
+- Visa required: $visaRequired
 - Group size: $memberCount people
 - Trip vibe: $vibe
 
@@ -198,12 +209,14 @@ documents, packing, bookings, health, money, general
 RULES:
 1. Generate 15-25 items total, spread across relevant categories.
 2. Tailor items to the destination, climate/season, and duration.
-3. For international trips, include visa, currency exchange, adapter, etc.
-4. For beach/tropical destinations, include sunscreen, swimwear, etc.
-5. For cold/mountain destinations, include layers, thermals, etc.
-6. For adventure/hiking vibes, include trekking gear.
-7. Keep item text short (3-7 words each).
-8. Do NOT include duplicate or overly generic items.
+3. For international trips, include currency exchange, adapter, etc.
+4. If visa is required ($visaRequired), include: visa application, visa appointment, approval printout, passport photos.
+5. If visa is NOT required, do NOT include any visa-related items.
+6. For beach/tropical destinations, include sunscreen, swimwear, etc.
+7. For cold/mountain destinations, include layers, thermals, etc.
+8. For adventure/hiking vibes, include trekking gear.
+9. Keep item text short (3-7 words each).
+10. Do NOT include duplicate or overly generic items.
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 {
