@@ -5,14 +5,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import '../services/trip_service.dart';
 import '../services/auth_service.dart';
+import '../services/template_service.dart';
 import '../models/trip.dart';
+import '../models/trip_template.dart';
 import '../services/google_places_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_extensions.dart';
 import 'trip_dashboard_screen.dart';
 
 class CreateTripScreen extends StatefulWidget {
-  const CreateTripScreen({super.key});
+  final TripTemplate? template;
+  const CreateTripScreen({super.key, this.template});
 
   @override
   State<CreateTripScreen> createState() => _CreateTripScreenState();
@@ -46,6 +49,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   String _visibility = 'public';
   int _travelerCount = 1;
   String _tripType = 'leisure';
+  TripTemplate? _appliedTemplate;
   final List<Map<String, String>> _tripTypes = const [
     {'id': 'leisure', 'emoji': '🏖', 'label': 'Leisure'},
     {'id': 'backpacking', 'emoji': '🎒', 'label': 'Backpacking'},
@@ -56,6 +60,28 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     {'id': 'romantic', 'emoji': '💕', 'label': 'Romantic'},
     {'id': 'solo', 'emoji': '🧘', 'label': 'Solo'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFromTemplate();
+  }
+
+  void _prefillFromTemplate() {
+    final t = widget.template;
+    if (t == null) return;
+    _appliedTemplate = t;
+    _nameController.text = t.name;
+    if (t.location != null && t.location!.isNotEmpty) {
+      _locationController.text = t.location!;
+    }
+    _tripType = t.tripType;
+    _selectedCurrency = _currencies.contains(t.budgetCurrency) ? t.budgetCurrency : 'USD';
+    if (t.estimatedCost > 0) {
+      _breakdownOther.text = t.estimatedCost.toStringAsFixed(0);
+    }
+    _selectedPhotoUrl = t.coverImageUrl;
+  }
 
   void _pickDateRange() async {
     final now = DateTime.now();
@@ -87,17 +113,31 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
   Future<void> _selectLocation(Map<String, dynamic> suggestion) async {
     _locationController.text = suggestion['description'];
-    setState(() => _locationSuggestions = []);
+    setState(() {
+      _locationSuggestions = [];
+      _isFetchingPhoto = true;
+    });
     
-    // Fetch place photo
-    setState(() => _isFetchingPhoto = true);
-    final details = await _placesService.searchPlace(suggestion['description']);
-    if (details != null && details['image_url'] != null) {
+    try {
+      Map<String, dynamic>? details;
+      
+      // Use getPlaceDetails with place_id for reliable photo fetching
+      // (searchPlace does a redundant text search that may return wrong/no results)
+      if (suggestion['place_id'] != null) {
+        details = await _placesService.getPlaceDetails(suggestion['place_id']);
+      }
+      
+      // Fallback to text search if place details didn't return a photo
+      if (details == null || details['image_url'] == null) {
+        details = await _placesService.searchPlace(suggestion['description']);
+      }
+      
       setState(() {
-        _selectedPhotoUrl = details['image_url'];
+        _selectedPhotoUrl = details?['image_url'];
         _isFetchingPhoto = false;
       });
-    } else {
+    } catch (e) {
+      debugPrint('Error fetching location photo: $e');
       setState(() {
         _selectedPhotoUrl = null;
         _isFetchingPhoto = false;
@@ -191,6 +231,18 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         visibility: _visibility,
         joinCode: _visibility == 'private' ? uuid.v4().substring(0, 8).toUpperCase() : null,
       );
+
+      // Apply template checklist + itinerary if created from template
+      if (_appliedTemplate != null) {
+        final templateSvc = TemplateService();
+        try {
+          await templateSvc.applyChecklistFromTemplate(_appliedTemplate!, tripId);
+          await templateSvc.applyItineraryFromTemplate(_appliedTemplate!, tripId);
+          await templateSvc.incrementUseCount(_appliedTemplate!.id);
+        } catch (_) {
+          // Non-critical: template extras failed but trip was created
+        }
+      }
 
       if (mounted) setState(() => _isLoading = false);
 

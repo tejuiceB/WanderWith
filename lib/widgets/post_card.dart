@@ -81,6 +81,7 @@ class _PostCardState extends State<PostCard> {
       backgroundColor: Colors.transparent,
       builder: (context) => CommentsBottomSheet(
         postId: widget.post.id,
+        commentPrivacy: widget.post.ownerCommentPrivacy,
         onCommentAdded: () {
           if (mounted) {
             setState(() {
@@ -480,7 +481,7 @@ class _PostCardState extends State<PostCard> {
                 _InteractionButton(
                   icon: _isLiked ? Icons.favorite : Icons.favorite_border,
                   color: _isLiked ? Colors.redAccent : context.appColors.textPrimary,
-                  label: "$_likeCount",
+                  label: widget.post.ownerHideLikeCount ? "" : "$_likeCount",
                   onTap: _handleLikeToggle,
                 ),
                 const SizedBox(width: 20),

@@ -209,6 +209,16 @@ class NotificationsScreen extends StatelessWidget {
       case NotificationType.comment: return Icons.mode_comment_outlined;
       case NotificationType.followRequest: return Icons.person_add_outlined;
       case NotificationType.followAccepted: return Icons.check_circle_outline;
+      case NotificationType.chatMention: return Icons.alternate_email;
+      case NotificationType.chatReply: return Icons.reply;
+      case NotificationType.chatReaction: return Icons.emoji_emotions_outlined;
+      case NotificationType.adminPromoted: return Icons.star_outline;
+      case NotificationType.removedFromTrip: return Icons.person_remove_outlined;
+      case NotificationType.tripReminder: return Icons.alarm_outlined;
+      case NotificationType.weatherAlert: return Icons.cloud_outlined;
+      case NotificationType.festivalAlert: return Icons.celebration_outlined;
+      case NotificationType.travelInspiration: return Icons.auto_awesome_outlined;
+      case NotificationType.memoryAnniversary: return Icons.photo_album_outlined;
       default: return Icons.notifications_none;
     }
   }
@@ -227,6 +237,16 @@ class NotificationsScreen extends StatelessWidget {
       case NotificationType.comment: return Colors.blueAccent;
       case NotificationType.followRequest: return Colors.orangeAccent;
       case NotificationType.followAccepted: return Colors.green;
+      case NotificationType.chatMention: return Colors.deepPurple;
+      case NotificationType.chatReply: return Colors.lightBlue;
+      case NotificationType.chatReaction: return Colors.amber;
+      case NotificationType.adminPromoted: return Colors.amber;
+      case NotificationType.removedFromTrip: return Colors.red;
+      case NotificationType.tripReminder: return Colors.deepOrange;
+      case NotificationType.weatherAlert: return Colors.lightBlue;
+      case NotificationType.festivalAlert: return Colors.pink;
+      case NotificationType.travelInspiration: return Colors.purple;
+      case NotificationType.memoryAnniversary: return Colors.teal;
       default: return Colors.grey;
     }
   }

@@ -11,8 +11,9 @@ import '../theme/theme_extensions.dart';
 class CommentsBottomSheet extends StatefulWidget {
   final String postId;
   final VoidCallback? onCommentAdded;
+  final String commentPrivacy;
 
-  const CommentsBottomSheet({super.key, required this.postId, this.onCommentAdded});
+  const CommentsBottomSheet({super.key, required this.postId, this.onCommentAdded, this.commentPrivacy = 'everyone'});
 
   @override
   State<CommentsBottomSheet> createState() => _CommentsBottomSheetState();
@@ -27,6 +28,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
   bool _isSending = false;
   String? _postOwnerId;
   String? _currentUserId;
+  bool _canComment = true;
 
   // Editing state
   Map<String, dynamic>? _editingComment;
@@ -41,6 +43,30 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
     super.initState();
     _loadComments();
     _commentController.addListener(_onCommentChanged);
+  }
+
+  Future<void> _resolveCanComment() async {
+    if (_currentUserId == _postOwnerId) {
+      _canComment = true;
+    } else if (widget.commentPrivacy == 'nobody') {
+      _canComment = false;
+    } else if (widget.commentPrivacy == 'followers') {
+      // Check if the current user follows the post owner
+      try {
+        final result = await _postService.supabase
+            .from('followers')
+            .select('id')
+            .eq('follower_id', _currentUserId!)
+            .eq('following_id', _postOwnerId!)
+            .maybeSingle();
+        _canComment = result != null;
+      } catch (_) {
+        _canComment = false;
+      }
+    } else {
+      _canComment = true;
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -90,6 +116,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
       final post = await _postService.getPost(widget.postId);
       _postOwnerId = post?.userId;
       _currentUserId = _postService.supabase.auth.currentUser?.id;
+      _resolveCanComment();
     }
 
     DateTime? beforeTimestamp;
@@ -359,6 +386,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                   ),
                 ),
               const Divider(height: 1),
+              if (_canComment) ...[
               if (_replyingTo != null || _editingComment != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -374,7 +402,7 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                         onTap: () => setState(() {
                           _replyingTo = null;
                           _editingComment = null;
-                          if (_editingComment != null) _commentController.clear(); // Clear if canceling edit
+                          if (_editingComment != null) _commentController.clear();
                         }), 
                         child: Icon(Icons.close, size: 16, color: AppColors.brand)
                       ),
@@ -414,6 +442,20 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                   ],
                 ),
               ),
+              ] else
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: 16, right: 16, top: 12,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                  ),
+                  child: Text(
+                    widget.commentPrivacy == 'nobody'
+                        ? "Comments are turned off for this post."
+                        : "Only followers can comment on this post.",
+                    style: GoogleFonts.inter(fontSize: 13, color: context.appColors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
             ],
           ),
         );

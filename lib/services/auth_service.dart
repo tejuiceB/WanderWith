@@ -271,6 +271,11 @@ class AuthService with ChangeNotifier {
           specializations: (data['specializations'] is List) ? List<String>.from(data['specializations']) : [],
           yearEstablished: data['year_established'] as int?,
           uploadHdPosts: data['upload_hd_posts'] ?? false,
+          travelMood: data['travel_mood'],
+          badgesEarned: (data['badges_earned'] is List) ? List<dynamic>.from(data['badges_earned']) : [],
+          gamificationStats: (data['gamification_stats'] is Map) ? Map<String, dynamic>.from(data['gamification_stats']) : {},
+          travelMoodVisibility: data['travel_mood_visibility'] ?? 'public',
+          badgesVisibility: data['badges_visibility'] ?? 'public',
         );
         print("[PROFILE FETCH] interests: ${_userProfile!.interests}");
       } else {
@@ -577,6 +582,36 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  /// Check if user signed in with email/password (not Google OAuth)
+  bool get isEmailUser {
+    final provider = _user?.appMetadata['provider'];
+    return provider == 'email';
+  }
+
+  /// Verify current password by re-authenticating
+  Future<bool> verifyPassword(String password) async {
+    final email = _user?.email;
+    if (email == null) return false;
+    try {
+      await _supabase.auth.signInWithPassword(email: email, password: password);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Secure password update with current password verification
+  Future<void> secureUpdatePassword(String currentPassword, String newPassword) async {
+    if (!isEmailUser) {
+      throw Exception('Password change is not available for Google sign-in accounts.');
+    }
+    final verified = await verifyPassword(currentPassword);
+    if (!verified) {
+      throw Exception('Current password is incorrect.');
+    }
+    await updatePassword(newPassword);
+  }
+
   /// Update user password (called from reset password screen)
   Future<void> updatePassword(String newPassword) async {
     try {
@@ -586,6 +621,29 @@ class AuthService with ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Change user email (sends confirmation to new email)
+  Future<void> changeEmail(String currentPassword, String newEmail) async {
+    if (!isEmailUser) {
+      throw Exception('Email change is not available for Google sign-in accounts.');
+    }
+    final verified = await verifyPassword(currentPassword);
+    if (!verified) {
+      throw Exception('Current password is incorrect.');
+    }
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(email: newEmail),
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Re-authenticate before sensitive operations (delete account)
+  Future<bool> reauthenticate(String password) async {
+    return verifyPassword(password);
   }
 
   /// Set session from deep link tokens (for password reset flow)
@@ -769,6 +827,12 @@ class AuthService with ChangeNotifier {
     String? tripsVisibility,
     bool? allowFollowRequests,
     String? messagePrivacy,
+    String? commentPrivacy,
+    bool? hideLikeCount,
+    bool? hideFollowersList,
+    String? tripInvitePrivacy,
+    String? travelMoodVisibility,
+    String? badgesVisibility,
   }) async {
     if (_user == null) return;
     
@@ -778,6 +842,12 @@ class AuthService with ChangeNotifier {
     if (tripsVisibility != null) updates['trips_visibility'] = tripsVisibility;
     if (allowFollowRequests != null) updates['allow_follow_requests'] = allowFollowRequests;
     if (messagePrivacy != null) updates['message_privacy'] = messagePrivacy;
+    if (commentPrivacy != null) updates['comment_privacy'] = commentPrivacy;
+    if (hideLikeCount != null) updates['hide_like_count'] = hideLikeCount;
+    if (hideFollowersList != null) updates['hide_followers_list'] = hideFollowersList;
+    if (tripInvitePrivacy != null) updates['trip_invite_privacy'] = tripInvitePrivacy;
+    if (travelMoodVisibility != null) updates['travel_mood_visibility'] = travelMoodVisibility;
+    if (badgesVisibility != null) updates['badges_visibility'] = badgesVisibility;
 
     if (updates.isEmpty) return;
 

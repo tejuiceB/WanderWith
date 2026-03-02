@@ -26,6 +26,8 @@ import '../widgets/post_card.dart';
 import '../widgets/trip_card.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_extensions.dart';
+import '../widgets/travel_mood_card.dart';
+import '../widgets/gamification_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId; // If null, show current user
@@ -55,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   bool _isFollowing = false;
   bool _isFollowedBy = false;
   bool _isBlocked = false;
+  bool _isMuted = false;
   String? _requestStatus; // 'pending', 'accepted', or null
   bool _isCheckingFollow = false;
   
@@ -152,12 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         if (mounted && profile != null) {
           setState(() => _targetProfile = profile);
           final relationship = await _followService.getRelationshipStatus(profile.uid);
+          final muted = await _followService.isMuted(profile.uid);
           if (mounted) {
             setState(() {
               _isFollowing = relationship['is_following'] ?? false;
               _isFollowedBy = relationship['is_followed_by'] ?? false;
               _isBlocked = relationship['is_blocked'] ?? false;
               _requestStatus = relationship['request_status'];
+              _isMuted = muted;
             });
           }
           if (!_isBlocked) {
@@ -178,11 +183,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             'request_status': null,
             'is_blocked': false,
           };
+          final muted = await _followService.isMuted(widget.userId!);
           setState(() {
             _isFollowing = relationship['is_following'] ?? false;
             _isFollowedBy = relationship['is_followed_by'] ?? false;
             _isBlocked = relationship['is_blocked'] ?? false;
             _requestStatus = relationship['request_status'];
+            _isMuted = muted;
           });
           if (!_isBlocked) {
             await results[2]; // posts loading
@@ -337,14 +344,72 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                          try {
                             await _followService.blockUser(_targetProfile!.uid);
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User blocked")));
-                            _loadProfileData(); // Reload to reflect blocked state or empty state
+                            _loadProfileData();
                          } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error blocking: $e")));
                          }
                       }
+                   } else if (val == 'restrict') {
+                      try {
+                         await _followService.restrictUser(_targetProfile!.uid);
+                         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User restricted")));
+                      } catch (e) {
+                         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                      }
+                   } else if (val == 'mute') {
+                      try {
+                         if (_isMuted) {
+                            await _followService.unmuteUser(_targetProfile!.uid);
+                            if (mounted) {
+                               setState(() => _isMuted = false);
+                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User unmuted")));
+                            }
+                         } else {
+                            await _followService.muteUser(_targetProfile!.uid);
+                            if (mounted) {
+                               setState(() => _isMuted = true);
+                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User muted — you won't receive their notifications")));
+                            }
+                         }
+                      } catch (e) {
+                         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                      }
+                   } else if (val == 'report') {
+                      _showReportDialog();
                    }
                 },
                 itemBuilder: (context) => [
+                   PopupMenuItem(
+                      value: 'mute',
+                      child: Row(
+                         children: [
+                            Icon(_isMuted ? Icons.volume_up : Icons.volume_off, size: 18, color: colors.textPrimary),
+                            const SizedBox(width: 8),
+                            Text(_isMuted ? "Unmute" : "Mute", style: GoogleFonts.inter(fontSize: 14)),
+                         ],
+                      ),
+                   ),
+                   PopupMenuItem(
+                      value: 'restrict',
+                      child: Row(
+                         children: [
+                            Icon(Icons.visibility_off_outlined, size: 18, color: colors.textPrimary),
+                            const SizedBox(width: 8),
+                            Text("Restrict", style: GoogleFonts.inter(fontSize: 14)),
+                         ],
+                      ),
+                   ),
+                   PopupMenuItem(
+                      value: 'report',
+                      child: Row(
+                         children: [
+                            Icon(Icons.flag_outlined, size: 18, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            Text("Report", style: GoogleFonts.inter(fontSize: 14, color: Colors.orange)),
+                         ],
+                      ),
+                   ),
+                   const PopupMenuDivider(),
                    const PopupMenuItem(
                       value: 'block',
                       child: Text("Block User", style: TextStyle(color: AppColors.error)),
@@ -381,7 +446,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           _buildStatsRow(profile, canSeeMetadata, canSeeContent),
                          const SizedBox(height: 24),
                          _buildInterests(profile), 
-                         const SizedBox(height: 24),
+                         const SizedBox(height: 16),
+                         if (_canSeeSection(profile.travelMoodVisibility, isCurrentUser, isFollowing))
+                           TravelMoodCard(
+                             storedMood: profile.travelMood,
+                             isCurrentUser: isCurrentUser,
+                           ),
+                         if (_canSeeSection(profile.travelMoodVisibility, isCurrentUser, isFollowing))
+                           const SizedBox(height: 16),
+                         if (_canSeeSection(profile.badgesVisibility, isCurrentUser, isFollowing))
+                           GamificationCard(
+                             badgesEarned: profile.badgesEarned,
+                             gamificationStats: profile.gamificationStats,
+                             isCurrentUser: isCurrentUser,
+                           ),
+                         if (_canSeeSection(profile.badgesVisibility, isCurrentUser, isFollowing) || _canSeeSection(profile.travelMoodVisibility, isCurrentUser, isFollowing))
+                           const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -425,6 +505,90 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  bool _canSeeSection(String visibility, bool isCurrentUser, bool isFollowing) {
+    if (isCurrentUser) return true;
+    switch (visibility) {
+      case 'public':
+        return true;
+      case 'followers':
+        return isFollowing;
+      case 'nobody':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  void _showReportDialog() {
+    String? selectedReason;
+    final reasons = ['Spam', 'Harassment', 'Inappropriate content', 'Fake account', 'Other'];
+    final detailsController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text("Report ${_targetProfile?.displayName ?? 'User'}", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Why are you reporting this account?", style: GoogleFonts.inter(fontSize: 14, color: context.appColors.textSecondary)),
+              const SizedBox(height: 12),
+              ...reasons.map((reason) => RadioListTile<String>(
+                title: Text(reason, style: GoogleFonts.inter(fontSize: 14)),
+                value: reason,
+                groupValue: selectedReason,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (val) => setDialogState(() => selectedReason = val),
+              )),
+              const SizedBox(height: 8),
+              TextField(
+                controller: detailsController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: "Additional details (optional)",
+                  hintStyle: GoogleFonts.inter(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+                style: GoogleFonts.inter(fontSize: 13),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+            TextButton(
+              onPressed: selectedReason == null ? null : () async {
+                Navigator.pop(ctx);
+                try {
+                  await _followService.reportUser(
+                    reportedUserId: _targetProfile!.uid,
+                    reason: selectedReason!,
+                    contentType: 'profile',
+                    contentId: _targetProfile!.uid,
+                    details: detailsController.text.trim().isEmpty ? null : detailsController.text.trim(),
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Report submitted. We'll review it within 24 hours.")),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                  }
+                }
+              },
+              child: Text("Submit", style: TextStyle(color: selectedReason != null ? AppColors.brand : null)),
+            ),
+          ],
         ),
       ),
     );
@@ -859,6 +1023,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
     Widget _buildStatsRow(UserProfile? profile, bool canSeeMetadata, bool canSeeContent) {
      final colors = context.appColors;
+     // If profile owner has hidden followers/following list, non-owners see "—"
+     final bool hideFollows = (profile?.hideFollowersList ?? false) && !isCurrentUser;
      return Container(
        margin: const EdgeInsets.symmetric(horizontal: 24),
        padding: const EdgeInsets.symmetric(vertical: 16),
@@ -870,14 +1036,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
        child: Row(
          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
          children: [
-            _buildStatItem("Followers", canSeeMetadata ? "${profile?.followersCount ?? 0}" : "${profile?.followersCount ?? 0}", onTap: canSeeContent ? () {
+            _buildStatItem("Followers", hideFollows ? "—" : (canSeeMetadata ? "${profile?.followersCount ?? 0}" : "${profile?.followersCount ?? 0}"), onTap: (canSeeContent && !hideFollows) ? () {
                Navigator.push(context, MaterialPageRoute(builder: (_) => FollowsListScreen(
                  userId: profile!.uid, 
                  displayName: profile.displayName ?? "User",
                  type: FollowListType.followers,
                )));
             } : null),
-            _buildStatItem("Following", canSeeMetadata ? "${profile?.followingCount ?? 0}" : "${profile?.followingCount ?? 0}", onTap: canSeeContent ? () {
+            _buildStatItem("Following", hideFollows ? "—" : (canSeeMetadata ? "${profile?.followingCount ?? 0}" : "${profile?.followingCount ?? 0}"), onTap: (canSeeContent && !hideFollows) ? () {
                Navigator.push(context, MaterialPageRoute(builder: (_) => FollowsListScreen(
                  userId: profile!.uid, 
                  displayName: profile.displayName ?? "User",

@@ -467,6 +467,7 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(color: Colors.grey.shade100),
                        ),
+                       if (!post.ownerHideLikeCount)
                        Positioned(
                           bottom: 0,
                           left: 0, right: 0,

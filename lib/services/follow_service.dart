@@ -270,6 +270,109 @@ class FollowService {
     }
   }
 
+  // ─── Restrict ───────────────────────────────────
+  Future<void> restrictUser(String targetUserId) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception("Not logged in");
+    await _supabase.from('restricted_users').upsert({
+      'user_id': currentUserId,
+      'restricted_user_id': targetUserId,
+    });
+  }
+
+  Future<void> unrestrictUser(String targetUserId) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception("Not logged in");
+    await _supabase
+        .from('restricted_users')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('restricted_user_id', targetUserId);
+  }
+
+  Future<List<Map<String, dynamic>>> getRestrictedUsers() async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) return [];
+    try {
+      final data = await _supabase
+          .from('restricted_users')
+          .select('restricted_user_id, profiles:restricted_user_id(id, username, display_name, avatar_url)')
+          .eq('user_id', currentUserId);
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      print("Error fetching restricted users: $e");
+      return [];
+    }
+  }
+
+  // ─── Mute ──────────────────────────────────────
+  Future<void> muteUser(String targetUserId) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception("Not logged in");
+    await _supabase.from('muted_users').upsert({
+      'user_id': currentUserId,
+      'muted_user_id': targetUserId,
+    });
+  }
+
+  Future<void> unmuteUser(String targetUserId) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception("Not logged in");
+    await _supabase
+        .from('muted_users')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('muted_user_id', targetUserId);
+  }
+
+  Future<bool> isMuted(String targetUserId) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) return false;
+    final result = await _supabase
+        .from('muted_users')
+        .select('id')
+        .eq('user_id', currentUserId)
+        .eq('muted_user_id', targetUserId)
+        .maybeSingle();
+    return result != null;
+  }
+
+  Future<List<Map<String, dynamic>>> getMutedUsers() async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) return [];
+    try {
+      final data = await _supabase
+          .from('muted_users')
+          .select('muted_user_id, profiles:muted_user_id(id, username, display_name, avatar_url)')
+          .eq('user_id', currentUserId);
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      print("Error fetching muted users: $e");
+      return [];
+    }
+  }
+
+  // ─── Report ────────────────────────────────────
+  Future<void> reportUser({
+    required String reportedUserId,
+    required String reason,
+    String? contentType,
+    String? contentId,
+    String? details,
+  }) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception("Not logged in");
+    await _supabase.from('reports').insert({
+      'reporter_id': currentUserId,
+      'reported_user_id': reportedUserId,
+      'reason': reason,
+      'content_type': contentType,
+      'content_id': contentId,
+      'details': details,
+      'status': 'pending',
+    });
+  }
+
   /// Get structured relationship data between current user and target user
   Future<Map<String, dynamic>> getRelationshipStatus(String targetUserId) async {
     final currentUserId = _supabase.auth.currentUser?.id;

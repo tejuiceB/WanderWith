@@ -55,7 +55,7 @@ class ChatMessage {
       senderName: json['sender_name'],
       type: _parseType(json['type']),
       content: json['content'] ?? '',
-      metadata: json['metadata'] ?? {},
+      metadata: json['metadata'] != null ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
       isEdited: json['is_edited'] ?? false,
       isPinned: json['is_pinned'] ?? false,
       status: json['status'] ?? 'sent',

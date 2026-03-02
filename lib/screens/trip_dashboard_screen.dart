@@ -28,6 +28,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/trip_link.dart';
 import '../services/url_metadata_service.dart';
 import '../services/gemini_service.dart';
+import '../services/template_service.dart';
+import '../services/export_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'trip_plan_tab.dart';
@@ -43,7 +45,10 @@ import '../models/trip_international_info.dart';
 import '../models/expense.dart';
 import '../services/expense_service.dart';
 import '../models/checklist_item.dart';
+import '../config/emergency_numbers.dart';
 import '../services/checklist_service.dart';
+import '../models/weather_forecast.dart';
+import '../services/weather_service.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 
@@ -112,6 +117,190 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
         ],
       )
     );
+  }
+
+  void _showSaveAsTemplateDialog(Trip trip) {
+    final nameController = TextEditingController(text: trip.name);
+    final descController = TextEditingController();
+    bool isPublic = false;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: context.appColors.cardBg,
+          surfaceTintColor: context.appColors.cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Save as Template', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Save this trip\'s structure as a reusable template including checklist and itinerary.',
+                style: GoogleFonts.inter(fontSize: 13, color: context.appColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Template Name',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: context.appColors.fieldFillBg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Description (optional)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: context.appColors.fieldFillBg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                value: isPublic,
+                onChanged: (v) => setDialogState(() => isPublic = v),
+                title: Text('Share with community', style: GoogleFonts.inter(fontSize: 14)),
+                subtitle: Text('Others can use your template', style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textMuted)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.brand,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (nameController.text.trim().isEmpty) return;
+                      setDialogState(() => isSaving = true);
+                      try {
+                        await TemplateService().saveFromTrip(
+                          trip: trip,
+                          templateName: nameController.text.trim(),
+                          description: descController.text.trim().isEmpty
+                              ? null
+                              : descController.text.trim(),
+                          isPublic: isPublic,
+                        );
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('✅ Template saved!')),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSaving = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: isSaving
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showExportOptions(Trip trip) {
+    final colors = context.appColors;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 16),
+              Text('Export Trip', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('Choose a format to share your trip details',
+                  style: GoogleFonts.inter(fontSize: 13, color: colors.textSecondary)),
+              const SizedBox(height: 20),
+              _ExportOptionTile(
+                icon: Icons.picture_as_pdf,
+                color: Colors.red,
+                title: 'Export as PDF',
+                subtitle: 'Printable document with itinerary, checklist & expenses',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runExport(trip, isPdf: true);
+                },
+              ),
+              const SizedBox(height: 10),
+              _ExportOptionTile(
+                icon: Icons.data_object,
+                color: Colors.blueAccent,
+                title: 'Export as JSON',
+                subtitle: 'Machine-readable data backup of your trip',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runExport(trip, isPdf: false);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _runExport(Trip trip, {required bool isPdf}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+      content: Row(children: [
+        const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+        const SizedBox(width: 12),
+        Text('Generating ${isPdf ? "PDF" : "JSON"}…'),
+      ]),
+      duration: const Duration(seconds: 30),
+    ));
+
+    try {
+      final service = ExportService();
+      if (isPdf) {
+        await service.exportAsPdf(trip);
+      } else {
+        await service.exportAsJson(trip);
+      }
+      messenger.hideCurrentSnackBar();
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _leaveTrip(Trip trip) async {
@@ -302,6 +491,10 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                               _leaveTrip(currentTrip);
                             } else if (value == 'refresh') {
                               _refreshData();
+                            } else if (value == 'save_template') {
+                              _showSaveAsTemplateDialog(currentTrip);
+                            } else if (value == 'export') {
+                              _showExportOptions(currentTrip);
                             }
                           },
                           itemBuilder: (context) => [
@@ -316,6 +509,27 @@ class _TripDashboardScreenState extends State<TripDashboardScreen> {
                                   ],
                                 ),
                               ),
+                            if (!currentTrip.isDead)
+                              const PopupMenuItem(
+                                value: 'save_template',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.bookmark_add_outlined, size: 20, color: Colors.amber),
+                                    SizedBox(width: 12),
+                                    Text("Save as Template"),
+                                  ],
+                                ),
+                              ),
+                            const PopupMenuItem(
+                              value: 'export',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.ios_share, size: 20, color: Colors.green),
+                                  SizedBox(width: 12),
+                                  Text("Export Trip"),
+                                ],
+                              ),
+                            ),
                             const PopupMenuItem(
                               value: 'leave',
                               child: Row(
@@ -670,13 +884,20 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   bool _domesticLoading = false;
   List<ChecklistItem> _checklistItems = [];
   bool _checklistLoading = true;
+  bool _aiChecklistGenerating = false;
   final ChecklistService _checklistService = ChecklistService();
+
+  // Weather
+  WeatherForecast? _weatherForecast;
+  bool _weatherLoading = true;
+  final WeatherService _weatherService = WeatherService();
 
   @override
   void initState() {
     super.initState();
     _loadMetadata();
     _loadChecklist();
+    _loadWeather();
   }
 
   Future<void> _loadMetadata() async {
@@ -702,7 +923,9 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
     if (userCountry == null || userCountry.isEmpty) return;
 
     // Determine if trip is international by comparing user country to destination
-    final destCountryCode = metadata?.destinationCountryCode;
+    // Try metadata country code first, then parse from trip location
+    var destCountryCode = metadata?.destinationCountryCode;
+    destCountryCode ??= EmergencyNumbersDB.countryCodeFromLocation(widget.trip.location);
     if (destCountryCode == null) return;
 
     // Check if domestic: compare destination country code with user's country
@@ -710,18 +933,8 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
     final userCountryLower = userCountry.toLowerCase().trim();
     final destLower = destCountryCode.toLowerCase().trim();
     
-    // Country name to code mapping for common cases
-    final Map<String, String> countryNameToCode = {
-      'india': 'in', 'united states': 'us', 'usa': 'us', 'united kingdom': 'gb', 'uk': 'gb',
-      'australia': 'au', 'canada': 'ca', 'germany': 'de', 'france': 'fr', 'japan': 'jp',
-      'china': 'cn', 'brazil': 'br', 'italy': 'it', 'spain': 'es', 'mexico': 'mx',
-      'south korea': 'kr', 'russia': 'ru', 'indonesia': 'id', 'turkey': 'tr', 'saudi arabia': 'sa',
-      'thailand': 'th', 'singapore': 'sg', 'malaysia': 'my', 'philippines': 'ph', 'vietnam': 'vn',
-      'united arab emirates': 'ae', 'uae': 'ae', 'south africa': 'za', 'nigeria': 'ng',
-      'egypt': 'eg', 'pakistan': 'pk', 'bangladesh': 'bd', 'nepal': 'np', 'sri lanka': 'lk',
-    };
-    
-    final userCode = countryNameToCode[userCountryLower] ?? userCountryLower;
+    // Normalize user country name to code using EmergencyNumbersDB lookup
+    final userCode = EmergencyNumbersDB.countryCodeFromLocation(userCountry) ?? userCountryLower;
     final isDomestic = userCode == destLower || userCountryLower == destLower;
     
     if (mounted) setState(() => _isInternational = !isDomestic);
@@ -765,16 +978,45 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
 
   Future<void> _loadChecklist() async {
     try {
-      // Determine if international based on loaded metadata or user's country vs trip location
-      final isInternational = _internationalInfo != null;
-      final items = await _checklistService.generateDefaults(
-        tripId: widget.trip.id,
-        isInternational: isInternational,
+      final items = await _checklistService.generateSmartChecklist(
+        trip: widget.trip,
+        isInternational: _isInternational,
       );
       if (mounted) setState(() { _checklistItems = items; _checklistLoading = false; });
     } catch (e) {
       debugPrint('Error loading checklist: $e');
       if (mounted) setState(() => _checklistLoading = false);
+    }
+  }
+
+  Future<void> _regenerateAIChecklist() async {
+    if (_aiChecklistGenerating) return;
+    setState(() => _aiChecklistGenerating = true);
+    try {
+      final items = await _checklistService.generateSmartChecklist(
+        trip: widget.trip,
+        isInternational: _isInternational,
+        regenerate: true,
+      );
+      if (mounted) setState(() { _checklistItems = items; _aiChecklistGenerating = false; });
+    } catch (e) {
+      debugPrint('Error regenerating AI checklist: $e');
+      if (mounted) setState(() => _aiChecklistGenerating = false);
+    }
+  }
+
+  Future<void> _loadWeather() async {
+    try {
+      final forecast = await _weatherService.getWeatherForTrip(
+        tripId: widget.trip.id,
+        location: widget.trip.location,
+        startDate: widget.trip.startDate,
+        endDate: widget.trip.endDate,
+      );
+      if (mounted) setState(() { _weatherForecast = forecast; _weatherLoading = false; });
+    } catch (e) {
+      debugPrint('Error loading weather: $e');
+      if (mounted) setState(() => _weatherLoading = false);
     }
   }
 
@@ -841,6 +1083,12 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
 
                     // Domestic Travel Intelligence Card
                     if (!_isInternational) _buildDomesticTravelCard(),
+
+                    // Weather Forecast Card
+                    if (!widget.trip.isDead) ...[
+                      const SizedBox(height: 16),
+                      _buildWeatherCard(colors),
+                    ],
 
                     // Travel Checklist
                     if (!widget.trip.isDead) ...[
@@ -1538,6 +1786,163 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
     );
   }
 
+  // ── Weather Forecast Card ──
+  Widget _buildWeatherCard(AppColors colors) {
+    if (_weatherLoading) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text("Loading weather...", style: TextStyle(color: colors.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    if (_weatherForecast == null) return const SizedBox.shrink();
+
+    final forecast = _weatherForecast!;
+    final current = forecast.current;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Row(
+            children: [
+              const Text("🌤️", style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Text("Weather", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+              const Spacer(),
+              if (current != null)
+                Text(
+                  "${current.tempC.round()}°C",
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: colors.textPrimary),
+                ),
+            ],
+          ),
+          subtitle: current != null
+            ? Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  "${current.condition}  ·  Feels like ${current.feelsLikeC.round()}°C",
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+              )
+            : null,
+          children: [
+            // Current conditions row
+            if (current != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _weatherStat(colors, "💧", "${current.humidity}%", "Humidity"),
+                  _weatherStat(colors, "💨", "${current.windKph.round()} km/h", "Wind"),
+                  _weatherStat(colors, "☀️", current.uv.toStringAsFixed(1), "UV Index"),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Divider(color: colors.border, height: 1),
+            ],
+
+            // Forecast days
+            if (forecast.days.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text("Forecast", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+              const SizedBox(height: 8),
+              ...forecast.days.map((day) => _buildWeatherDayRow(colors, day)),
+            ],
+
+            // Sunrise / Sunset for today
+            if (forecast.days.isNotEmpty && forecast.days.first.sunrise.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Divider(color: colors.border, height: 1),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("🌅 ${forecast.days.first.sunrise}", style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+                  const SizedBox(width: 20),
+                  Text("🌇 ${forecast.days.first.sunset}", style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _weatherStat(AppColors colors, String emoji, String value, String label) {
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(height: 4),
+        Text(value, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.textMuted)),
+      ],
+    );
+  }
+
+  Widget _buildWeatherDayRow(AppColors colors, WeatherDay day) {
+    final dayName = _shortDayName(day.date);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(dayName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary)),
+          ),
+          Text(day.conditionEmoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              day.condition,
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (day.chanceOfRain > 0) ...[
+            Text("💧${day.chanceOfRain}%", style: TextStyle(fontSize: 11, color: Colors.blue.shade400)),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            "${day.minTempC.round()}° / ${day.maxTempC.round()}°",
+            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _shortDayName(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    final diff = target.difference(today).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tmrw';
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[date.weekday - 1];
+  }
+
   Widget _buildChecklistCard(AppColors colors) {
     if (_checklistLoading) {
       return Container(
@@ -1637,6 +2042,42 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            // AI Regenerate button
+            InkWell(
+              onTap: _aiChecklistGenerating ? null : _regenerateAIChecklist,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.purple.withOpacity(0.08),
+                      AppColors.brand.withOpacity(0.08),
+                    ],
+                  ),
+                  border: Border.all(color: Colors.purple.withOpacity(0.25)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: _aiChecklistGenerating
+                      ? [
+                          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.purple)),
+                          const SizedBox(width: 8),
+                          Text("Generating...", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.purple)),
+                        ]
+                      : [
+                          Text("✨", style: TextStyle(fontSize: 15)),
+                          const SizedBox(width: 6),
+                          Text(
+                            _checklistItems.any((i) => i.isAutoGenerated) ? "Regenerate with AI" : "Generate with AI",
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.purple),
+                          ),
+                        ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1646,48 +2087,170 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   Widget _buildChecklistItemTile(AppColors colors, ChecklistItem item) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: Checkbox(
-              value: item.isChecked,
-              onChanged: (val) async {
-                if (val == null) return;
-                await _checklistService.toggleItem(item.id, val);
-                // Reload
-                final items = await _checklistService.getChecklist(widget.trip.id);
-                if (mounted) setState(() => _checklistItems = items);
-              },
-              activeColor: AppColors.brand,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              item.itemText,
-              style: TextStyle(
-                fontSize: 14,
-                color: item.isChecked ? colors.textMuted : colors.textPrimary,
-                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+      child: InkWell(
+        onLongPress: () => _showAssignItemSheet(colors, item),
+        borderRadius: BorderRadius.circular(8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: item.isChecked,
+                onChanged: (val) async {
+                  if (val == null) return;
+                  await _checklistService.toggleItem(item.id, val);
+                  // Reload
+                  final items = await _checklistService.getChecklist(widget.trip.id);
+                  if (mounted) setState(() => _checklistItems = items);
+                },
+                activeColor: AppColors.brand,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
             ),
-          ),
-          if (!item.isAutoGenerated)
-            GestureDetector(
-              onTap: () async {
-                await _checklistService.deleteItem(item.id);
-                final items = await _checklistService.getChecklist(widget.trip.id);
-                if (mounted) setState(() => _checklistItems = items);
-              },
-              child: Icon(Icons.close, size: 16, color: colors.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.itemText,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: item.isChecked ? colors.textMuted : colors.textPrimary,
+                      decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  if (item.assignedTo != null)
+                    FutureBuilder<String>(
+                      future: _getAssigneeName(item.assignedTo!),
+                      builder: (ctx, snap) {
+                        if (!snap.hasData) return const SizedBox.shrink();
+                        return Text(
+                          "→ ${snap.data}",
+                          style: TextStyle(fontSize: 11, color: AppColors.brand, fontWeight: FontWeight.w500),
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
-        ],
+            if (!item.isAutoGenerated)
+              GestureDetector(
+                onTap: () async {
+                  await _checklistService.deleteItem(item.id);
+                  final items = await _checklistService.getChecklist(widget.trip.id);
+                  if (mounted) setState(() => _checklistItems = items);
+                },
+                child: Icon(Icons.close, size: 16, color: colors.textMuted),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// Cache for member profiles to avoid repeated DB calls
+  Map<String, String>? _memberNameCache;
+
+  Future<String> _getAssigneeName(String userId) async {
+    if (_memberNameCache != null && _memberNameCache!.containsKey(userId)) {
+      return _memberNameCache![userId]!;
+    }
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+      final name = profile?['full_name'] ?? 'Unknown';
+      _memberNameCache ??= {};
+      _memberNameCache![userId] = name;
+      return name;
+    } catch (_) {
+      return 'Unknown';
+    }
+  }
+
+  void _showAssignItemSheet(AppColors colors, ChecklistItem item) async {
+    try {
+      final profiles = await TripService().getTripMembersProfiles(widget.trip.memberIds);
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: colors.surfaceBg,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text("Assign Item", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary)),
+                Text('"${item.itemText}"', style: TextStyle(fontSize: 13, color: colors.textSecondary)),
+                const SizedBox(height: 16),
+                // Unassign option
+                if (item.assignedTo != null)
+                  ListTile(
+                    leading: Icon(Icons.person_off_outlined, color: colors.textMuted),
+                    title: Text("Unassign", style: TextStyle(color: colors.textPrimary)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _checklistService.assignItem(item.id, null);
+                      _memberNameCache = null;
+                      final items = await _checklistService.getChecklist(widget.trip.id);
+                      if (mounted) setState(() => _checklistItems = items);
+                    },
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ...profiles.map((profile) {
+                  final isCurrentAssignee = item.assignedTo == profile.uid;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundImage: (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
+                          ? CachedNetworkImageProvider(profile.avatarUrl!)
+                          : null,
+                      child: (profile.avatarUrl == null || profile.avatarUrl!.isEmpty)
+                          ? Text(profile.fullName[0].toUpperCase(), style: const TextStyle(fontSize: 14))
+                          : null,
+                    ),
+                    title: Text(
+                      profile.fullName,
+                      style: TextStyle(
+                        color: isCurrentAssignee ? AppColors.brand : colors.textPrimary,
+                        fontWeight: isCurrentAssignee ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isCurrentAssignee ? Icon(Icons.check_circle, color: AppColors.brand, size: 20) : null,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _checklistService.assignItem(item.id, profile.uid);
+                      _memberNameCache = null;
+                      final items = await _checklistService.getChecklist(widget.trip.id);
+                      if (mounted) setState(() => _checklistItems = items);
+                    },
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint('Error loading members for assignment: $e');
+    }
   }
 
   void _showAddChecklistItemDialog(AppColors colors) {
@@ -1759,18 +2322,21 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
   // ── Emergency Info Card ──
   Widget _buildEmergencyInfoCard(AppColors colors) {
     final hasInternational = _internationalInfo != null;
+    final countryCode = _metadata?.destinationCountryCode;
+    // Robust lookup: try metadata country code first, then parse from trip location
+    var staticNumbers = EmergencyNumbersDB.lookup(countryCode);
+    staticNumbers ??= EmergencyNumbersDB.lookupFromLocation(widget.trip.location);
     
-    // Use destination-specific numbers from metadata/international info,
-    // fall back to metadata emergency number, then generic defaults
+    // Fallback chain: AI data → static database → metadata emergency number → '112'
     final policeNumber = hasInternational 
-        ? (_internationalInfo!.localPoliceNumber ?? _metadata?.emergencyNumber ?? '112')
-        : (_metadata?.emergencyNumber ?? '112');
+        ? (_internationalInfo!.localPoliceNumber ?? staticNumbers?.police ?? _metadata?.emergencyNumber ?? '112')
+        : (staticNumbers?.police ?? _metadata?.emergencyNumber ?? '112');
     final ambulanceNumber = hasInternational 
-        ? (_internationalInfo!.localMedicalNumber ?? '112')
-        : (_metadata?.emergencyNumber ?? '112');
+        ? (_internationalInfo!.localMedicalNumber ?? staticNumbers?.ambulance ?? '112')
+        : (staticNumbers?.ambulance ?? _metadata?.emergencyNumber ?? '112');
     final emergencyNumber = hasInternational
-        ? (_internationalInfo!.localEmergencyNumber ?? _metadata?.emergencyNumber ?? '112')
-        : (_metadata?.emergencyNumber ?? '112');
+        ? (_internationalInfo!.localEmergencyNumber ?? staticNumbers?.generalEmergency ?? staticNumbers?.police ?? _metadata?.emergencyNumber ?? '112')
+        : (staticNumbers?.generalEmergency ?? staticNumbers?.police ?? _metadata?.emergencyNumber ?? '112');
     
     return Container(
       decoration: BoxDecoration(
@@ -1786,7 +2352,20 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
             children: [
               Icon(Icons.emergency, color: Colors.red.shade400, size: 22),
               const SizedBox(width: 10),
-              const Text("Emergency Info", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Emergency Info", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(
+                      widget.trip.location,
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           children: [
@@ -2030,7 +2609,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                         children: [
                           Row(
                         children: [
-                          Text(name, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
+                          Flexible(child: Text(name, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                           FutureBuilder<UserProfile?>(
                             future: AuthService.instance.getOtherUserProfile(uid),
                             builder: (context, snapshot) {
@@ -2162,7 +2741,7 @@ class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClien
                 ),
                 title: Row(
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Flexible(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     FutureBuilder<UserProfile?>(
                       future: AuthService.instance.getOtherUserProfile(uid),
                       builder: (context, snapshot) {
@@ -6323,6 +6902,63 @@ class _ExpensesTabState extends State<_ExpensesTab> with AutomaticKeepAliveClien
           );
         });
       },
+    );
+  }
+}
+
+class _ExportOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ExportOptionTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Material(
+      color: colors.fieldFillBg,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: GoogleFonts.inter(fontSize: 12, color: colors.textSecondary)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colors.textMuted),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

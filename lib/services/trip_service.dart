@@ -468,22 +468,37 @@ class TripService {
   /// Returns the public Supabase URL.
   Future<String?> uploadTripCover(String googlePhotoUrl, String tripId) async {
     try {
-      // 1. Download from Google
+      // 1. Download from Google (follows redirects automatically)
       final response = await http.get(Uri.parse(googlePhotoUrl));
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        print('Failed to download cover image: HTTP ${response.statusCode}');
+        return null;
+      }
 
       final bytes = response.bodyBytes;
-      final fileName = "cover_$tripId.jpg";
+      if (bytes.isEmpty) {
+        print('Downloaded cover image is empty');
+        return null;
+      }
+
+      // 2. Detect actual content type from response headers
+      final rawContentType = response.headers['content-type'] ?? 'image/jpeg';
+      final contentType = rawContentType.split(';').first.trim();
+      final ext = contentType.contains('png') ? 'png'
+                : contentType.contains('webp') ? 'webp'
+                : 'jpg';
+
+      final fileName = "cover_$tripId.$ext";
       final path = "${_supabase.auth.currentUser?.id}/$fileName";
 
-      // 2. Upload to Supabase Storage
+      // 3. Upload to Supabase Storage
       await _supabase.storage.from('trips').uploadBinary(
         path, 
         bytes,
-        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+        fileOptions: FileOptions(contentType: contentType, upsert: true),
       );
 
-      // 3. Get Public URL
+      // 4. Get Public URL
       return _supabase.storage.from('trips').getPublicUrl(path);
     } catch (e) {
       print("Error uploading trip cover: $e");
@@ -591,7 +606,7 @@ class TripService {
           toUserId: memberUid,
           title: "Removed from Trip",
           body: "You have been removed from '$tripName'.",
-          type: NotificationType.system, 
+          type: NotificationType.removedFromTrip, 
           tripId: tripId,
         );
       }
@@ -1214,6 +1229,19 @@ class TripService {
           currentAdmins.add(newAdminId);
           metadata['adminIds'] = currentAdmins;
           await _supabase.from('trips').update({'metadata': metadata}).eq('id', tripId);
+          
+          // Notify the promoted user
+          try {
+            final tripResp = await _supabase.from('trips').select('name').eq('id', tripId).single();
+            final tripName = tripResp['name'] ?? 'a trip';
+            await _notificationService.sendNotification(
+              toUserId: newAdminId,
+              title: "You're now an Admin! 🎉",
+              body: "You've been promoted to admin in '$tripName'.",
+              type: NotificationType.adminPromoted,
+              tripId: tripId,
+            );
+          } catch (_) {}
        }
     } catch (e) {
        print("Promote failed: $e");

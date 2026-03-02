@@ -21,6 +21,10 @@ class Post {
   final int commentCount;
   final bool isLiked;
 
+  // Owner privacy flags (populated from joined profile data)
+  final bool ownerHideLikeCount;
+  final String ownerCommentPrivacy; // 'everyone', 'followers', 'nobody'
+
   Post({
     required this.id,
     required this.userId,
@@ -39,9 +43,16 @@ class Post {
     this.likeCount = 0,
     this.commentCount = 0,
     this.isLiked = false,
+    this.ownerHideLikeCount = false,
+    this.ownerCommentPrivacy = 'everyone',
   });
 
   factory Post.fromJson(Map<String, dynamic> json, {UserProfile? author, int? likeCount, int? commentCount, bool? isLiked}) {
+    // Try to extract owner privacy settings from joined profile data
+    final profileData = json['profiles'] ?? json['author'];
+    final ownerHideLike = profileData is Map ? (profileData['hide_like_count'] ?? false) : (author?.hideLikeCount ?? false);
+    final ownerCommentPrv = profileData is Map ? (profileData['comment_privacy'] ?? 'everyone') : (author?.commentPrivacy ?? 'everyone');
+
     return Post(
       id: json['id'],
       userId: json['user_id'],
@@ -60,6 +71,8 @@ class Post {
       likeCount: likeCount ?? json['like_count'] ?? 0,
       commentCount: commentCount ?? json['comment_count'] ?? 0,
       isLiked: isLiked ?? false,
+      ownerHideLikeCount: ownerHideLike == true,
+      ownerCommentPrivacy: ownerCommentPrv?.toString() ?? 'everyone',
     );
   }
 }

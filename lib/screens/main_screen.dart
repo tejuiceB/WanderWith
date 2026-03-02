@@ -11,6 +11,7 @@ import 'create_trip_screen.dart';
 import 'create_post_screen.dart';
 import 'search_screen.dart';
 import 'profile_screen.dart';
+import 'template_picker_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -170,12 +171,14 @@ class _MainScreenState extends State<MainScreen> {
      showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
+        isScrollControlled: true,
         builder: (context) => Container(
            padding: const EdgeInsets.all(24),
            decoration: BoxDecoration(
               color: context.appColors.cardBg,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
            ),
+           child: SingleChildScrollView(
            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -197,6 +200,24 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     title: Text("Plan a New Trip", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
                     subtitle: Text("Start from scratch with AI", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
+                    trailing: Icon(Icons.chevron_right, color: context.appColors.textMuted),
+                 ),
+                 
+                 const SizedBox(height: 16),
+
+                 // Option 1.5: Start from Template
+                 ListTile(
+                    onTap: () {
+                       Navigator.pop(context);
+                       Navigator.push(context, MaterialPageRoute(builder: (_) => const TemplatePickerScreen()));
+                    },
+                    leading: Container(
+                       padding: const EdgeInsets.all(12),
+                       decoration: BoxDecoration(color: context.isDark ? Colors.amber.withOpacity(0.15) : Colors.amber.shade50, borderRadius: BorderRadius.circular(12)),
+                       child: Icon(Icons.dashboard_customize_rounded, color: Colors.amber.shade700),
+                    ),
+                    title: Text("Start from Template", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
+                    subtitle: Text("Reuse a saved trip structure", style: GoogleFonts.inter(color: context.appColors.textSecondary)),
                     trailing: Icon(Icons.chevron_right, color: context.appColors.textMuted),
                  ),
                  
@@ -238,6 +259,7 @@ class _MainScreenState extends State<MainScreen> {
                  
                  const SizedBox(height: 32),
               ],
+           ),
            ),
         ),
      );

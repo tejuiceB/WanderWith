@@ -34,6 +34,7 @@ class AppEnv {
   static String get googleWebClientId => _get('GOOGLE_WEB_CLIENT_ID');
   static String get googleMapsApiKey => _get('GOOGLE_MAPS_API_KEY');
   static String get geminiApiKey => _get('GEMINI_API_KEY');
+  static String get weatherApiKey => _get('WEATHER_API_KEY');
 
   static String _get(String key) {
     final fromDefine = _valueFromDartDefine(key);
@@ -55,6 +56,8 @@ class AppEnv {
         return const String.fromEnvironment('GOOGLE_MAPS_API_KEY');
       case 'GEMINI_API_KEY':
         return const String.fromEnvironment('GEMINI_API_KEY');
+      case 'WEATHER_API_KEY':
+        return const String.fromEnvironment('WEATHER_API_KEY');
       default:
         return '';
     }

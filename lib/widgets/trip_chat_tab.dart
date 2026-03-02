@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +33,7 @@ import '../theme/app_colors.dart';
 import '../theme/theme_extensions.dart';
 import 'live_location_map.dart';
 import '../screens/chat_media_gallery.dart';
+import '../screens/profile_screen.dart';
 import '../services/offline_queue_service.dart';
 
 class TripChatTab extends StatefulWidget {
@@ -76,6 +78,16 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
 
   // Scroll-to-bottom FAB
   bool _showScrollToBottom = false;
+
+  // Message search
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<ChatMessage> _searchResults = [];
+  bool _isSearchLoading = false;
+  String? _highlightedMessageId;
+  Timer? _searchDebounce;
+  Timer? _highlightTimer;
 
   // Online presence
   Set<String> _onlineUserIds = {};
@@ -274,6 +286,34 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
     setState(() => _showMentionOverlay = false);
   }
 
+  void _insertEveryoneMention() {
+    final text = _msgController.text;
+    final cursorPos = _msgController.selection.baseOffset;
+    final before = text.substring(0, _mentionStartIndex);
+    final after = cursorPos < text.length ? text.substring(cursorPos) : '';
+    const mentionText = '@everyone ';
+    final newText = '$before$mentionText$after';
+    _msgController.text = newText;
+    _msgController.selection = TextSelection.collapsed(
+      offset: _mentionStartIndex + mentionText.length,
+    );
+    setState(() => _showMentionOverlay = false);
+  }
+
+  void _insertWanderwithMention() {
+    final text = _msgController.text;
+    final cursorPos = _msgController.selection.baseOffset;
+    final before = text.substring(0, _mentionStartIndex);
+    final after = cursorPos < text.length ? text.substring(cursorPos) : '';
+    const mentionText = '@wanderwith ';
+    final newText = '$before$mentionText$after';
+    _msgController.text = newText;
+    _msgController.selection = TextSelection.collapsed(
+      offset: _mentionStartIndex + mentionText.length,
+    );
+    setState(() => _showMentionOverlay = false);
+  }
+
   void _onScroll() {
     // reverse:true means offset 0 = newest; show FAB if scrolled up > 300px
     final show = _scrollController.hasClients && _scrollController.offset > 300;
@@ -332,10 +372,109 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
     }
   }
 
+  // ── Message search ──────────────────────────────────────────────────
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.clear();
+        _searchResults = [];
+        _isSearchLoading = false;
+      } else {
+        // Focus search field after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _searchFocusNode.requestFocus();
+        });
+      }
+    });
+  }
+
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.trim().length < 2) {
+      setState(() {
+        _searchResults = [];
+        _isSearchLoading = false;
+      });
+      return;
+    }
+    setState(() => _isSearchLoading = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _performSearch(query.trim());
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    try {
+      final data = await Supabase.instance.client
+          .from('trip_messages')
+          .select()
+          .eq('trip_id', widget.trip.id)
+          .ilike('content', '%$query%')
+          .order('created_at', ascending: false)
+          .limit(30);
+
+      if (!mounted) return;
+      setState(() {
+        _searchResults = data
+            .map((m) => ChatMessage.fromJson(m))
+            .toList();
+        _isSearchLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _isSearchLoading = false);
+    }
+  }
+
+  void _jumpToMessage(String messageId) {
+    // First check if we need to load more messages to include this one.
+    // The search result might be beyond the current _messageLimit.
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+      _searchResults = [];
+      _highlightedMessageId = messageId;
+    });
+
+    // Clear highlight after 2.5 seconds
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _highlightedMessageId = null);
+    });
+
+    // Wait for rebuild, then try scrolling
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToMessageById(messageId);
+    });
+  }
+
+  void _scrollToMessageById(String messageId) {
+    if (!_scrollController.hasClients) return;
+
+    // In the reversed ListView, index 0 is the newest message (scroll offset 0).
+    // Older messages are at higher indices and higher scroll offsets.
+    // We estimate ~80px per item (messages + date separators) and scroll to
+    // the approximate position. The highlight animation makes the target visible.
+    // Note: this is a best-effort approach—exact positioning requires
+    // ScrollablePositionedList which would be a larger dependency.
+
+    // For now, scroll to top (offset 0 = newest). The highlight makes it findable.
+    // If users frequently search old messages, we can add ScrollablePositionedList later.
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _reactionDebounceTimer?.cancel();
+    _searchDebounce?.cancel();
+    _highlightTimer?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _chatChannel.untrack();
     _msgController.dispose();
     _scrollController.dispose();
@@ -346,15 +485,32 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
 
   final List<String> _toxicWords = ['badword1', 'badword2', 'toxic']; // Simplified blacklist
 
-  /// Parse @mentions in text and resolve to user IDs using _memberProfiles
+  /// Parse @mentions in text and resolve to user IDs using _memberProfiles.
+  /// Supports @everyone (resolves to all members except sender).
   List<String> _parseMentionedUserIds(String text) {
-    final mentionRegex = RegExp(r'@(\S+(?:\s\S+)?)');
+    // Check for @everyone first
+    if (RegExp(r'@everyone\b', caseSensitive: false).hasMatch(text)) {
+      final currentUid = Supabase.instance.client.auth.currentUser?.id;
+      return _memberProfiles.keys.where((id) => id != currentUid).toList();
+    }
+
+    // Build a regex from known member display names for precise matching
+    final names = _memberProfiles.values
+        .map((p) => p.displayName)
+        .where((n) => n != null && n.isNotEmpty)
+        .map((n) => RegExp.escape(n!))
+        .toList();
+    if (names.isEmpty) return [];
+
+    final namePattern = names.join('|');
+    final mentionRegex = RegExp('@($namePattern)', caseSensitive: false);
     final mentionedIds = <String>{};
+
     for (final match in mentionRegex.allMatches(text)) {
       final mentionName = match.group(1)?.toLowerCase() ?? '';
       for (final entry in _memberProfiles.entries) {
         final displayName = (entry.value.displayName ?? '').toLowerCase();
-        if (mentionName == displayName || mentionName.startsWith(displayName)) {
+        if (mentionName == displayName) {
           mentionedIds.add(entry.key);
         }
       }
@@ -520,9 +676,12 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
         '🗺 Today\'s itinerary',
       ];
 
+      // Use the current user's ID as sender_id to satisfy RLS policy
+      // (sender_id must match auth.uid()). The message is identified as
+      // a bot response via is_bot: true in metadata and sender_name.
       await Supabase.instance.client.from('trip_messages').insert({
         'trip_id': widget.trip.id,
-        'sender_id': null, // Null for system/bot
+        'sender_id': uid,
         'sender_name': 'WanderWith AI',
         'content': response,
         'type': 'text',
@@ -532,7 +691,12 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
         },
       });
     } catch (e) {
-      print("AI Bot error: $e");
+      debugPrint("AI Bot error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("AI couldn't respond: $e"), backgroundColor: Colors.orange),
+        );
+      }
     }
   }
 
@@ -1548,11 +1712,115 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                 ),
               const Spacer(),
               IconButton(
+                icon: Icon(
+                  _isSearching ? Icons.search_off : Icons.search,
+                  size: 20,
+                  color: _isSearching ? AppColors.brand : colors.textMuted,
+                ),
+                tooltip: 'Search messages',
+                onPressed: _toggleSearch,
+              ),
+              IconButton(
                 icon: Icon(Icons.info_outline, size: 20, color: colors.textMuted),
                 onPressed: () => _showTripInfo(),
               ),
             ],
           ),
+        ),
+
+        // ── Search bar (animated slide-down) ──
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Container(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            decoration: BoxDecoration(
+              color: colors.cardBg,
+              border: Border(bottom: BorderSide(color: colors.border, width: 0.5)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: _onSearchChanged,
+                  style: TextStyle(fontSize: 14, color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Search messages...',
+                    hintStyle: TextStyle(color: colors.textMuted, fontSize: 14),
+                    prefixIcon: Icon(Icons.search, size: 20, color: colors.textMuted),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear, size: 18, color: colors.textMuted),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    filled: true,
+                    fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                // Search results
+                if (_isSearchLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else if (_searchResults.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.35),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(top: 8),
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: colors.border.withOpacity(0.5)),
+                      itemBuilder: (context, index) {
+                        final msg = _searchResults[index];
+                        final sender = _memberProfiles[msg.senderId];
+                        final senderName = sender?.displayName ?? msg.senderName ?? 'Unknown';
+                        final query = _searchController.text.trim().toLowerCase();
+                        return ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: AppColors.brand.withOpacity(0.15),
+                            backgroundImage: sender?.avatarUrl != null && sender!.avatarUrl!.isNotEmpty
+                                ? CachedNetworkImageProvider(sender.avatarUrl!)
+                                : null,
+                            child: sender?.avatarUrl == null || sender!.avatarUrl!.isEmpty
+                                ? Text(senderName[0].toUpperCase(),
+                                    style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold, fontSize: 12))
+                                : null,
+                          ),
+                          title: _buildHighlightedText(msg.content, query, colors),
+                          subtitle: Text(
+                            '$senderName · ${DateFormat('MMM d, h:mm a').format(msg.createdAt)}',
+                            style: TextStyle(fontSize: 11, color: colors.textMuted),
+                          ),
+                          onTap: () => _jumpToMessage(msg.id),
+                        );
+                      },
+                    ),
+                  )
+                else if (_searchController.text.trim().length >= 2 && !_isSearchLoading)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text('No messages found', style: TextStyle(color: colors.textMuted, fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+          crossFadeState: _isSearching ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
         ),
         
         // Live location banner (shows when active)
@@ -1744,7 +2012,17 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                                 return _buildSystemMessage(msg);
                               }
 
-                                return Dismissible(
+                                final isHighlighted = _highlightedMessageId == msg.id;
+
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 500),
+                                  decoration: BoxDecoration(
+                                    color: isHighlighted
+                                        ? AppColors.brand.withOpacity(0.12)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Dismissible(
                                   key: ValueKey('swipe_${msg.id}'),
                                   direction: isMe ? DismissDirection.endToStart : DismissDirection.startToEnd,
                                   confirmDismiss: (_) async {
@@ -1765,6 +2043,10 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                                   messageStatus: messageStatus,
                                   memberCount: widget.trip.memberIds.length,
                                   readReceipts: _readReceipts,
+                                  memberProfiles: _memberProfiles,
+                                  onMentionTap: (userId) {
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: userId)));
+                                  },
                                   onReact: (emoji) => _toggleReaction(msg.id, user.id, emoji),
                                   onReply: () => _startReplying(msg),
                                   onEdit: () => _startEditing(msg),
@@ -1812,6 +2094,7 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
                                     _msgController.text = '@wanderwith $suggestion';
                                     _sendMessage(user.id, userProfile?.displayName ?? 'User');
                                   },
+                                ),
                                 ),
                                 );
                             },
@@ -2007,6 +2290,39 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
     );
   }
 
+  /// Build text with the search query highlighted in bold brand color.
+  Widget _buildHighlightedText(String text, String query, dynamic colors) {
+    if (query.isEmpty) {
+      return Text(text, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 13, color: colors.textPrimary));
+    }
+    final lowerText = text.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    final spans = <TextSpan>[];
+    int start = 0;
+    while (true) {
+      final idx = lowerText.indexOf(lowerQuery, start);
+      if (idx == -1) {
+        spans.add(TextSpan(text: text.substring(start)));
+        break;
+      }
+      if (idx > start) spans.add(TextSpan(text: text.substring(start, idx)));
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + query.length),
+        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.brand),
+      ));
+      start = idx + query.length;
+    }
+    return RichText(
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        children: spans,
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
      final colors = context.appColors;
      return Center(
@@ -2129,11 +2445,15 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
       return (p.displayName ?? '').toLowerCase().contains(_mentionQuery);
     }).toList();
 
+    // Check if @everyone should appear in the overlay
+    final showEveryoneOption = _mentionQuery.isEmpty || 'everyone'.contains(_mentionQuery);
+    final showWanderwithOption = _mentionQuery.isEmpty || 'wanderwith'.contains(_mentionQuery);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // @Mention suggestions overlay
-        if (_showMentionOverlay && filteredMembers.isNotEmpty)
+        if (_showMentionOverlay && (filteredMembers.isNotEmpty || showEveryoneOption || showWanderwithOption))
           Container(
             constraints: const BoxConstraints(maxHeight: 180),
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -2145,9 +2465,41 @@ class _TripChatTabState extends State<TripChatTab> with AutomaticKeepAliveClient
             child: ListView.builder(
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: 4),
-              itemCount: filteredMembers.length,
+              itemCount: filteredMembers.length + (showEveryoneOption ? 1 : 0) + (showWanderwithOption ? 1 : 0),
               itemBuilder: (context, index) {
-                final member = filteredMembers[index];
+                // First item: @everyone
+                if (showEveryoneOption && index == 0) {
+                  return ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppColors.brand.withOpacity(0.2),
+                      child: Icon(Icons.groups, color: AppColors.brand, size: 18),
+                    ),
+                    title: Text('@everyone', style: TextStyle(color: colors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: Text('Notify all members', style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    onTap: () => _insertEveryoneMention(),
+                  );
+                }
+                // Second special item: @wanderwith
+                final wanderwithIndex = showEveryoneOption ? 1 : 0;
+                if (showWanderwithOption && index == wanderwithIndex) {
+                  return ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.indigo.withOpacity(0.2),
+                      child: Icon(Icons.auto_awesome, color: Colors.indigo, size: 18),
+                    ),
+                    title: Text('@wanderwith', style: TextStyle(color: colors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: Text('Ask AI travel assistant', style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    onTap: () => _insertWanderwithMention(),
+                  );
+                }
+                final specialCount = (showEveryoneOption ? 1 : 0) + (showWanderwithOption ? 1 : 0);
+                final member = filteredMembers[index - specialCount];
                 return ListTile(
                   dense: true,
                   visualDensity: VisualDensity.compact,
@@ -2252,6 +2604,8 @@ class _MessageBubble extends StatelessWidget {
   final Set<String> optimisticReactions;
   final bool isDead;
   final Function(String)? onSuggestionTap;
+  final Map<String, UserProfile> memberProfiles;
+  final Function(String)? onMentionTap;
 
   const _MessageBubble({
     required this.message, 
@@ -2265,6 +2619,7 @@ class _MessageBubble extends StatelessWidget {
     required this.onDeleteForEveryone,
     required this.currentUserId,
     required this.optimisticReactions,
+    required this.memberProfiles,
     this.showSenderName = true,
     this.isLastInGroup = true,
     this.messageStatus = 'sent',
@@ -2273,6 +2628,7 @@ class _MessageBubble extends StatelessWidget {
     this.isAgency = false,
     this.isDead = false,
     this.onSuggestionTap,
+    this.onMentionTap,
   });
 
   void _showOptions(BuildContext context) {
@@ -2411,7 +2767,8 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!isMe && !isBot) const SizedBox(width: 4),
-              GestureDetector(
+              Flexible(
+              child: GestureDetector(
                 onLongPress: isBot ? null : () => _showOptions(context),
                 child: Column(
                   crossAxisAlignment: isMe ? CrossAxisAlignment.end : isBot ? CrossAxisAlignment.center : CrossAxisAlignment.start,
@@ -2550,6 +2907,7 @@ class _MessageBubble extends StatelessWidget {
                       ),
                   ],
                 ),
+              ),
               ),
               if (isMe) const SizedBox(width: 4),
             ],
@@ -3121,7 +3479,8 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  /// Builds message text with @mentions highlighted in bold
+  /// Builds message text with @mentions highlighted in bold.
+  /// Tapping a mention navigates to that user's profile.
   Widget _buildRichText(BuildContext context) {
     final colors = context.appColors;
     final baseStyle = TextStyle(
@@ -3134,9 +3493,18 @@ class _MessageBubble extends StatelessWidget {
       fontWeight: FontWeight.bold,
     );
 
-    // Split text on @mention patterns
-    final mentionRegex = RegExp(r'@(\S+(?:\s\S+)?)');
-    final spans = <TextSpan>[];
+    // Build regex from known member names + @everyone for precise matching
+    final names = memberProfiles.values
+        .map((p) => p.displayName)
+        .where((n) => n != null && n.isNotEmpty)
+        .map((n) => RegExp.escape(n!))
+        .toList();
+    names.add('everyone');
+    names.add('wanderwith');
+    final namePattern = names.join('|');
+    final mentionRegex = RegExp('@($namePattern)', caseSensitive: false);
+
+    final spans = <InlineSpan>[];
     int lastEnd = 0;
 
     for (final match in mentionRegex.allMatches(message.content)) {
@@ -3144,11 +3512,26 @@ class _MessageBubble extends StatelessWidget {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: message.content.substring(lastEnd, match.start), style: baseStyle));
       }
-      // Check if this actually references a mentioned user
-      final isMention = message.mentionedUserIds.isNotEmpty;
+
+      final matchedName = match.group(1)?.toLowerCase() ?? '';
+
+      // Find the user ID for this mention
+      String? mentionUserId;
+      if (matchedName != 'everyone') {
+        for (final entry in memberProfiles.entries) {
+          if ((entry.value.displayName ?? '').toLowerCase() == matchedName) {
+            mentionUserId = entry.key;
+            break;
+          }
+        }
+      }
+
       spans.add(TextSpan(
         text: match.group(0),
-        style: isMention ? mentionStyle : baseStyle,
+        style: mentionStyle,
+        recognizer: (mentionUserId != null && onMentionTap != null)
+            ? (TapGestureRecognizer()..onTap = () => onMentionTap!(mentionUserId!))
+            : null,
       ));
       lastEnd = match.end;
     }

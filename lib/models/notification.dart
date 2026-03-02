@@ -16,6 +16,13 @@ enum NotificationType {
   comment,
   followRequest,
   followAccepted,
+  adminPromoted,     // Promoted to trip admin
+  removedFromTrip,   // Kicked from a trip
+  tripReminder,      // Smart lifecycle reminders (packing, departure, checklist)
+  weatherAlert,      // Weather-triggered alerts
+  festivalAlert,     // Festival/seasonal travel suggestions
+  travelInspiration, // AI-generated engagement nudges
+  memoryAnniversary, // Trip anniversary nostalgia
 }
 
 class AppNotification {
@@ -73,6 +80,13 @@ class AppNotification {
       case 'comment': return NotificationType.comment;
       case 'follow_request': return NotificationType.followRequest;
       case 'follow_accepted': return NotificationType.followAccepted;
+      case 'admin_promoted': return NotificationType.adminPromoted;
+      case 'removed_from_trip': return NotificationType.removedFromTrip;
+      case 'trip_reminder': return NotificationType.tripReminder;
+      case 'weather_alert': return NotificationType.weatherAlert;
+      case 'festival_alert': return NotificationType.festivalAlert;
+      case 'travel_inspiration': return NotificationType.travelInspiration;
+      case 'memory_anniversary': return NotificationType.memoryAnniversary;
       default: return NotificationType.system;
     }
   }
@@ -95,6 +109,13 @@ class AppNotification {
       case NotificationType.comment: return 'comment';
       case NotificationType.followRequest: return 'follow_request';
       case NotificationType.followAccepted: return 'follow_accepted';
+      case NotificationType.adminPromoted: return 'admin_promoted';
+      case NotificationType.removedFromTrip: return 'removed_from_trip';
+      case NotificationType.tripReminder: return 'trip_reminder';
+      case NotificationType.weatherAlert: return 'weather_alert';
+      case NotificationType.festivalAlert: return 'festival_alert';
+      case NotificationType.travelInspiration: return 'travel_inspiration';
+      case NotificationType.memoryAnniversary: return 'memory_anniversary';
       default: return 'system';
     }
   }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 import 'blocked_users_screen.dart';
+import 'restricted_users_screen.dart';
 import '../theme/theme_extensions.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
@@ -73,6 +74,26 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                  ],
                  onChanged: (val) => _updateSetting(authService, tripsVisibility: val),
                ),
+               _buildDropdownTile(
+                 title: "Who can see my travel mood?",
+                 value: user.travelMoodVisibility,
+                 items: const [
+                   DropdownMenuItem(value: 'public', child: Text("Public")),
+                   DropdownMenuItem(value: 'followers', child: Text("Followers Only")),
+                   DropdownMenuItem(value: 'nobody', child: Text("Nobody")),
+                 ],
+                 onChanged: (val) => _updateSetting(authService, travelMoodVisibility: val),
+               ),
+               _buildDropdownTile(
+                 title: "Who can see my badges?",
+                 value: user.badgesVisibility,
+                 items: const [
+                   DropdownMenuItem(value: 'public', child: Text("Public")),
+                   DropdownMenuItem(value: 'followers', child: Text("Followers Only")),
+                   DropdownMenuItem(value: 'nobody', child: Text("Nobody")),
+                 ],
+                 onChanged: (val) => _updateSetting(authService, badgesVisibility: val),
+               ),
 
                const SizedBox(height: 32),
                _buildSectionHeader("Interactions"),
@@ -92,6 +113,41 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                  ],
                  onChanged: (val) => _updateSetting(authService, messagePrivacy: val),
                ),
+
+               const SizedBox(height: 32),
+               _buildSectionHeader("Content Controls"),
+               _buildDropdownTile(
+                 title: "Who can comment on my posts?",
+                 value: user.commentPrivacy,
+                 items: const [
+                   DropdownMenuItem(value: 'everyone', child: Text("Everyone")),
+                   DropdownMenuItem(value: 'followers', child: Text("Followers Only")),
+                   DropdownMenuItem(value: 'nobody', child: Text("Nobody")),
+                 ],
+                 onChanged: (val) => _updateSetting(authService, commentPrivacy: val),
+               ),
+               _buildDropdownTile(
+                 title: "Who can invite me to trips?",
+                 value: user.tripInvitePrivacy,
+                 items: const [
+                   DropdownMenuItem(value: 'everyone', child: Text("Everyone")),
+                   DropdownMenuItem(value: 'followers', child: Text("Followers Only")),
+                   DropdownMenuItem(value: 'nobody', child: Text("Nobody")),
+                 ],
+                 onChanged: (val) => _updateSetting(authService, tripInvitePrivacy: val),
+               ),
+               _buildSwitchTile(
+                 title: "Hide like count on my posts",
+                 subtitle: "Others won't see the number of likes on your posts.",
+                 value: user.hideLikeCount,
+                 onChanged: (val) => _updateSetting(authService, hideLikeCount: val),
+               ),
+               _buildSwitchTile(
+                 title: "Hide followers / following list",
+                 subtitle: "Your followers and following counts will be hidden from your profile.",
+                 value: user.hideFollowersList,
+                 onChanged: (val) => _updateSetting(authService, hideFollowersList: val),
+               ),
                
                const SizedBox(height: 48),
                _buildSectionHeader("Safety"),
@@ -102,6 +158,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   trailing: Icon(Icons.chevron_right, size: 20, color: context.appColors.textSecondary),
                   onTap: () {
                      Navigator.push(context, MaterialPageRoute(builder: (context) => const BlockedUsersScreen()));
+                  },
+               ),
+               ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.visibility_off_outlined, color: context.appColors.textPrimary),
+                  title: Text("Restricted Accounts", style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+                  subtitle: Text("Can see your profile but can't interact", style: GoogleFonts.inter(fontSize: 12, color: context.appColors.textSecondary)),
+                  trailing: Icon(Icons.chevron_right, size: 20, color: context.appColors.textSecondary),
+                  onTap: () {
+                     Navigator.push(context, MaterialPageRoute(builder: (context) => const RestrictedUsersScreen()));
                   },
                ),
             ],
@@ -122,6 +188,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     String? tripsVisibility,
     bool? allowFollowRequests,
     String? messagePrivacy,
+    String? commentPrivacy,
+    bool? hideLikeCount,
+    bool? hideFollowersList,
+    String? tripInvitePrivacy,
+    String? travelMoodVisibility,
+    String? badgesVisibility,
   }) async {
     setState(() => _isLoading = true);
     try {
@@ -131,6 +203,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         tripsVisibility: tripsVisibility,
         allowFollowRequests: allowFollowRequests,
         messagePrivacy: messagePrivacy,
+        commentPrivacy: commentPrivacy,
+        hideLikeCount: hideLikeCount,
+        hideFollowersList: hideFollowersList,
+        tripInvitePrivacy: tripInvitePrivacy,
+        travelMoodVisibility: travelMoodVisibility,
+        badgesVisibility: badgesVisibility,
       );
     } catch (e) {
       if (mounted) {
