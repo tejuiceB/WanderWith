@@ -9,7 +9,7 @@ export default function AppFeatures() {
         {
             icon: Users,
             title: "Collaborative Trip Planning",
-            description: "Create private trips or join your friends' adventures. Keep your travel plans personal and organized in one beautiful space.",
+            description: "Experience the best online itinerary builder for group travel. Keep your travel plans personal and organized in one beautiful space.",
             screenshot: "/app_images/home.jpeg",
             gradient: "from-blue-500/20 to-purple-500/20",
             iconColor: "text-blue-400"
@@ -25,7 +25,7 @@ export default function AppFeatures() {
         {
             icon: Calendar,
             title: "Smart Trip Dashboard",
-            description: "Manage dates, budgets, links, and itineraries effortlessly. Everything you need for your trip, organized in intuitive tabs.",
+            description: "Your ultimate vacation planner and itinerary manager. Handle dates, budgets, links, and schedules effortlessly in intuitive tabs.",
             screenshot: "/app_images/trip_dashboard.jpeg",
             gradient: "from-orange-500/20 to-pink-500/20",
             iconColor: "text-orange-400"
@@ -41,7 +41,7 @@ export default function AppFeatures() {
         {
             icon: DollarSign,
             title: "Budget Tracking",
-            description: "Keep your trip finances in check. Track expenses, split costs with friends, and stay within budget—all in one place.",
+            description: "As a premier trip planner app, keeping your finances in check is easy. Track expenses, split costs with friends, and stay within budget.",
             screenshot: "/app_images/budget.jpeg",
             gradient: "from-emerald-500/20 to-green-500/20",
             iconColor: "text-emerald-400"
@@ -89,7 +89,7 @@ export default function AppFeatures() {
     ];
 
     return (
-        <section className="relative py-24 bg-gradient-to-b from-[#F7F3EC] via-white to-[#F7F3EC] overflow-hidden">
+        <section id="features" className="relative py-24 bg-gradient-to-b from-[#F7F3EC] via-white to-[#F7F3EC] overflow-hidden">
             {/* Background Decoration */}
             <div className="absolute inset-0 opacity-30">
                 <div className="absolute top-20 left-10 w-72 h-72 bg-brand-accent/10 rounded-full blur-3xl" />

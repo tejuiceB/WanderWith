@@ -5,7 +5,7 @@ export default function Footer() {
     return (
         <footer className="bg-brand-primary text-white/80 py-12 border-t border-white/10">
             <div className="container mx-auto px-6">
-                <div className="grid md:grid-cols-4 gap-8 mb-12">
+                <div className="grid md:grid-cols-5 gap-8 mb-12">
                     <div className="col-span-1 md:col-span-1">
                         <h3 className="text-white text-xl font-bold mb-4">WanderWith</h3>
                         <p className="text-sm leading-relaxed text-slate-400">
@@ -17,9 +17,17 @@ export default function Footer() {
                     <div>
                         <h4 className="text-white font-semibold mb-4">Company</h4>
                         <ul className="space-y-2 text-sm">
-                            <li><Link href="#about" className="hover:text-white transition-colors">About Us</Link></li>
-                            <li><Link href="#careers" className="hover:text-white transition-colors">Careers</Link></li>
-                            <li><Link href="#blog" className="hover:text-white transition-colors">Blog</Link></li>
+                            <li><Link href="/#about" className="hover:text-white transition-colors">About Us</Link></li>
+                            <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="text-white font-semibold mb-4">Compare</h4>
+                        <ul className="space-y-2 text-sm">
+                            <li><Link href="/trip-planning-app" className="hover:text-white transition-colors">Trip Planning App</Link></li>
+                            <li><Link href="/alternatives/wanderlog" className="hover:text-white transition-colors">Wanderlog Alternative</Link></li>
+                            <li><Link href="/alternatives/tripit" className="hover:text-white transition-colors">TripIt Alternative</Link></li>
                         </ul>
                     </div>
 

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 export default function Story() {
     return (
-        <section className="py-24 md:py-40 bg-brand-bg text-center px-6">
+        <section id="about" className="py-24 md:py-40 bg-brand-bg text-center px-6">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}

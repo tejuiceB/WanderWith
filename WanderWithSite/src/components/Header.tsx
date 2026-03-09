@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
 export default function Header() {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const pathname = usePathname();
+    const isHomePage = pathname === "/";
 
     useEffect(() => {
         const handleScroll = () => {
@@ -19,17 +22,22 @@ export default function Header() {
     }, []);
 
     const navLinks = [
-        { name: "Features", href: "#features" },
-        { name: "For Travelers", href: "#travelers" },
-        { name: "For Agencies", href: "#agencies" },
-        { name: "About", href: "#about" },
+        { name: "Features", href: "/#features" },
+        { name: "For Travelers", href: "/#travelers" },
+        { name: "For Agencies", href: "/#agencies" },
+        { name: "About", href: "/#about" },
     ];
 
     const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-        e.preventDefault();
-        const element = document.querySelector(href);
-        if (element) {
-            element.scrollIntoView({ behavior: "smooth" });
+        if (isHomePage) {
+            e.preventDefault();
+            const targetId = href.startsWith('/') ? href.substring(1) : href;
+            const element = document.querySelector(targetId);
+            if (element) {
+                element.scrollIntoView({ behavior: "smooth" });
+                setMobileMenuOpen(false);
+            }
+        } else {
             setMobileMenuOpen(false);
         }
     };
@@ -38,32 +46,38 @@ export default function Header() {
         <header
             className={`fixed top-0 left-0 w-full z-[100] transition-all duration-300 ${scrolled
                 ? "bg-brand-primary/95 backdrop-blur-md py-3 shadow-lg"
-                : "bg-gradient-to-b from-black/50 to-transparent py-6"
+                : (isHomePage ? "bg-transparent py-6" : "bg-gradient-to-b from-black/50 to-transparent py-6")
                 }`}
         >
             <div className="container mx-auto px-6 flex items-center justify-between">
                 {/* Logo */}
                 <Link href="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2">
                     <div className="relative w-10 h-10">
-                        <Image src="/logo.png" alt="WanderWith Logo" fill className="object-contain" />
+                        {(!scrolled && isHomePage) ? (
+                            <Image src="/logo.png" alt="WanderWith Logo" fill className="object-contain brightness-0 opacity-90" />
+                        ) : (
+                            <Image src="/logo.png" alt="WanderWith Logo" fill className="object-contain" />
+                        )}
                     </div>
-                    <span className="text-xl font-bold text-white tracking-wide drop-shadow-md">
+                    <span className={`text-xl font-bold tracking-wide drop-shadow-md ${!scrolled && isHomePage ? 'text-brand-primary' : 'text-white'}`}>
                         WanderWith
                     </span>
                 </Link>
 
-                {/* Desktop Nav */}
                 <nav className="hidden lg:flex items-center gap-8">
                     {navLinks.map((link) => (
-                        <a
+                        <Link
                             key={link.name}
                             href={link.href}
                             onClick={(e) => scrollToSection(e, link.href)}
-                            className="text-white/80 hover:text-brand-accent transition-colors text-sm font-medium cursor-pointer"
+                            className={`${!scrolled && isHomePage ? 'text-brand-text/80 hover:text-brand-accent' : 'text-white/80 hover:text-white'} transition-colors text-sm font-medium cursor-pointer`}
                         >
                             {link.name}
-                        </a>
+                        </Link>
                     ))}
+                    <Link href="/blog" className={`${!scrolled && isHomePage ? 'text-brand-text/80 hover:text-brand-accent' : 'text-white/80 hover:text-white'} transition-colors text-sm font-medium`}>
+                        Blog
+                    </Link>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg opacity-60 cursor-default">
                             <Image
@@ -96,7 +110,7 @@ export default function Header() {
 
                 {/* Mobile Menu Button */}
                 <button
-                    className="lg:hidden text-white"
+                    className={`lg:hidden ${!scrolled && isHomePage ? 'text-brand-primary' : 'text-white'}`}
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 >
                     {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -114,15 +128,18 @@ export default function Header() {
                     >
                         <nav className="flex flex-col gap-4">
                             {navLinks.map((link) => (
-                                <a
+                                <Link
                                     key={link.name}
                                     href={link.href}
                                     className="text-white/80 hover:text-brand-accent text-lg font-medium cursor-pointer"
                                     onClick={(e) => scrollToSection(e, link.href)}
                                 >
                                     {link.name}
-                                </a>
+                                </Link>
                             ))}
+                            <Link href="/blog" className="text-white/80 hover:text-brand-accent text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>
+                                Blog
+                            </Link>
                             <div className="pt-4 border-t border-white/10 flex justify-center">
                                 <div className="flex flex-col gap-3 w-full">
                                     <div className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-xl opacity-60 w-full">
