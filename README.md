@@ -62,8 +62,9 @@ flutter run \
 
 ## Database Setup (Supabase)
 1. Create a Supabase project.
-2. Apply SQL from the `sql/` folder to create tables, policies, functions, and triggers.
-3. Configure Storage buckets for trip photos and uploads.
+2. SQL scripts have been archived under `archive/sql/`.
+3. Apply the required schema/migration files from that folder to create tables, policies, functions, and triggers.
+4. Configure Storage buckets for trip photos and uploads.
 
 If you use a consolidated schema file, run it once against your Supabase instance.
 
