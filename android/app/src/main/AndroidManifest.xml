@@ -31,50 +31,20 @@
             
             <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
             
-            <!-- Verified App Links (HTTPS) -->
+            <!-- Verified App Links (HTTPS only, single domain) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                
-                <data android:scheme="https" android:host="wanderwith.online" />
-                <data android:scheme="https" android:host="www.wanderwith.online" />
-                
+
+                <data android:scheme="https"
+                      android:host="wanderwith.online" />
+
                 <data android:pathPrefix="/u" />
                 <data android:pathPrefix="/p" />
                 <data android:pathPrefix="/join" />
                 <data android:pathPrefix="/trip" />
                 <data android:pathPrefix="/reset-password" />
-            </intent-filter>
-
-            <!-- Standard Deep Linking Fallback (No Auto-Verify) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                
-                <data android:host="wanderwith.online" />
-                <data android:host="www.wanderwith.online" />
-                
-                <data android:pathPrefix="/u" />
-                <data android:pathPrefix="/p" />
-                <data android:pathPrefix="/join" />
-                <data android:pathPrefix="/trip" />
-                <data android:pathPrefix="/reset-password" />
-            </intent-filter>
-
-            <!-- Deep linking for Profile Sharing (Legacy wanderwith.online without www) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="wanderwith.online" android:pathPrefix="/u" />
-                <data android:scheme="https" android:host="wanderwith.online" android:pathPrefix="/p" />
-                <data android:scheme="https" android:host="wanderwith.online" android:pathPrefix="/join" />
-                <data android:scheme="https" android:host="wanderwith.online" android:pathPrefix="/trip" />
             </intent-filter>
 
             <!-- Deep linking for Custom Scheme (Reliable for Testing) -->
