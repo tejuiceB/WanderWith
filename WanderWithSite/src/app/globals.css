@@ -2,33 +2,91 @@
 @plugin "@tailwindcss/typography";
 
 @theme inline {
-  --color-brand-primary: #111827;
-  /* Dark Gray/Black for text and primary elements */
+  /* === Core Palette === */
+  --color-brand-primary: #0F172A;
   --color-brand-bg: #FFFFFF;
-  /* Clean White */
-  --color-brand-text: #374151;
-  /* Modern Gray */
-  --color-brand-card: #F9FAFB;
-  /* Very Light Gray */
-  --color-brand-accent: #2F7F73;
-  /* Muted Teal - Primary Accent */
-  --color-brand-violet: #8B5CF6;
-  /* Vibrant Violet - For AI features */
-  --color-brand-emerald: #10B981;
-  /* Emerald for Success/Trust */
+  --color-brand-bg-alt: #F8FAFC;
+  --color-brand-text: #0F172A;
+  --color-brand-text-secondary: #64748B;
+  --color-brand-text-tertiary: #94A3B8;
+
+  /* === Accent Colors === */
+  --color-brand-accent: #6366F1;
+  --color-brand-teal: #0D9488;
+  --color-brand-purple: #8B5CF6;
+  --color-brand-green: #10B981;
   --color-brand-amber: #F59E0B;
-  /* Amber for Highlights */
+  --color-brand-orange: #F97316;
+  --color-brand-rose: #F43F5E;
+
+  /* === Surface Colors === */
+  --color-brand-card: #FFFFFF;
+  --color-brand-dark: #0F172A;
+  --color-brand-dark-secondary: #1E293B;
+  --color-brand-dark-text: #F1F5F9;
+  --color-brand-border: #E2E8F0;
+  --color-brand-dark-border: #334155;
+
+  /* === Typography === */
   --font-sans: var(--font-inter);
   --font-serif: var(--font-playfair);
 }
 
 :root {
-  --background: var(--brand-bg);
-  --foreground: var(--brand-text);
+  --background: var(--color-brand-bg);
+  --foreground: var(--color-brand-text);
 }
 
 body {
   background-color: var(--color-brand-bg);
   color: var(--color-brand-text);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection color */
+::selection {
+  background-color: #6366F1;
+  color: #FFFFFF;
+}
+
+/* Infinite scroll animations */
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes scroll-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.animate-scroll-left {
+  animation: scroll-left 40s linear infinite;
+  width: max-content;
+}
+
+.animate-scroll-right {
+  animation: scroll-right 40s linear infinite;
+  width: max-content;
+}
+
+.animate-scroll-left:hover,
+.animate-scroll-right:hover {
+  animation-play-state: paused;
+}
+
+/* Hide scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

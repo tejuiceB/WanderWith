@@ -16,8 +16,8 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.wanderwith.online'),
-  title: "WanderWith — Free Trip Planner & Group Travel App | Plan Trips Together",
-  description: "WanderWith is a free AI-powered trip planner and group travel app. Create itineraries, plan trips with friends, track budgets, join agency trips, and discover curated experiences — all in one privacy-first platform.",
+  title: "WanderWith | Free Trip Planner & Group Travel App | Plan Trips Together",
+  description: "WanderWith is a free AI-powered trip planner and group travel app. Create itineraries, plan trips with friends, track budgets, join agency trips, and discover curated experiences. All in one privacy-first platform.",
   keywords: [
     "free trip planner",
     "group trip planner",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Tejas Bhurbhure" }],
   openGraph: {
-    title: "WanderWith — Free Trip Planner & Group Travel App",
+    title: "WanderWith | Free Trip Planner & Group Travel App",
     description: "Plan trips with friends using AI. Free itinerary planner, group travel collaboration, budget tracking & agency trip packages.",
     url: "https://www.wanderwith.online",
     siteName: "WanderWith",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "WanderWith — Free Trip Planner & Group Travel App",
+    title: "WanderWith | Free Trip Planner & Group Travel App",
     description: "Free AI trip planner for group travel. Plan itineraries, split expenses, and join curated trips.",
     images: ["/og-image.jpg"],
   },
@@ -102,7 +102,7 @@ const jsonLd = {
       publisher: {
         "@id": "https://www.wanderwith.online/#organization",
       },
-      description: "Free AI trip planner and group travel app — plan trips with friends, create itineraries, and join curated travel experiences.",
+      description: "Free AI trip planner and group travel app. Plan trips with friends, create itineraries, and join curated travel experiences.",
     },
     {
       "@type": "SoftwareApplication",
@@ -117,6 +117,42 @@ const jsonLd = {
       url: "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith",
       description: "Free AI-powered trip planner app for group travel. Create itineraries, plan trips with friends, track budgets, and discover curated experiences.",
       downloadUrl: "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith",
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "4.8",
+        ratingCount: "500",
+        bestRating: "5",
+        worstRating: "1",
+      },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Is WanderWith free to use?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes, WanderWith is completely free to download and use on Android. There are no hidden charges for trip planning, group collaboration, or AI itinerary generation.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can I plan group trips with friends on WanderWith?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Absolutely. WanderWith lets you create group trips, invite friends, chat in real-time, vote on plans with polls, split budgets, and share booking links — all in one app.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Does WanderWith have an AI trip planner?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes, WanderWith features an AI-powered itinerary builder that creates complete day-by-day travel plans based on your destination, budget, and preferences.",
+          },
+        },
+      ],
     },
   ],
 };

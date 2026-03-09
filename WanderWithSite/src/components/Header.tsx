@@ -14,27 +14,30 @@ export default function Header() {
     const isHomePage = pathname === "/";
 
     useEffect(() => {
-        const handleScroll = () => {
-            setScrolled(window.scrollY > 50);
-        };
+        const handleScroll = () => setScrolled(window.scrollY > 20);
         window.addEventListener("scroll", handleScroll);
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    useEffect(() => {
+        document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+        return () => { document.body.style.overflow = ""; };
+    }, [mobileMenuOpen]);
+
     const navLinks = [
         { name: "Features", href: "/#features" },
-        { name: "For Travelers", href: "/#travelers" },
-        { name: "For Agencies", href: "/#agencies" },
-        { name: "About", href: "/#about" },
+        { name: "How It Works", href: "/#how-it-works" },
+        { name: "Reviews", href: "/#reviews" },
+        { name: "Blog", href: "/blog" },
     ];
 
     const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-        if (isHomePage) {
+        if (href.startsWith("/#") && isHomePage) {
             e.preventDefault();
-            const targetId = href.startsWith('/') ? href.substring(1) : href;
-            const element = document.querySelector(targetId);
-            if (element) {
-                element.scrollIntoView({ behavior: "smooth" });
+            const id = href.replace("/#", "");
+            const el = document.getElementById(id);
+            if (el) {
+                el.scrollIntoView({ behavior: "smooth" });
                 setMobileMenuOpen(false);
             }
         } else {
@@ -44,22 +47,18 @@ export default function Header() {
 
     return (
         <header
-            className={`fixed top-0 left-0 w-full z-[100] transition-all duration-300 ${scrolled
-                ? "bg-brand-primary/95 backdrop-blur-md py-3 shadow-lg"
-                : (isHomePage ? "bg-transparent py-6" : "bg-gradient-to-b from-black/50 to-transparent py-6")
-                }`}
+            className={`fixed top-0 left-0 w-full z-[100] transition-all duration-300 ${
+                scrolled
+                    ? "bg-white/80 backdrop-blur-xl border-b border-brand-border shadow-sm"
+                    : "bg-transparent"
+            }`}
         >
-            <div className="container mx-auto px-6 flex items-center justify-between">
-                {/* Logo */}
-                <Link href="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2">
-                    <div className="relative w-10 h-10">
-                        {(!scrolled && isHomePage) ? (
-                            <Image src="/logo.png" alt="WanderWith Logo" fill className="object-contain brightness-0 opacity-90" />
-                        ) : (
-                            <Image src="/logo.png" alt="WanderWith Logo" fill className="object-contain" />
-                        )}
+            <div className="mx-auto max-w-7xl px-5 sm:px-8 h-16 flex items-center justify-between">
+                <Link href="/" className="flex items-center gap-2.5 shrink-0">
+                    <div className="relative w-8 h-8">
+                        <Image src="/logo.png" alt="WanderWith" fill className="object-contain" />
                     </div>
-                    <span className={`text-xl font-bold tracking-wide drop-shadow-md ${!scrolled && isHomePage ? 'text-brand-primary' : 'text-white'}`}>
+                    <span className="text-[17px] font-semibold tracking-tight text-brand-primary">
                         WanderWith
                     </span>
                 </Link>
@@ -70,106 +69,85 @@ export default function Header() {
                             key={link.name}
                             href={link.href}
                             onClick={(e) => scrollToSection(e, link.href)}
-                            className={`${!scrolled && isHomePage ? 'text-brand-text/80 hover:text-brand-accent' : 'text-white/80 hover:text-white'} transition-colors text-sm font-medium cursor-pointer`}
+                            className="text-[14px] font-medium text-brand-text-secondary hover:text-brand-primary transition-colors"
                         >
                             {link.name}
                         </Link>
                     ))}
-                    <Link href="/blog" className={`${!scrolled && isHomePage ? 'text-brand-text/80 hover:text-brand-accent' : 'text-white/80 hover:text-white'} transition-colors text-sm font-medium`}>
-                        Blog
-                    </Link>
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg opacity-60 cursor-default">
-                            <Image
-                                src="/assets/icons8-app-store-100.png"
-                                alt="App Store"
-                                width={20}
-                                height={20}
-                                className="w-5 h-5 grayscale"
-                            />
-                            <div className="text-left hidden xl:block">
-                                <p className="text-[8px] uppercase tracking-wider text-white/50 leading-none mb-0.5">iOS App</p>
-                                <p className="text-[10px] font-bold text-white/70 leading-none">Coming Soon</p>
-                            </div>
-                        </div>
-                        <a href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-lg transition-all group">
-                            <Image
-                                src="/assets/icons8-google-play-store-100.png"
-                                alt="Google Play"
-                                width={20}
-                                height={20}
-                                className="w-5 h-5 group-hover:scale-110 transition-transform"
-                            />
-                            <div className="text-left hidden xl:block">
-                                <p className="text-[8px] uppercase tracking-wider text-white/70 leading-none mb-0.5">Get it on</p>
-                                <p className="text-[10px] font-bold text-white leading-none">Google Play</p>
-                            </div>
-                        </a>
-                    </div>
                 </nav>
 
-                {/* Mobile Menu Button */}
+                <div className="hidden lg:flex items-center gap-3">
+                    <a
+                        href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-brand-primary text-white px-5 py-2 rounded-full text-[13px] font-semibold hover:bg-brand-primary/90 transition-all hover:shadow-lg hover:shadow-brand-primary/15"
+                    >
+                        <Image
+                            src="/assets/icons8-google-play-store-100.png"
+                            alt="Google Play"
+                            width={16}
+                            height={16}
+                        />
+                        Download App
+                    </a>
+                </div>
+
                 <button
-                    className={`lg:hidden ${!scrolled && isHomePage ? 'text-brand-primary' : 'text-white'}`}
+                    className="lg:hidden p-2 -mr-2 text-brand-primary"
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label="Toggle menu"
                 >
-                    {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                    {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
             </div>
 
-            {/* Mobile Menu Overlay */}
             <AnimatePresence>
                 {mobileMenuOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="absolute top-full left-0 w-full bg-brand-primary border-t border-white/10 p-6 lg:hidden shadow-xl"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 top-16 bg-white z-[99] lg:hidden"
                     >
-                        <nav className="flex flex-col gap-4">
-                            {navLinks.map((link) => (
-                                <Link
+                        <nav className="flex flex-col items-center justify-center h-full gap-8 -mt-16">
+                            {navLinks.map((link, i) => (
+                                <motion.div
                                     key={link.name}
-                                    href={link.href}
-                                    className="text-white/80 hover:text-brand-accent text-lg font-medium cursor-pointer"
-                                    onClick={(e) => scrollToSection(e, link.href)}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.05 }}
                                 >
-                                    {link.name}
-                                </Link>
+                                    <Link
+                                        href={link.href}
+                                        onClick={(e) => scrollToSection(e, link.href)}
+                                        className="text-2xl font-semibold text-brand-primary hover:text-brand-accent transition-colors"
+                                    >
+                                        {link.name}
+                                    </Link>
+                                </motion.div>
                             ))}
-                            <Link href="/blog" className="text-white/80 hover:text-brand-accent text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>
-                                Blog
-                            </Link>
-                            <div className="pt-4 border-t border-white/10 flex justify-center">
-                                <div className="flex flex-col gap-3 w-full">
-                                    <div className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 px-4 py-3 rounded-xl opacity-60 w-full">
-                                        <Image
-                                            src="/assets/icons8-app-store-100.png"
-                                            alt="App Store"
-                                            width={24}
-                                            height={24}
-                                            className="w-6 h-6 grayscale"
-                                        />
-                                        <div className="text-left">
-                                            <p className="text-[10px] uppercase tracking-wider text-white/50 leading-none mb-1">iOS App</p>
-                                            <p className="text-sm font-bold text-white/70 leading-none">Coming Soon</p>
-                                        </div>
-                                    </div>
-                                    <a href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 bg-white/10 border border-white/20 px-4 py-3 rounded-xl hover:bg-white/20 transition-all w-full">
-                                        <Image
-                                            src="/assets/icons8-google-play-store-100.png"
-                                            alt="Google Play"
-                                            width={24}
-                                            height={24}
-                                            className="w-6 h-6"
-                                        />
-                                        <div className="text-left">
-                                            <p className="text-[10px] uppercase tracking-wider text-white/70 leading-none mb-1">Get it on</p>
-                                            <p className="text-sm font-bold text-white leading-none">Google Play</p>
-                                        </div>
-                                    </a>
-                                </div>
-                            </div>
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                            >
+                                <a
+                                    href="https://play.google.com/store/apps/details?id=com.tejuice.wanderwith"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 bg-brand-primary text-white px-8 py-3.5 rounded-full text-base font-semibold hover:bg-brand-primary/90 transition-all"
+                                >
+                                    <Image
+                                        src="/assets/icons8-google-play-store-100.png"
+                                        alt="Google Play"
+                                        width={20}
+                                        height={20}
+                                    />
+                                    Download App
+                                </a>
+                            </motion.div>
                         </nav>
                     </motion.div>
                 )}

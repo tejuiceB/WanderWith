@@ -1,14 +1,11 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
-import Story from "@/components/Story";
-import PrivateSpace from "@/components/PrivateSpace";
-import Experience from "@/components/Experience";
-import AIPlanningShowcase from "@/components/AIPlanningShowcase";
-import AppFeatures from "@/components/AppFeatures";
-import PrivacyPromise from "@/components/PrivacyPromise";
+import FeaturesGrid from "@/components/FeaturesGrid";
+import FeatureShowcase from "@/components/FeatureShowcase";
+import Places from "@/components/Places";
 import HowItWorks from "@/components/HowItWorks";
-
-import RealTrips from "@/components/RealTrips";
+import Reviews from "@/components/Reviews";
+import About from "@/components/About";
 import FinalCTA from "@/components/FinalCTA";
 import Footer from "@/components/Footer";
 
@@ -16,15 +13,12 @@ export default function Home() {
   return (
     <main className="overflow-hidden">
       <Hero />
-      <Story />
-      <PrivateSpace />
-      <Experience />
-      <AIPlanningShowcase />
-      <AppFeatures />
-      <PrivacyPromise />
+      <FeaturesGrid />
+      <FeatureShowcase />
+      <Places />
       <HowItWorks />
-
-      <RealTrips />
+      <Reviews />
+      <About />
       <FinalCTA />
       <Footer />
     </main>
