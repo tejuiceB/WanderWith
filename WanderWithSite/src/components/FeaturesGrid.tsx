@@ -118,7 +118,7 @@ export default function FeaturesGrid() {
                     className="text-center mb-14"
                 >
                     <p className="text-brand-accent font-semibold text-sm tracking-wide uppercase mb-3">Features</p>
-                    <h2 className="font-sans font-bold text-3xl sm:text-4xl md:text-5xl text-brand-primary tracking-tight mb-4">
+                    <h2 className="font-serif font-bold text-3xl sm:text-4xl md:text-5xl text-brand-primary tracking-tight mb-4">
                         Everything you need to travel smarter
                     </h2>
                     <p className="text-brand-text-secondary text-lg max-w-2xl mx-auto">

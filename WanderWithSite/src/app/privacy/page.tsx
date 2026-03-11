@@ -1,26 +1,71 @@
 import Footer from "@/components/Footer";
 import BrandHeader from "@/components/BrandHeader";
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Privacy Policy | WanderWith",
-    description: "Learn how WanderWith collects, uses, and protects your personal data. Read our comprehensive privacy policy.",
+    title: "Privacy Policy | WanderWith — How We Protect Your Data",
+    description: "Learn how WanderWith collects, uses, and protects your personal data. Read our comprehensive privacy policy covering data security, your rights, and third-party services.",
+    keywords: [
+        "WanderWith privacy policy",
+        "travel app privacy",
+        "data protection travel app",
+        "WanderWith data security",
+    ],
+    alternates: { canonical: "https://www.wanderwith.online/privacy" },
 };
+
+const toc = [
+    { id: "introduction", label: "Introduction" },
+    { id: "data-we-collect", label: "Data We Collect" },
+    { id: "how-we-use", label: "How We Use Your Data" },
+    { id: "legal-basis", label: "Legal Basis for Processing" },
+    { id: "third-party", label: "Third-Party Services" },
+    { id: "data-sharing", label: "Data Sharing & Disclosure" },
+    { id: "cookies", label: "Cookies & Tracking" },
+    { id: "data-security", label: "Data Security" },
+    { id: "data-retention", label: "Data Retention & Deletion" },
+    { id: "international", label: "International Data Transfers" },
+    { id: "children", label: "Children's Privacy" },
+    { id: "your-rights", label: "Your Rights" },
+    { id: "google-api", label: "Google API Disclosure" },
+    { id: "changes", label: "Changes to This Policy" },
+    { id: "contact", label: "Contact Us" },
+];
 
 export default function PrivacyPolicy() {
     return (
         <main className="min-h-screen bg-white text-gray-800">
             <BrandHeader />
             <div className="container mx-auto px-6 py-24 max-w-4xl">
-                <div className="mb-12 border-b border-gray-100 pb-8">
-                    <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-brand-primary">Privacy Policy</h1>
-                    <p className="text-gray-500">Effective Date: March 2, 2026 &middot; Last Updated: March 2, 2026</p>
+                {/* Header */}
+                <div className="mb-8 border-b border-gray-100 pb-8">
+                    <nav aria-label="Breadcrumb" className="mb-6 text-sm text-gray-500">
+                        <Link href="/" className="hover:text-brand-accent transition-colors">Home</Link>
+                        <span className="mx-2">/</span>
+                        <span className="text-gray-900">Privacy Policy</span>
+                    </nav>
+                    <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-brand-primary tracking-tight">Privacy Policy</h1>
+                    <p className="text-gray-500">Effective Date: March 2, 2025 &middot; Last Updated: March 2, 2025</p>
                 </div>
 
+                {/* Table of Contents */}
+                <nav className="mb-12 p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Table of Contents</h2>
+                    <ol className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                        {toc.map((item, i) => (
+                            <li key={item.id}>
+                                <a href={`#${item.id}`} className="text-gray-600 hover:text-brand-accent transition-colors">
+                                    {i + 1}. {item.label}
+                                </a>
+                            </li>
+                        ))}
+                    </ol>
+                </nav>
+
                 <div className="space-y-12">
-                    {/* 1 — Introduction */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">1. Introduction</h2>
+                    <section id="introduction">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">1. Introduction</h2>
                         <p className="leading-relaxed text-gray-600">
                             WanderWith (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is a travel-planning platform operated from India. We respect your privacy and are committed to protecting your personal data. This Privacy Policy explains what information we collect, how we use it, and the choices you have when you use our mobile application (&quot;App&quot;) available on Android, and our website at{" "}
                             <a href="https://www.wanderwith.online" className="text-brand-accent hover:underline">www.wanderwith.online</a> (&quot;Site&quot;). By using WanderWith, you agree to the practices described herein. If you have questions, contact us at{" "}
@@ -28,9 +73,8 @@ export default function PrivacyPolicy() {
                         </p>
                     </section>
 
-                    {/* 2 — Data We Collect */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">2. Data We Collect</h2>
+                    <section id="data-we-collect">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">2. Data We Collect</h2>
                         <div className="space-y-6 text-gray-600">
                             <div>
                                 <h3 className="font-bold text-gray-900 mb-2">A. Information You Provide Directly</h3>
@@ -62,9 +106,8 @@ export default function PrivacyPolicy() {
                         </div>
                     </section>
 
-                    {/* 3 — How We Use Your Data */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">3. How We Use Your Data</h2>
+                    <section id="how-we-use">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">3. How We Use Your Data</h2>
                         <ul className="list-disc pl-6 space-y-2 text-gray-600">
                             <li><strong>Provide &amp; Operate the Service:</strong> Create accounts, manage trips, enable real-time collaboration, sync data across devices, and deliver push notifications.</li>
                             <li><strong>AI-Powered Itinerary Generation:</strong> When you request AI suggestions, your trip preferences (destination, dates, interests) are sent to Gemini AI to generate personalised itineraries. This data is used only for that single request and is <strong>not</strong> stored by Google or used to train AI models.</li>
@@ -74,9 +117,8 @@ export default function PrivacyPolicy() {
                         </ul>
                     </section>
 
-                    {/* 4 — Legal Basis for Processing */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">4. Legal Basis for Processing</h2>
+                    <section id="legal-basis">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">4. Legal Basis for Processing</h2>
                         <ul className="list-disc pl-6 space-y-2 text-gray-600">
                             <li><strong>Contractual Necessity:</strong> Processing required to provide the service you signed up for (account management, trip planning, collaboration).</li>
                             <li><strong>Legitimate Interests:</strong> Improving app performance, preventing misuse, and generating aggregated analytics.</li>
@@ -85,9 +127,8 @@ export default function PrivacyPolicy() {
                         </ul>
                     </section>
 
-                    {/* 5 — Third-Party Services & Sub-processors */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">5. Third-Party Services &amp; Sub-processors</h2>
+                    <section id="third-party">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">5. Third-Party Services &amp; Sub-processors</h2>
                         <p className="leading-relaxed text-gray-600 mb-4">
                             We rely on trusted third-party providers to deliver core functionality. Each processes data under our instructions and their own privacy policies:
                         </p>
@@ -111,9 +152,8 @@ export default function PrivacyPolicy() {
                         </div>
                     </section>
 
-                    {/* 6 — Data Sharing & Disclosure */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">6. Data Sharing &amp; Disclosure</h2>
+                    <section id="data-sharing">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">6. Data Sharing &amp; Disclosure</h2>
                         <p className="leading-relaxed text-gray-600 mb-3">
                             <strong>We do not sell, rent, or trade your personal data.</strong> Information is shared only in these limited scenarios:
                         </p>
@@ -126,9 +166,8 @@ export default function PrivacyPolicy() {
                         </ul>
                     </section>
 
-                    {/* 7 — Cookies & Tracking */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">7. Cookies &amp; Tracking Technologies</h2>
+                    <section id="cookies">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">7. Cookies &amp; Tracking Technologies</h2>
                         <p className="leading-relaxed text-gray-600 mb-3">
                             Our website uses only <strong>essential/functional cookies</strong> to maintain your session and security (managed by Supabase Auth). We do <strong>not</strong> use third-party advertising cookies or cross-site tracking pixels.
                         </p>
@@ -137,9 +176,8 @@ export default function PrivacyPolicy() {
                         </p>
                     </section>
 
-                    {/* 8 — Data Security */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">8. Data Security</h2>
+                    <section id="data-security">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">8. Data Security</h2>
                         <p className="leading-relaxed text-gray-600">
                             We take reasonable technical and organisational measures to protect your data, including:
                         </p>
@@ -155,9 +193,8 @@ export default function PrivacyPolicy() {
                         </p>
                     </section>
 
-                    {/* 9 — Data Retention & Deletion */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">9. Data Retention &amp; Deletion</h2>
+                    <section id="data-retention">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">9. Data Retention &amp; Deletion</h2>
                         <p className="leading-relaxed text-gray-600 mb-3">
                             We retain your personal data only as long as necessary to provide the service and fulfil the purposes described in this policy:
                         </p>
@@ -169,26 +206,23 @@ export default function PrivacyPolicy() {
                         </ul>
                     </section>
 
-                    {/* 10 — International Data Transfers */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">10. International Data Transfers</h2>
+                    <section id="international">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">10. International Data Transfers</h2>
                         <p className="leading-relaxed text-gray-600">
                             WanderWith is operated from India. Our infrastructure providers (Supabase, Google Cloud, Vercel) may process data in regions outside your country of residence, including the United States and the European Economic Area. These providers maintain appropriate safeguards (such as Standard Contractual Clauses) for cross-border data transfers. By using WanderWith, you consent to the transfer of your data to these jurisdictions.
                         </p>
                     </section>
 
-                    {/* 11 — Children's Privacy */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">11. Children&apos;s Privacy</h2>
+                    <section id="children">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">11. Children&apos;s Privacy</h2>
                         <p className="leading-relaxed text-gray-600">
                             WanderWith is not directed at children under the age of 13 (or the applicable age of digital consent in your jurisdiction). We do not knowingly collect personal information from children. If we become aware that a user is under 13, we will promptly terminate the account and delete all associated data. If you believe a child has provided us with personal information, please contact us at{" "}
                             <a href="mailto:wanderwithplan@gmail.com" className="text-brand-accent hover:underline">wanderwithplan@gmail.com</a>.
                         </p>
                     </section>
 
-                    {/* 12 — Your Rights */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">12. Your Rights</h2>
+                    <section id="your-rights">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">12. Your Rights</h2>
                         <p className="leading-relaxed text-gray-600 mb-3">
                             Depending on your jurisdiction, you may have the following rights regarding your personal data:
                         </p>
@@ -206,26 +240,23 @@ export default function PrivacyPolicy() {
                         </p>
                     </section>
 
-                    {/* 13 — Google API Services Disclosure */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">13. Google API Services Disclosure</h2>
+                    <section id="google-api">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">13. Google API Services Disclosure</h2>
                         <p className="leading-relaxed text-gray-600">
                             WanderWith&apos;s use and transfer of information received from Google APIs adheres to the{" "}
                             <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-brand-accent hover:underline">Google API Services User Data Policy</a>, including the Limited Use requirements. We only request the minimum scopes necessary for authentication (email, profile) and do not use Google user data for serving advertisements or for any purpose other than providing and improving WanderWith.
                         </p>
                     </section>
 
-                    {/* 14 — Changes to This Policy */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">14. Changes to This Policy</h2>
+                    <section id="changes">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">14. Changes to This Policy</h2>
                         <p className="leading-relaxed text-gray-600">
                             We may update this Privacy Policy from time to time to reflect changes in our practices, technology, or legal requirements. When we make material changes, we will update the &quot;Last Updated&quot; date at the top and, where appropriate, notify you via the App or email. Your continued use of WanderWith after any changes constitutes acceptance of the revised policy.
                         </p>
                     </section>
 
-                    {/* 15 — Contact Us */}
-                    <section>
-                        <h2 className="text-2xl font-bold text-brand-primary mb-4">15. Contact Us</h2>
+                    <section id="contact">
+                        <h2 className="text-2xl font-bold text-brand-primary mb-4 font-serif">15. Contact Us</h2>
                         <p className="leading-relaxed text-gray-600">
                             For any privacy-related inquiries, data requests, or concerns, please contact us:
                         </p>

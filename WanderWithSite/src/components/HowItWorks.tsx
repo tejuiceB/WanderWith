@@ -42,7 +42,7 @@ export default function HowItWorks() {
                     className="text-center mb-16"
                 >
                     <p className="text-brand-accent font-semibold text-sm tracking-wide uppercase mb-3">How It Works</p>
-                    <h2 className="font-sans font-bold text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-4">
+                    <h2 className="font-serif font-bold text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-4">
                         Three steps to your next adventure
                     </h2>
                     <p className="text-brand-text-tertiary text-lg max-w-2xl mx-auto">

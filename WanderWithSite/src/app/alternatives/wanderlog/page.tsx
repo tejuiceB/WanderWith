@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { CheckCircle2, ShieldCheck, Map, Users, MessageSquare } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Best Wanderlog Alternative (2026) | Switch to WanderWith",
+    title: "Best Wanderlog Alternative (2025) | Switch to WanderWith",
     description: "Looking for a Wanderlog alternative? WanderWith offers better real-time group chat, agency builder tools, and a truly private trip planning experience.",
     keywords: ["wanderlog alternative", "apps like wanderlog", "better than wanderlog", "trip planner app", "group travel planner"],
     alternates: {
@@ -16,17 +16,29 @@ export const metadata: Metadata = {
 // Schema.org structured data for SEO
 const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "WanderWith - Wanderlog Alternative",
-    applicationCategory: "TravelApplication",
-    operatingSystem: "Android",
-    offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-    },
-    description: "The premier alternative to Wanderlog for groups, solo travelers, and agencies.",
-    url: "https://www.wanderwith.online/alternatives/wanderlog",
+    "@graph": [
+        {
+            "@type": "SoftwareApplication",
+            name: "WanderWith - Wanderlog Alternative",
+            applicationCategory: "TravelApplication",
+            operatingSystem: "Android",
+            offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+            },
+            description: "The premier alternative to Wanderlog for groups, solo travelers, and agencies.",
+            url: "https://www.wanderwith.online/alternatives/wanderlog",
+        },
+        {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Home", item: "https://www.wanderwith.online" },
+                { "@type": "ListItem", position: 2, name: "Alternatives", item: "https://www.wanderwith.online/alternatives" },
+                { "@type": "ListItem", position: 3, name: "Wanderlog Alternative", item: "https://www.wanderwith.online/alternatives/wanderlog" },
+            ],
+        },
+    ],
 };
 
 export default function WanderlogAlternativePage() {

@@ -17,7 +17,7 @@ export default function FinalCTA() {
                     viewport={{ once: true }}
                     transition={{ type: "spring", stiffness: 80, damping: 20 }}
                 >
-                    <h2 className="font-sans font-bold text-3xl sm:text-4xl md:text-[3.5rem] text-white tracking-tight leading-tight mb-6">
+                    <h2 className="font-serif font-bold text-3xl sm:text-4xl md:text-[3.5rem] text-white tracking-tight leading-tight mb-6">
                         Ready to plan your next trip?
                     </h2>
                     <p className="text-brand-text-tertiary text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">

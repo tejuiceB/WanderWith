@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { CheckCircle2, Clock, Globe, Laptop, Smartphone } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Best TripIt Alternative (2026) | Upgrade to WanderWith",
+    title: "Best TripIt Alternative (2025) | Upgrade to WanderWith",
     description: "Looking for a modern TripIt alternative? WanderWith offers beautiful visual itineraries, group chats, budget tracking, and real collaboration—not just a list of flights.",
     keywords: ["tripit alternative", "apps like tripit", "better than tripit", "trip itinerary app", "modern travel planner"],
     alternates: {
@@ -16,17 +16,29 @@ export const metadata: Metadata = {
 // Schema.org structured data for SEO
 const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "WanderWith - TripIt Alternative",
-    applicationCategory: "TravelApplication",
-    operatingSystem: "Android",
-    offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-    },
-    description: "The modern, highly visual alternative to TripIt for managing travel itineraries and group trips.",
-    url: "https://www.wanderwith.online/alternatives/tripit",
+    "@graph": [
+        {
+            "@type": "SoftwareApplication",
+            name: "WanderWith - TripIt Alternative",
+            applicationCategory: "TravelApplication",
+            operatingSystem: "Android",
+            offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+            },
+            description: "The modern, highly visual alternative to TripIt for managing travel itineraries and group trips.",
+            url: "https://www.wanderwith.online/alternatives/tripit",
+        },
+        {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Home", item: "https://www.wanderwith.online" },
+                { "@type": "ListItem", position: 2, name: "Alternatives", item: "https://www.wanderwith.online/alternatives" },
+                { "@type": "ListItem", position: 3, name: "TripIt Alternative", item: "https://www.wanderwith.online/alternatives/tripit" },
+            ],
+        },
+    ],
 };
 
 export default function TripItAlternativePage() {

@@ -29,7 +29,7 @@ export default function Hero() {
                             initial={{ opacity: 0, y: 24 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ type: "spring", stiffness: 80, damping: 20, delay: 0.1 }}
-                            className="font-sans font-bold text-[2.5rem] sm:text-5xl md:text-6xl lg:text-[4.25rem] text-brand-primary leading-[1.08] tracking-tight mb-6"
+                            className="font-serif font-bold text-[2.5rem] sm:text-5xl md:text-6xl lg:text-[4.25rem] text-brand-primary leading-[1.08] tracking-tight mb-6"
                         >
                             Plan your perfect trip,{" "}
                             <span className="bg-gradient-to-r from-brand-accent to-brand-purple bg-clip-text text-transparent">together.</span>

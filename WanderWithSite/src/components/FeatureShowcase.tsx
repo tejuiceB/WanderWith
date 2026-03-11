@@ -77,7 +77,7 @@ function ShowcaseItem({ item, index }: { item: typeof showcases[0]; index: numbe
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase mb-4 border ${item.accent}`}>
                     {item.badge}
                 </span>
-                <h3 className="font-sans font-bold text-2xl sm:text-3xl md:text-4xl text-brand-primary tracking-tight mb-4 leading-tight">
+                <h3 className="font-serif font-bold text-2xl sm:text-3xl md:text-4xl text-brand-primary tracking-tight mb-4 leading-tight">
                     {item.title}
                 </h3>
                 <p className="text-brand-text-secondary text-base md:text-lg leading-relaxed">

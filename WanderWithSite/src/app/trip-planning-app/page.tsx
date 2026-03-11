@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { CheckCircle2, XCircle, Map, Users, MessageSquare } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Best Trip Planning App (2026) | Goodbye Google Docs",
+    title: "Best Trip Planning App (2025) | Goodbye Google Docs",
     description: "Looking for the best trip planning app? Organize your family vacations and group trips without messy Google Docs. Chat, budget, and map itineraries in one place.",
     keywords: ["trip planning app", "best trip planning app", "travel planner tool", "group trip organization app", "alternative to google docs for travel", "vacation planner"],
     alternates: {
@@ -16,17 +16,28 @@ export const metadata: Metadata = {
 // Schema.org structured data for SEO
 const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "WanderWith - Trip Planning App",
-    applicationCategory: "TravelApplication",
-    operatingSystem: "Android",
-    offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-    },
-    description: "The ultimate trip planning app for groups and solo travelers. Say goodbye to massive Google Docs and messy chats.",
-    url: "https://www.wanderwith.online/trip-planning-app",
+    "@graph": [
+        {
+            "@type": "SoftwareApplication",
+            name: "WanderWith - Trip Planning App",
+            applicationCategory: "TravelApplication",
+            operatingSystem: "Android",
+            offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+            },
+            description: "The ultimate trip planning app for groups and solo travelers. Say goodbye to massive Google Docs and messy chats.",
+            url: "https://www.wanderwith.online/trip-planning-app",
+        },
+        {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Home", item: "https://www.wanderwith.online" },
+                { "@type": "ListItem", position: 2, name: "Trip Planning App", item: "https://www.wanderwith.online/trip-planning-app" },
+            ],
+        },
+    ],
 };
 
 export default function TripPlanningAppPage() {

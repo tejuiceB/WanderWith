@@ -25,10 +25,11 @@ export default function Header() {
     }, [mobileMenuOpen]);
 
     const navLinks = [
-        { name: "Features", href: "/#features" },
-        { name: "How It Works", href: "/#how-it-works" },
-        { name: "Reviews", href: "/#reviews" },
+        { name: "Features", href: "/features" },
+        { name: "Use Cases", href: "/use-cases" },
+        { name: "About", href: "/about" },
         { name: "Blog", href: "/blog" },
+        { name: "Docs", href: "/docs" },
     ];
 
     const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {

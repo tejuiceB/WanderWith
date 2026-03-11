@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     "plan trip online free",
     "WanderWith",
   ],
-  authors: [{ name: "Tejas Bhurbhure" }],
+  authors: [{ name: "WanderWith Team" }],
   openGraph: {
     title: "WanderWith | Free Trip Planner & Group Travel App",
     description: "Plan trips with friends using AI. Free itinerary planner, group travel collaboration, budget tracking & agency trip packages.",
@@ -87,12 +87,17 @@ const jsonLd = {
         "@type": "ImageObject",
         url: "https://www.wanderwith.online/logo.png",
       },
-      description: "WanderWith is a free AI-powered trip planner and group travel app. Plan trips with friends, create itineraries, track budgets, and join agency trips.",
+      description: "WanderWith is a free AI-powered trip planner and social travel app. Plan trips with friends, create itineraries, track budgets, and join agency trips — all in one privacy-first platform.",
+      foundingDate: "2025",
       contactPoint: {
         "@type": "ContactPoint",
         email: "wanderwithplan@gmail.com",
         contactType: "customer support",
       },
+      sameAs: [
+        "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith",
+        "https://www.wanderwith.online/blog",
+      ],
     },
     {
       "@type": "WebSite",
@@ -105,18 +110,33 @@ const jsonLd = {
       description: "Free AI trip planner and group travel app. Plan trips with friends, create itineraries, and join curated travel experiences.",
     },
     {
-      "@type": "SoftwareApplication",
+      "@type": "MobileApplication",
+      "@id": "https://www.wanderwith.online/#app",
       name: "WanderWith - Trip Planner App",
-      operatingSystem: "Android",
+      alternateName: "WanderWith — Free AI Trip Planner & Group Travel App",
+      operatingSystem: "Android, iOS",
       applicationCategory: "TravelApplication",
       offers: {
         "@type": "Offer",
         price: "0",
-        priceCurrency: "INR",
+        priceCurrency: "USD",
       },
-      url: "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith",
-      description: "Free AI-powered trip planner app for group travel. Create itineraries, plan trips with friends, track budgets, and discover curated experiences.",
+      url: "https://www.wanderwith.online",
       downloadUrl: "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith",
+      description: "WanderWith is a free social travel planning app that helps travelers create trips, share itineraries, track expenses, and collaborate with friends in real-time. Features AI-powered itinerary generation, group trip planning, built-in chat, budget tracking, polls, shared photo galleries, and a travel agency dashboard.",
+      screenshot: "https://www.wanderwith.online/og-image.jpg",
+      featureList: [
+        "AI-powered trip itinerary generation",
+        "Group trip planning and collaboration",
+        "Built-in trip chat with mentions and reactions",
+        "Budget tracking and expense splitting",
+        "Polls and group voting",
+        "Shared trip photo gallery",
+        "Smart booking link organization",
+        "Travel agency dashboard",
+        "Privacy-first design with no ads",
+        "Offline access to trip data",
+      ],
       aggregateRating: {
         "@type": "AggregateRating",
         ratingValue: "4.8",
@@ -130,10 +150,18 @@ const jsonLd = {
       mainEntity: [
         {
           "@type": "Question",
+          name: "What is WanderWith?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "WanderWith is a free social travel planning app that helps travelers create trips, share itineraries, track expenses, and collaborate with friends in real-time. It combines AI-powered planning, real-time group collaboration, and a privacy-first philosophy.",
+          },
+        },
+        {
+          "@type": "Question",
           name: "Is WanderWith free to use?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes, WanderWith is completely free to download and use on Android. There are no hidden charges for trip planning, group collaboration, or AI itinerary generation.",
+            text: "Yes, WanderWith is completely free to download and use. There are no ads, no premium tiers, and no hidden charges for trip planning, group collaboration, or AI itinerary generation.",
           },
         },
         {
@@ -150,6 +178,54 @@ const jsonLd = {
           acceptedAnswer: {
             "@type": "Answer",
             text: "Yes, WanderWith features an AI-powered itinerary builder that creates complete day-by-day travel plans based on your destination, budget, and preferences.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How is WanderWith different from Polarsteps or TripIt?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Unlike Polarsteps (focused on trip tracking) or TripIt (focused on business travel), WanderWith is built ground-up for collaborative group travel planning with real-time chat, polls, expense splitting, AI itineraries, and a privacy-first design. It's completely free with no ads.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can travel agencies use WanderWith?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes, WanderWith includes a dedicated agency dashboard where travel agencies can create trip packages, manage clients, and publish public trips for travelers to discover and join.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Does WanderWith work offline?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes, WanderWith caches your trips locally so you can access itineraries, budgets, and trip details without an internet connection.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "What platforms is WanderWith available on?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "WanderWith is available on Android via Google Play Store and on iOS via the App Store. A web version is also accessible at wanderwith.online.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Is my data safe on WanderWith?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. WanderWith is privacy-first by design. There are no ads, no user tracking, and no data selling. Your trips are private by default and you have full control over who can see them.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How does AI trip planning work in WanderWith?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "WanderWith's AI analyzes your destination, travel dates, budget, and preferences to generate a complete day-by-day itinerary with recommended places, activities, and timings. You can then customize every detail.",
           },
         },
       ],

@@ -3,13 +3,16 @@ import Image from "next/image";
 
 const footerLinks = {
     product: [
-        { name: "Features", href: "/#features" },
+        { name: "Features", href: "/features" },
+        { name: "Use Cases", href: "/use-cases" },
         { name: "How It Works", href: "/#how-it-works" },
         { name: "Blog", href: "/blog" },
+        { name: "Docs", href: "/docs" },
         { name: "Download", href: "https://play.google.com/store/apps/details?id=com.tejuice.wanderwith" },
     ],
     company: [
-        { name: "About", href: "/#about" },
+        { name: "About", href: "/about" },
+        { name: "AI Info", href: "/ai" },
         { name: "Contact", href: "mailto:wanderwithplan@gmail.com" },
     ],
     legal: [

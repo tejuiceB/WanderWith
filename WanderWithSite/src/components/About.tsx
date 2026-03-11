@@ -38,7 +38,7 @@ export default function About() {
                     className="text-center mb-16"
                 >
                     <p className="text-brand-accent font-semibold text-sm tracking-wide uppercase mb-3">Our Story</p>
-                    <h2 className="font-sans font-bold text-3xl sm:text-4xl md:text-5xl text-brand-primary tracking-tight mb-5">
+                    <h2 className="font-serif font-bold text-3xl sm:text-4xl md:text-5xl text-brand-primary tracking-tight mb-5">
                         We just wanted to go on a trip<br className="hidden sm:block" /> without the chaos
                     </h2>
                     <p className="text-brand-text-secondary text-lg max-w-2xl mx-auto leading-relaxed">
